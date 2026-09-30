@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { HALF_HEIGHT, HALF_WIDTH } from "../../../lib/zonePlanner";
 import { pickRandomObstacleCenter, randomBetween } from "../model/randomObstacle";
 import {
@@ -16,7 +17,9 @@ export const usePlannerRuntimeCommands = ({
   routeSocketRef,
   setStatus,
   telemetry,
+  onMissionSubmitted,
 }) => {
+  const pendingSurvey = useRef(null);
   const addRandomObstacle = () => {
     const obstacle = {
       sizeX: Number(randomBetween(0.46, 1.15).toFixed(3)),
@@ -56,7 +59,6 @@ export const usePlannerRuntimeCommands = ({
   const startMappingSurvey = () => {
     const payload = buildMappingSurveyPayload({
       batteryRangeMeters,
-      commandId: Date.now(),
       field: {
         minX: -HALF_WIDTH,
         maxX: HALF_WIDTH,
@@ -66,13 +68,22 @@ export const usePlannerRuntimeCommands = ({
       mode: mappingSurveyMode,
       payloadKg,
     });
+    const identity = JSON.stringify(payload);
+    if (pendingSurvey.current?.identity !== identity) {
+      pendingSurvey.current = {identity, command: {...payload, requestId: crypto.randomUUID()}};
+    }
+    const command = pendingSurvey.current.command;
     const modeLabel = getMappingSurveyModeLabel(mappingSurveyMode);
-    sendRouteChannelPayload(routeSocketRef, payload, {
-      onSent: () =>
+    return sendRouteChannelPayload(routeSocketRef, command, {
+      timeoutMs: 35000,
+      onSent: acknowledgement => {
+        if (pendingSurvey.current?.command === command) pendingSurvey.current = null;
+        onMissionSubmitted?.(acknowledgement);
         setStatus(
           `Команда обследования сохранена bridge: скорость 0.8 м/с, сначала периметр, затем "${modeLabel}".`
-        ),
-      onError: () => setStatus("Не удалось отправить команду объезда карты."),
+        );
+      },
+      onError: error => setStatus(error.message),
     });
   };
 

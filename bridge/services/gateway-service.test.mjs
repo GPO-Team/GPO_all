@@ -8,6 +8,11 @@ const setup = () => {
   return { repository, adapter, service: gateway.createGatewayService({ repository, adapter }) };
 };
 describe("gateway delivery journal", () => {
+  it("rejects untracked survey updates even when the robot is idle", async () => {
+    const {service,adapter} = setup();
+    await expect(service.execute("update", "survey", {type:"start_mapping_survey"})).rejects.toMatchObject({statusCode:400});
+    expect(adapter.update).not.toHaveBeenCalled();
+  });
   it("does not redeliver after a lost reply or gateway restart", async () => {
     const { repository, adapter, service } = setup();
     const payload = { commandId: "m1", route: [{x:0,y:0},{x:1,y:0}] };

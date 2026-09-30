@@ -1,9 +1,10 @@
 const createRouteService = ({ artifactStore, missionService, adapter }) => {
   const handle = async (payload, context) => {
-    if (payload?.type === "route" && missionService) {
+    if (["route", "start_mapping_survey"].includes(payload?.type) && missionService) {
       const mission = await missionService.submit(payload, context);
       return {handled:true,missionId:mission.missionId,status:mission.status,route:mission.command.route,planning:mission.command.planning,sceneRevision:mission.command.sceneRevision};
     }
+    if (payload?.type === "start_mapping_survey") return {handled:false};
     if (missionService) return {handled:await missionService.update(payload,context)};
     if (adapter) return {handled:await adapter.update(payload)};
     if (payload?.type === "route") {
@@ -22,7 +23,7 @@ const createRouteService = ({ artifactStore, missionService, adapter }) => {
       await artifactStore.writeMotionProfile(payload.motion);
       return { handled: true };
     }
-    if (payload?.type === "spawn_random_obstacle" || payload?.type === "start_mapping_survey") {
+    if (payload?.type === "spawn_random_obstacle") {
       await artifactStore.writeRuntimeCommand(payload);
       return { handled: true };
     }

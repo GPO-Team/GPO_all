@@ -127,11 +127,13 @@ static void update_obstacle_hint(ControllerCameraRuntime *runtime) {
       .score = result.score,
       .update_step = step,
   };
-  if (result.visible) {
+  /* A guessed RGB distance turns warm floor texture into an obstacle. */
+  const double measured_range = estimate_range(runtime, result.angle, NAN);
+  if (controller_webots_camera_perception_confirm_range(&result, measured_range)) {
     observation.visible = 1;
     observation.center_offset = result.center_offset;
     observation.angle = result.angle;
-    observation.range = estimate_range(runtime, observation.angle, result.fallback_range_m);
+    observation.range = measured_range;
     observation.detection_count = result.detection_count;
     if (runtime->operations.merge_free_ray) {
       runtime->operations.merge_free_ray(

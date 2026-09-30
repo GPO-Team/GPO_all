@@ -91,6 +91,7 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
   });
 
   const runtimeActions = useDashboardPlannerRuntimeActions({
+    onMissionSubmitted: runtime.mission?.track,
     batteryRangeMeters: energy.batteryRangeMeters,
     mappingSurveyMode: mapping.mappingSurveyMode,
     optimizedRoute: route.optimizedRoute,

@@ -15,6 +15,7 @@ const createGatewayService = ({repository, adapter}) => {
     const task = pending.then(async () => {
       validateMissionId(requestId);
       if (!["submit", "update", "cancel"].includes(operation)) throw serviceError(400, "invalid_operation", "Unknown operation.");
+      if (operation === "update" && payload?.type === "start_mapping_survey") throw serviceError(400,"mission_required","Mapping surveys must be submitted as missions.");
       const hash = fingerprint({operation, payload});
       const key = fingerprint({operation, requestId}).slice(0, 63);
       let record = await repository.get(key);

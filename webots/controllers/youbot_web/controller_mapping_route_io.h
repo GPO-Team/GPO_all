@@ -7,6 +7,7 @@ int controller_mapping_route_write(
     const char *path,
     const SurveyPoint *route,
     int route_count,
-    MappingSurveyMode mode);
+    MappingSurveyMode mode,
+    const char *mission_id);
 
 #endif

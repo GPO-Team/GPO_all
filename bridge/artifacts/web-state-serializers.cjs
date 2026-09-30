@@ -44,13 +44,15 @@ const createRuntimeCommandText = (payload) => {
     return `id ${commandId}\ntype cancel_mission\nmission_id ${validateMissionId(payload.missionId)}\n`;
   }
   if (payload?.type === "start_mapping_survey") {
+    const {validateMissionId}=require("../protocol/mission-contract.cjs");
+    const missionLine = `mission_id ${validateMissionId(payload.missionId)}\n`;
     const field = payload.field || {};
     const motion = sanitizeMotionProfile(payload.motion);
     const minX = normalizeNumber(field.minX, -22);
     const maxX = normalizeNumber(field.maxX, 22);
     const minY = normalizeNumber(field.minY, -17);
     const maxY = normalizeNumber(field.maxY, 17);
-    return `id ${commandId}\ntype start_mapping_survey\nclear_map ${payload.clearMap === false ? 0 : 1}\nmode ${sanitizeMappingSurveyMode(payload.mode)}\nsurvey_speed_mps ${motion.cruiseSpeedMps}\nfield_min_x ${Math.min(minX, maxX)}\nfield_max_x ${Math.max(minX, maxX)}\nfield_min_y ${Math.min(minY, maxY)}\nfield_max_y ${Math.max(minY, maxY)}\n`;
+    return `id ${commandId}\ntype start_mapping_survey\n${missionLine}clear_map ${payload.clearMap === false ? 0 : 1}\nmode ${sanitizeMappingSurveyMode(payload.mode)}\nsurvey_speed_mps ${motion.cruiseSpeedMps}\nfield_min_x ${Math.min(minX, maxX)}\nfield_max_x ${Math.max(minX, maxX)}\nfield_min_y ${Math.min(minY, maxY)}\nfield_max_y ${Math.max(minY, maxY)}\n`;
   }
   const obstacle = sanitizeRuntimeObstacle(payload?.obstacle);
   return `id ${commandId}\ntype spawn_obstacle\nx ${obstacle.x}\ny ${obstacle.y}\nsize_x ${obstacle.sizeX}\nsize_y ${obstacle.sizeY}\nheight ${obstacle.height}\n`;

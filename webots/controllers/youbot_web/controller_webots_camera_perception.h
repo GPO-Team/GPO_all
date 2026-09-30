@@ -11,6 +11,10 @@ typedef struct {
   int confidence_boost;
 } ControllerWebotsCameraPerception;
 
+/* Colour is only a hypothesis; range must come from an independent sensor. */
+int controller_webots_camera_perception_confirm_range(
+    ControllerWebotsCameraPerception *perception, double measured_range);
+
 int controller_webots_camera_perception_analyze(
     const unsigned char *image,
     int width,

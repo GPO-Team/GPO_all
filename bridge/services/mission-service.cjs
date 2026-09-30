@@ -40,12 +40,13 @@ const createMissionService = ({repository, adapter, now = () => new Date().toISO
     if(!record) {
       const active=(await all()).find(item=>!terminalStates.has(item.status));
       if(active) throw serviceError(409,"mission_active",`Mission ${active.missionId} is active. Cancel it and wait for confirmation before replacing it.`);
-      let command={...payload,route:validatePoints(payload.route),commandId:missionId};
-      if(payload.scene) {
+      const survey = payload.type === "start_mapping_survey";
+      let command=survey ? {...payload,commandId:missionId} : {...payload,route:validatePoints(payload.route),commandId:missionId};
+      if(!survey && payload.scene) {
         const result=await prepareRoute({seedRoute:payload.seedRoute || payload.route,scene:payload.scene});
         command={...command,route:result.route,scene:result.scene,motion:result.scene.motion,sceneRevision:result.sceneRevision,planning:result.planning};
       }
-      if(command.route.length<2) throw serviceError(400,"invalid_route","At least two route points are required.");
+      if(!survey && command.route.length<2) throw serviceError(400,"invalid_route","At least two route points are required.");
       record={missionId,fingerprint:hash,status:"prepared",createdAt:now(),updatedAt:now(),command};
       await save(record);
     }
@@ -73,6 +74,7 @@ const createMissionService = ({repository, adapter, now = () => new Date().toISO
     }
   });
   const update = (payload,{requestId=randomUUID()}={}) => serial(async()=>{
+    if(payload?.type === "start_mapping_survey") throw serviceError(400,"mission_required","Mapping surveys must be submitted as missions.");
     if((await all()).some(record=>!terminalStates.has(record.status))) throw serviceError(409,"mission_active","Scene changes are blocked while a mission is active.");
     return adapter.update(payload,requestId || randomUUID());
   });

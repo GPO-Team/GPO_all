@@ -1,9 +1,14 @@
 const fs = require("fs/promises");
 const path = require("path");
+const {fingerprint} = require("../protocol/service-contract.cjs");
 
 // The simulator file layout and legacy command vocabulary terminate here.
 const createWebotsFileAdapter = ({artifactStore, stateDir}) => ({
   async submit(command) {
+    if (command.type === "start_mapping_survey") {
+      await artifactStore.writeRuntimeCommand({...command,missionId:command.commandId,requestKey:fingerprint({survey:command.commandId}).slice(0,63)});
+      return;
+    }
     if (command.scene) {
       await artifactStore.writeLimitZones({zones:command.scene.polygons});
       await artifactStore.writeSurfaceZones({zones:command.scene.surfaceZones});
@@ -18,8 +23,7 @@ const createWebotsFileAdapter = ({artifactStore, stateDir}) => ({
       case "limit_zones": await artifactStore.writeLimitZones(payload); break;
       case "surface_zones": await artifactStore.writeSurfaceZones(payload); break;
       case "motion_profile": await artifactStore.writeMotionProfile(payload.motion); break;
-      case "spawn_random_obstacle":
-      case "start_mapping_survey": await artifactStore.writeRuntimeCommand(payload); break;
+      case "spawn_random_obstacle": await artifactStore.writeRuntimeCommand(payload); break;
       default: return false;
     }
     return true;

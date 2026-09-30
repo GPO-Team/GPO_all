@@ -13,6 +13,27 @@ const setup = async () => {
   return { repository, adapter, service:missions.createMissionService({repository,adapter}) };
 };
 const payload = { type:"route", route:[{x:0,y:0},{x:1,y:0}] };
+it("tracks surveys durably, excludes other movement and waits for cancellation feedback", async () => {
+  const {repository, adapter, service} = await setup();
+  const survey = {type:"start_mapping_survey", mode:"snake"};
+  const first = await service.submit(survey, {requestId:"survey-1"});
+  expect(first.command.commandId).toBe("survey-1");
+  const restarted = missions.createMissionService({repository, adapter});
+  await restarted.submit(survey, {requestId:"survey-1"});
+  expect(adapter.submit).toHaveBeenCalledOnce();
+  await expect(restarted.submit(payload, {requestId:"route-after-survey"})).rejects.toMatchObject({statusCode:409});
+  expect((await restarted.cancel("survey-1")).status).toBe("cancelling");
+  expect(adapter.cancel).toHaveBeenCalledWith("survey-1");
+  await expect(restarted.submit(payload, {requestId:"route-after-survey"})).rejects.toMatchObject({statusCode:409});
+  adapter.getFeedback.mockResolvedValue({missionId:"survey-1",status:"cancelled"});
+  await restarted.reconcile();
+  expect((await restarted.submit(payload, {requestId:"route-after-survey"})).status).toBe("persisted");
+});
+
+it("rejects surveys submitted as untracked scene updates", async () => {
+  const {service} = await setup();
+  await expect(service.update({type:"start_mapping_survey"})).rejects.toMatchObject({statusCode:400});
+});
 describe("mission application service", () => {
   it("persists a submission and makes the same request idempotent across restart", async () => {
     const {repository,adapter,service} = await setup();

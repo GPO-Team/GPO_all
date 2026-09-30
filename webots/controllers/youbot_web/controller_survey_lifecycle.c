@@ -1,4 +1,5 @@
 #include "controller_survey_lifecycle.h"
+#include <string.h>
 
 void controller_survey_lifecycle_accept_route(
     RouteData *active_route,
@@ -44,6 +45,7 @@ int controller_survey_lifecycle_start(
 
   RouteData loaded_route = {0};
   if (!callbacks->load_route(context, &loaded_route)) return 0;
+  strcpy(loaded_route.command_id, command->mission_id);
   controller_survey_lifecycle_accept_route(
       active_route,
       &loaded_route,
@@ -86,6 +88,7 @@ int controller_survey_lifecycle_replan(
     return 0;
   }
 
+  strcpy(loaded_route.command_id, active_route->command_id);
   *active_route = loaded_route;
   const int escape_index = callbacks->find_escape(context, robot, 0);
   *current_waypoint_index = escape_index >= 0 ? escape_index : 0;

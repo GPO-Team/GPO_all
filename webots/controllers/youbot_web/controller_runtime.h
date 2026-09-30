@@ -14,6 +14,7 @@ typedef struct {
   int current_waypoint_index;
   int route_finished;
   char cancelled_mission_id[64];
+  char failed_mission_id[64];
   NavigationMode navigation_mode;
   int navigation_waypoint_index;
   double navigation_segment_start_x;

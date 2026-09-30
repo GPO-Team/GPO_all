@@ -18,6 +18,14 @@ static void set_status(const char *value) {
 }
 
 static void clear_error(void) {}
+static int generation_succeeds = 1;
+static void apply_speed(double speed) { (void)speed; }
+static int generate_survey(const char *path, int clear_map, const RuntimeCommand *command) {
+  (void)path; (void)clear_map;
+  assert(command->mission_id[0]);
+  return generation_succeeds;
+}
+static int load_survey(RouteData *route) { route->count = 3; return 1; }
 
 int main(void) {
   const char *path = "controller_runtime_command_reload_service_test.txt";
@@ -31,6 +39,11 @@ int main(void) {
   const ControllerSurveyIntegrationOps ops = {
       .clear_error = clear_error,
       .set_status = set_status,
+      .apply_speed = apply_speed,
+      .generate = generate_survey,
+      .load_route = load_survey,
+      .reset_avoidance = clear_error,
+      .reset_navigation = clear_error,
   };
   ControllerRuntimeCommandReloadService service;
   controller_runtime_command_reload_service_init(
@@ -73,6 +86,30 @@ int main(void) {
   assert(strcmp(runtime.cancelled_mission_id, "mission-cancel") == 0);
   assert(strcmp(status, "mission_cancelled") == 0);
   assert(spawn_calls == 3);
+  file = fopen(path, "a");
+  assert(file);
+  fputs("id 11\ntype start_mapping_survey\nmission_id survey-1\n"
+        "id 12\ntype cancel_mission\nmission_id survey-1\n"
+        "id 13\ntype start_mapping_survey\nmission_id survey-1\n"
+        "id 14\ntype start_mapping_survey\nmission_id survey-failed\n"
+        "id 15\ntype start_mapping_survey\n", file);
+  fclose(file);
+  assert(controller_runtime_command_reload_service_run(&service, 36, 6) == CONTROLLER_RUNTIME_COMMAND_RELOAD_APPLIED);
+  assert(strcmp(runtime.route.command_id, "survey-1") == 0);
+  assert(runtime.mapping_survey.route_active && !runtime.route_finished);
+  assert(strcmp(status, "mapping_survey_started") == 0);
+  assert(controller_runtime_command_reload_service_run(&service, 42, 6) == CONTROLLER_RUNTIME_COMMAND_RELOAD_APPLIED);
+  assert(runtime.route_finished && !runtime.mapping_survey.route_active);
+  assert(strcmp(status, "mission_cancelled") == 0);
+  assert(controller_runtime_command_reload_service_run(&service, 48, 6) == CONTROLLER_RUNTIME_COMMAND_RELOAD_DUPLICATE);
+  assert(runtime.route_finished);
+  generation_succeeds = 0;
+  assert(controller_runtime_command_reload_service_run(&service, 54, 6) == CONTROLLER_RUNTIME_COMMAND_RELOAD_APPLIED);
+  assert(strcmp(runtime.route.command_id, "survey-failed") == 0);
+  assert(strcmp(runtime.failed_mission_id, "survey-failed") == 0);
+  assert(strcmp(status, "route_failed") == 0);
+  assert(runtime.route_finished && !runtime.mapping_survey.route_active && runtime.route.count == 0);
+  assert(controller_runtime_command_reload_service_run(&service, 60, 6) == CONTROLLER_RUNTIME_COMMAND_RELOAD_INVALID);
   remove(path);
   return 0;
 }

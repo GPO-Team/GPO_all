@@ -64,14 +64,29 @@ ControllerRuntimeCommandReloadResult controller_runtime_command_reload_service_r
   }
 
   if (command.has_start_mapping_survey) {
-    controller_survey_integration_start(
+    /* Legacy untracked movement must not bypass the mission lifecycle. */
+    if (!command.mission_id[0]) return CONTROLLER_RUNTIME_COMMAND_RELOAD_INVALID;
+    if (strcmp(command.mission_id, service->runtime->cancelled_mission_id) == 0 ||
+        strcmp(command.mission_id, service->runtime->route.command_id) == 0) {
+      return CONTROLLER_RUNTIME_COMMAND_RELOAD_DUPLICATE;
+    }
+    if (!controller_survey_integration_start(
         service->route_path,
         &command,
         &service->runtime->route,
         &service->runtime->current_waypoint_index,
         &service->runtime->route_finished,
         &service->runtime->mapping_survey,
-        &service->survey_ops);
+        &service->survey_ops)) {
+      strcpy(service->runtime->route.command_id, command.mission_id);
+      service->runtime->route.count = 0;
+      strcpy(service->runtime->failed_mission_id, command.mission_id);
+      service->runtime->route_finished = 1;
+      service->runtime->mapping_survey.route_active = 0;
+      service->runtime->avoidance.active = 0;
+      if (service->survey_ops.reset_navigation) service->survey_ops.reset_navigation();
+      if (service->survey_ops.set_status) service->survey_ops.set_status("route_failed");
+    }
     return CONTROLLER_RUNTIME_COMMAND_RELOAD_APPLIED;
   }
 

@@ -12,10 +12,11 @@ export const useDashboardPlannerRuntimeActions = ({
   setMapExportPromptOpen,
   setStatus,
   telemetry,
+  onMissionSubmitted,
 }) => {
   const runtimeCommands = usePlannerRuntimeCommands({
     batteryRangeMeters, mappingSurveyMode, optimizedRoute, payloadKg, plannerModel, points,
-    routeSocketRef, setStatus, telemetry,
+    routeSocketRef, setStatus, telemetry, onMissionSubmitted,
   });
   const mapExport = usePlannerMapExport({ setMapExportPromptOpen, setStatus, telemetry });
   return { ...runtimeCommands, ...mapExport };
