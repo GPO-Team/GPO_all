@@ -11,6 +11,7 @@ typedef struct {
   WbDeviceTag arm_sensors[5];
   WbDeviceTag gripper_fingers[2];
   WbDeviceTag finger_sensors[2];
+  WbDeviceTag finger_contacts[2];
   double applied_wheel_speeds[4];
 } ControllerWebotsDevices;
 
@@ -30,5 +31,7 @@ int controller_webots_devices_read_manipulator(
     const ControllerWebotsDevices *devices,
     double joints[5],
     double fingers[2]);
+int controller_webots_devices_read_grip(const ControllerWebotsDevices *devices,
+    double contacts[2], double efforts[7]);
 
 #endif

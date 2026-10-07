@@ -48,6 +48,9 @@ const validateTransferCommand = payload => {
   if (payload.objectId !== "demo-box") {
     throw invalid("Only demo-box is supported.");
   }
+  if (typeof payload.destination?.x !== "number" || typeof payload.destination?.y !== "number") {
+    throw invalid("Transfer destination requires numeric x and y coordinates.");
+  }
   const destination = {
     x: Number(payload.destination?.x),
     y: Number(payload.destination?.y),

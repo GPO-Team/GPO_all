@@ -54,6 +54,12 @@ void reload_surface_zones_input(void *context) {
 
 void reload_route_input(void *context) {
   (void)context;
+  const auto &transfer = object_transfer_runtime.service.state;
+  if(transfer.status == CONTROLLER_TRANSFER_RUNNING ||
+      transfer.status == CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY) {
+    route_zone_service.route_last_checked = get_file_mtime(ROUTE_PATH);
+    return;
+  }
   controller_route_zone_reload_service_reload_route(&route_zone_reload_service);
 }
 

@@ -49,3 +49,6 @@ web_state/gateway-journal/
 
 web_state/runtime-project/
 public/webots/wwi/
+
+# Generated physics acceptance reports
+output/

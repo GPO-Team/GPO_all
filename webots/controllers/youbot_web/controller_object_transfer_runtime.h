@@ -16,12 +16,19 @@ typedef struct {
   ControllerWebotsDevices *devices;
   ControllerObjectTransferStage configured_stage;
   int available;
+  WbNodeRef tcp_node;
+  char boot_id[64];
+  int arm_phase;
+  double initial_object_z;
+  double grip_offset[3];
+  double stable_since;
+  double last_object_pose[3];
+  double last_time;
+  double contacts[2];
+  int cancel_recovery_attempted;
+  int have_joint_measurement;
+  double last_grip_seen;
 } ControllerObjectTransferRuntime;
-
-void controller_object_transfer_carry_pose(
-    ControllerObjectTransferStage stage,
-    double *offset,
-    double *height);
 
 void controller_object_transfer_runtime_init(
     ControllerObjectTransferRuntime *runtime,
@@ -41,5 +48,7 @@ void controller_object_transfer_runtime_step(
     double robot_x,
     double robot_y,
     double heading);
+int controller_object_transfer_runtime_allows_navigation(const ControllerObjectTransferRuntime *runtime);
+void controller_object_transfer_runtime_hold(ControllerObjectTransferRuntime *runtime,const char *reason);
 
 #endif

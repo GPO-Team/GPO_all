@@ -63,7 +63,10 @@ describe("mission application service", () => {
     adapter.getFeedback.mockResolvedValue({missionId:"transfer-2",status:"holding_for_recovery",stage:"placing",progress:78,errorCode:"unsafe_release",attached:true});
     expect((await service.get("transfer-2")).status).toBe("holding_for_recovery");
     await expect(service.submit(payload,{requestId:"blocked-route"})).rejects.toMatchObject({statusCode:409});
-    expect((await service.resume("transfer-2")).status).toBe("persisted");
+    expect(await service.resume("transfer-2")).toMatchObject({
+      status:"holding_for_recovery",
+      resumeDelivered:true,
+    });
     await service.resume("transfer-2");
     expect(adapter.update).toHaveBeenCalledOnce();
     expect(adapter.update).toHaveBeenCalledWith(expect.objectContaining({type:"resume_transfer",missionId:"transfer-2"}),expect.any(String));
@@ -106,4 +109,93 @@ it("rejects replacement until cancellation is acknowledged by the controller", a
   await service.reconcile();
   expect((await repository.get("active")).status).toBe("cancelled");
   await service.submit(payload,{requestId:"next"});
+});
+
+it("resumes running feedback and allocates a new resume request for the next recovery", async () => {
+  const {service,adapter}=await setup();
+  await service.submit(transferPayload,{requestId:"recovery"});
+  adapter.getFeedback.mockResolvedValue({missionId:"recovery",status:"holding_for_recovery"});
+  await service.get("recovery");
+  await service.resume("recovery");
+  adapter.getFeedback.mockResolvedValue({missionId:"recovery",status:"running"});
+  expect((await service.get("recovery")).status).toBe("running");
+  adapter.getFeedback.mockResolvedValue({missionId:"recovery",status:"holding_for_recovery"});
+  await service.get("recovery");
+  await service.resume("recovery");
+  expect(adapter.update).toHaveBeenCalledTimes(2);
+  expect(adapter.update.mock.calls[1][1]).not.toBe(adapter.update.mock.calls[0][1]);
+});
+it("reuses the durable recovery request after delivery failure and restart", async () => {
+  const {service,adapter,repository}=await setup();
+  await service.submit(transferPayload,{requestId:"retry-recovery"});
+  adapter.getFeedback.mockResolvedValue({missionId:"retry-recovery",status:"holding_for_recovery"});
+  await service.get("retry-recovery");
+  adapter.update.mockRejectedValueOnce(new Error("lost reply"));
+  await expect(service.resume("retry-recovery")).rejects.toThrow("lost reply");
+  const restarted=missions.createMissionService({repository,adapter});
+  await restarted.resume("retry-recovery");
+  expect(adapter.update.mock.calls[1][1]).toBe(adapter.update.mock.calls[0][1]);
+});
+it("preserves measured manipulator feedback", async () => {
+  const {service,adapter}=await setup();
+  await service.submit(transferPayload,{requestId:"diagnostics"});
+  const manipulator={jointPositions:[0,1,2,3,4],sensorValidity:true};
+  adapter.getFeedback.mockResolvedValue({missionId:"diagnostics",status:"running",manipulator});
+  expect((await service.get("diagnostics")).manipulator).toEqual(manipulator);
+});
+it("does not interpret cached running feedback as a completed recovery", async () => {
+  const {service,adapter}=await setup();
+  await service.submit(transferPayload,{requestId:"cached-recovery"});
+  adapter.getFeedback.mockResolvedValue({missionId:"cached-recovery",status:"holding_for_recovery"});
+  await service.get("cached-recovery");
+  await service.resume("cached-recovery");
+  adapter.getFeedback.mockResolvedValue({missionId:"cached-recovery",status:"running",cached:true});
+  expect((await service.get("cached-recovery")).status).toBe("holding_for_recovery");
+  await service.resume("cached-recovery");
+  expect(adapter.update).toHaveBeenCalledOnce();
+});
+it("allows cancellation to acknowledge safe recovery holding", async () => {
+  const {service,adapter}=await setup();
+  await service.submit(transferPayload,{requestId:"held-cancellation"});
+  adapter.getFeedback.mockResolvedValue({missionId:"held-cancellation",status:"holding_for_recovery",attached:true});
+  expect((await service.cancel("held-cancellation")).status).toBe("holding_for_recovery");
+  await expect(service.submit(payload,{requestId:"replacement"})).rejects.toMatchObject({statusCode:409});
+});
+it.each([true,undefined])("rejects resume when fresh feedback no longer confirms physical attachment (%s)", async attached => {
+  const {service,adapter}=await setup();
+  await service.submit(transferPayload,{requestId:"lost-grip"});
+  adapter.getFeedback.mockResolvedValue({missionId:"lost-grip",status:"holding_for_recovery",attached,manipulator:{attachmentEvidence:true}});
+  await service.get("lost-grip");
+  adapter.getFeedback.mockResolvedValue({missionId:"lost-grip",status:"holding_for_recovery",attached,manipulator:{attachmentEvidence:false}});
+  await expect(service.resume("lost-grip")).rejects.toMatchObject({statusCode:409,code:"attachment_unconfirmed"});
+  expect(adapter.update).not.toHaveBeenCalled();
+});
+it("permits another resume when the controller advances recovery epoch without a running snapshot", async () => {
+  const {service,adapter}=await setup();
+  await service.submit(transferPayload,{requestId:"rapid-recovery"});
+  adapter.getFeedback.mockResolvedValue({missionId:"rapid-recovery",status:"holding_for_recovery",recoveryEpoch:1});
+  await service.get("rapid-recovery");
+  await service.resume("rapid-recovery");
+  const firstRequest=adapter.update.mock.calls[0][1];
+  adapter.getFeedback.mockResolvedValue({missionId:"rapid-recovery",status:"holding_for_recovery",recoveryEpoch:2});
+  const held=await service.get("rapid-recovery");
+  expect(held).toMatchObject({status:"holding_for_recovery",controllerRecoveryEpoch:2,recoveryEpoch:2,resumeDelivered:false,resumeRequestId:null});
+  await service.resume("rapid-recovery");
+  await service.resume("rapid-recovery");
+  expect(adapter.update).toHaveBeenCalledTimes(2);
+  expect(adapter.update.mock.calls[1][1]).not.toBe(firstRequest);
+  adapter.getFeedback.mockResolvedValue({missionId:"rapid-recovery",status:"holding_for_recovery",recoveryEpoch:3,cached:true});
+  await service.resume("rapid-recovery");
+  expect(adapter.update).toHaveBeenCalledTimes(2);
+  adapter.getFeedback.mockResolvedValue({missionId:"rapid-recovery",status:"holding_for_recovery",recoveryEpoch:3});
+  expect(await service.resume("rapid-recovery")).toMatchObject({controllerRecoveryEpoch:3,recoveryEpoch:3,resumeDelivered:true});
+  expect(adapter.update).toHaveBeenCalledTimes(3);
+});
+it("allows held recovery without cargo to park the manipulator", async () => {
+  const {service,adapter}=await setup();
+  await service.submit(transferPayload,{requestId:"park-recovery"});
+  adapter.getFeedback.mockResolvedValue({missionId:"park-recovery",status:"holding_for_recovery",attached:false,manipulator:{attachmentEvidence:false}});
+  await service.get("park-recovery");
+  expect(await service.resume("park-recovery")).toMatchObject({resumeDelivered:true});
+  expect(adapter.update).toHaveBeenCalledOnce();
 });

@@ -46,3 +46,8 @@ describe("bridge telemetry normalizer", () => {
     expect(resolveCameraFrameMimeType("frame.bmp")).toBe("image/bmp");
   });
 });
+
+it("preserves object transfer measured diagnostics", () => {
+ const objectTransfer={missionId:"transfer",status:"running",manipulator:{jointPositions:[0,1,2,3,4]}};
+ expect(normalizeTelemetry({pose:{x:0,y:0,z:0,yaw:0},objectTransfer}).objectTransfer).toEqual(objectTransfer);
+});

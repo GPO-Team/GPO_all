@@ -118,3 +118,15 @@ describe("web state store", () => {
     expect(await fs.readFile(store.paths.runtimeCommand,"utf8")).toContain("scene_revision rev-1");
   });
 });
+
+it("writes the transfer scene motion profile and does not publish when it fails", async () => {
+  const {store}=await createStore();
+  const transfer={commandId:"motion-transfer",type:"transfer_object",objectId:"demo-box",destination:{x:1,y:2},sceneRevision:"revision",scene:{motion:{cruiseSpeedMps:0.23,payloadKg:0.5}}};
+  await store.writeTransfer(transfer);
+  expect(await fs.readFile(store.paths.motionProfile,"utf8")).toContain("cruise_speed_mps 0.23");
+  const previous=await fs.readFile(store.paths.runtimeCommand,"utf8");
+  await fs.unlink(store.paths.motionProfile);
+  await fs.mkdir(store.paths.motionProfile);
+  await expect(store.writeTransfer({...transfer,commandId:"next-transfer"})).rejects.toThrow();
+  expect(await fs.readFile(store.paths.runtimeCommand,"utf8")).toBe(previous);
+});

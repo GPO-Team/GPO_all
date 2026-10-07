@@ -83,3 +83,7 @@ describe("object transfer validation", () => {
       .toThrow(/scene revision/);
   });
 });
+
+it.each([null, undefined, {}, {x:null,y:0}, {x:0,y:null}, {x:"",y:0}, {x:false,y:0}])("rejects missing or nonnumeric destination coordinates %j", destination => {
+  expect(() => validateTransferCommand(createCommand({destination}))).toThrow();
+});

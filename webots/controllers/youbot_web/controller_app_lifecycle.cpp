@@ -32,6 +32,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <cmath>
+#include "controller_navigation_route.h"
 #include <webots/robot.h>
 
 
@@ -179,6 +181,11 @@ static void merge_trace_for_controller_step(void) {
 }
 
 static void handle_transfer_command(const RuntimeCommand *command) {
+  if(command->has_transfer_object) {
+    reload_limit_zones_input(NULL);
+    reload_surface_zones_input(NULL);
+    controller_motion_profile_reload_service_run(&motion_profile_reload_service,0,1);
+  }
   controller_object_transfer_runtime_command(
       &object_transfer_runtime, command, wb_robot_get_time());
 }
@@ -188,7 +195,58 @@ static void run_control_cycle(void) {
   read_pose(&x, &y, &heading);
   controller_object_transfer_runtime_step(
       &object_transfer_runtime, wb_robot_get_time(), x, y, heading);
-  run_navigation_step();
+  const int transferring = object_transfer_runtime.service.state.status == CONTROLLER_TRANSFER_RUNNING;
+  if(!transferring) controller_webots_motion_state_apply(&motion_state);
+  if(!transferring || object_transfer_runtime.service.state.stage != CONTROLLER_TRANSFER_TRANSPORTING) {
+    webots_adapter.drive_config.acceleration_limit_rad_s2=control_config.drive.acceleration_limit_rad_s2;
+    webots_adapter.drive_config.deceleration_limit_rad_s2=control_config.drive.deceleration_limit_rad_s2;
+  }
+  control_config.navigation.runtime.position_tolerance = transferring ? 0.005 : 0.05;
+  control_config.navigation.runtime.heading_tolerance_rad = transferring ? 0.02 : 0.08;
+  control_config.navigation.tracking.position_tolerance = transferring ? 0.005 : 0.05;
+  control_config.navigation.tracking.heading_tolerance_rad = transferring ? 0.02 : 0.08;
+  if(transferring && object_transfer_runtime.service.state.attached) {
+    active_linear_speed_limit = std::fmin(active_linear_speed_limit,0.08);
+    active_angular_speed_limit = std::fmin(active_angular_speed_limit,0.25);
+  }
+  if(transferring && (object_transfer_runtime.service.state.stage == CONTROLLER_TRANSFER_TRANSPORTING ||
+      object_transfer_runtime.service.state.stage == CONTROLLER_TRANSFER_APPROACHING_OBJECT)) {
+    ControllerNavigationRouteOutput route_output={};
+    const auto decision=controller_navigation_route_evaluate(&controller_runtime.route,
+        &controller_runtime.current_waypoint_index,&controller_runtime.route_finished,
+        x,y,heading,0.005,0.02,&route_output);
+    if(decision==CONTROLLER_NAVIGATION_ROUTE_COMPLETED || decision==CONTROLLER_NAVIGATION_ROUTE_FINISHED) {
+      controller_webots_devices_reset_wheels(&webots_devices); set_status("finished");
+    } else {
+      const auto &target=controller_runtime.route.waypoints[controller_runtime.current_waypoint_index];
+      const double dx=target.x-x,dy=target.z-y;
+      const double distance=std::hypot(dx,dy);
+      bool blocked=false;
+      const auto &cargo=object_transfer_runtime.service.state;
+      for(int i=0;i<perception_runtime.trace_count;++i) {
+        const auto &point=perception_runtime.trace[i];
+        if(wb_robot_get_time()-point.last_seen_time>2.0) continue;
+        if(std::hypot(point.x-cargo.object_pose[0],point.y-cargo.object_pose[1])<0.20) continue;
+        const double along=((point.x-x)*dx+(point.y-y)*dy)/std::fmax(distance,1e-9);
+        const double across=std::fabs((point.x-x)*dy-(point.y-y)*dx)/std::fmax(distance,1e-9);
+        if(along>0 && along<std::fmin(distance+0.5,0.75) && across<(cargo.attached ? 0.50 : 0.36)) {blocked=true;break;}
+      }
+      if(blocked) {
+        controller_object_transfer_runtime_hold(&object_transfer_runtime,"transport_obstacle");
+        return;
+      }
+      const double speed=std::fmin(std::fmin(cargo.attached ? 0.06 : 0.12,active_linear_speed_limit),distance*0.6);
+      webots_adapter.drive_config.acceleration_limit_rad_s2=4.0;
+      webots_adapter.drive_config.deceleration_limit_rad_s2=8.0;
+      controller_webots_adapter_apply_velocity(&webots_adapter,speed*(std::cos(heading)*dx+std::sin(heading)*dy)/std::fmax(distance,1e-9),
+          speed*(-std::sin(heading)*dx+std::cos(heading)*dy)/std::fmax(distance,1e-9),
+          std::fmax(-0.1,std::fmin(0.1,-heading*0.6)));
+      set_status("transporting_object");
+    }
+  } else if (controller_object_transfer_runtime_allows_navigation(&object_transfer_runtime))
+    run_navigation_step();
+  else
+    controller_webots_devices_reset_wheels(&webots_devices);
 }
 
 #define STEP_CALLBACK(callback) \

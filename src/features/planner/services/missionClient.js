@@ -21,6 +21,6 @@ export const cancelMission = async missionId => {
 export const resumeMission = async missionId => {
   const response = await fetch(`${MISSION_API_BASE_URL}/api/missions/${encodeURIComponent(missionId)}/resume`,{method:"POST"});
   const result = await response.json();
-  if (!response.ok || !result.ok) throw new Error(result.error || "Возобновление миссии недоступно.");
+  if (!response.ok || !result.ok) throw new Error(result.error || "Продолжение миссии недоступно.");
   return result;
 };

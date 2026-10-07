@@ -156,6 +156,7 @@ const createWebStateStore = ({ coordinateContract, stateDir }) => {
     await ensureStateDir();
     await writeLimitZones({zones:payload.scene?.polygons || []});
     await writeSurfaceZones({zones:payload.scene?.surfaceZones || []});
+    await writeMotionProfile(payload.scene?.motion);
     await atomicWrite(paths.sceneRevision, `${payload.sceneRevision}\n`);
     await writeRuntimeCommand({...payload,missionId:payload.missionId || payload.commandId});
   };

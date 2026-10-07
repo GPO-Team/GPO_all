@@ -2,8 +2,11 @@ import {spawn} from "node:child_process";
 import {once} from "node:events";
 import assert from "node:assert/strict";
 import WebSocket from "ws";
+import {createRequire} from "node:module";
 import {createRouteCommand} from "../shared/contracts/index.js";
 
+const require = createRequire(import.meta.url);
+const {normalizeScene, sceneRevision} = require("../bridge/protocol/scene-validation.cjs");
 const project=`gpo-full-test-${Date.now()}`;
 const root=new URL("../",import.meta.url);
 const sockets=[];
@@ -22,8 +25,10 @@ const mission=async id=>(await fetch(`http://127.0.0.1:9002/api/missions/${id}`)
 async function connect(url) {
   const socket=new WebSocket(url);sockets.push(socket);await once(socket,"open");return socket;
 }
-async function send(socket,id,route) {
-  const command=createRouteCommand({source:"full-container-test",requestId:id,payload:{type:"route",route,scene:{polygons:[],surfaceZones:[],chargingStations:[],motion:{cruiseSpeedMps:0.22,payloadKg:0,batteryRange:100}}}});
+async function send(socket,id,route,transfer = false) {
+  const scene = normalizeScene({polygons:[],surfaceZones:[],chargingStations:[],motion:{cruiseSpeedMps:0.22,payloadKg:0,batteryRange:100}});
+  const payload = transfer ? {type:"transfer_object",objectId:"demo-box",destination:{x:2,y:0.6},scene,sceneRevision:sceneRevision(scene)} : {type:"route",route,scene};
+  const command=createRouteCommand({source:"full-container-test",requestId:id,payload});
   const reply=new Promise((resolve,reject)=>{
     const timer=setTimeout(()=>{socket.off("message",receive);reject(new Error("ACK timeout"));},15000);
     function receive(data){const ack=JSON.parse(data);if(ack.requestId===id){clearTimeout(timer);socket.off("message",receive);resolve(ack);}}
@@ -78,7 +83,35 @@ try {
   await until(async()=>(await mission("restart-cancel")).status==="cancelled","cancel after simulator restart");
   await send(nextSocket,"after-restart",[{x:0,y:0},{x:1,y:0}]);
   await until(async()=>(await mission("after-restart")).status==="completed","route after simulator restart");
-  console.log("PASS: six containers, camera, W3D through nginx, local WASM, speed controls, physical missions, route crash and simulator cancellation recovery");
+  const initialHeight = telemetry.objectTransfer.objectPose.z;
+  const initialJoints = telemetry.objectTransfer.manipulator.jointPositions;
+  let peakHeight = initialHeight, jointMotion = 0, gripSeen = false;
+  const observeTransfer = data => {
+    const event = JSON.parse(data);
+    const transfer = event.payload?.objectTransfer;
+    if (transfer?.missionId !== "physical-transfer") return;
+    peakHeight = Math.max(peakHeight, transfer.objectPose.z);
+    transfer.manipulator.jointPositions.forEach((joint, index) => {
+      jointMotion = Math.max(jointMotion, Math.abs(joint - initialJoints[index]));
+    });
+    gripSeen ||= transfer.manipulator.gripEvidence === true;
+  };
+  telemetrySocket.on("message", observeTransfer);
+  await send(nextSocket,"physical-transfer",null,true);
+  await until(async () => {
+    const state = await mission("physical-transfer");
+    assert.ok(!["failed","holding_for_recovery"].includes(state.status), JSON.stringify(state));
+    return state.status === "completed";
+  }, "physical manipulator transfer", 240000);
+  await until(() => telemetry.objectTransfer?.status === "completed", "transfer telemetry");
+  const delivered = telemetry.objectTransfer;
+  assert.ok(gripSeen, "contact grip must be observed");
+  assert.ok(jointMotion > 0.5, "arm must physically move");
+  assert.ok(peakHeight > initialHeight + 0.04, "object must physically lift");
+  assert.ok(Math.hypot(delivered.objectPose.x - 2, delivered.objectPose.y - 0.6) < 0.035, "delivery position");
+  assert.equal(delivered.manipulator.releaseEvidence, true);
+  console.log(JSON.stringify({jointMotion, lift:peakHeight-initialHeight, delivered:delivered.objectPose}));
+  console.log("PASS: six containers, camera, W3D through nginx, local WASM, speed controls, physical arm contact grasp/lift/transfer/release, physical missions, route crash and simulator cancellation recovery");
 } finally {
   for(const socket of sockets)socket.terminate();
   // The unique project above is owned solely by this test; its volumes are disposable.

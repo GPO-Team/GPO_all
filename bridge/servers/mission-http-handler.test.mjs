@@ -45,3 +45,11 @@ describe("mission HTTP transfer API", () => {
     expect(response.statusCode).toBe(202);
   });
 });
+
+it("publishes measured manipulator diagnostics", () => {
+  const manipulator={jointPositions:[0,1,2,3,4],sensorValidity:true};
+  expect(publicMission({missionId:"transfer",manipulator})).toHaveProperty("manipulator",manipulator);
+});
+it("publishes the controller recovery epoch separately from backend recovery count", () => {
+  expect(publicMission({missionId:"held",recoveryEpoch:3,controllerRecoveryEpoch:7})).toMatchObject({recoveryEpoch:3,controllerRecoveryEpoch:7});
+});

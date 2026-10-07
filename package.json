@@ -24,10 +24,12 @@
     "test:services": "node scripts/services-smoke-test.mjs",
     "service:gateway": "node bridge/processes/run-gateway-service.cjs",
     "test:simulation": "node scripts/simulation-smoke-test.mjs",
+    "test:manipulator": "node scripts/manipulator-smoke-test.mjs",
     "start:container": "node scripts/start-container-stack.mjs",
     "start:container:gpu": "node scripts/start-container-stack.mjs --gpu",
     "start:container:gui": "node scripts/start-container-stack.mjs --gpu --gui",
     "start": "node scripts/start-stack.mjs",
+    "test:container": "node scripts/full-container-smoke-test.mjs",
     "test:docker": "node scripts/docker-smoke-test.mjs"
   },
   "dependencies": {

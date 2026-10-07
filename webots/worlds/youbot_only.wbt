@@ -3,7 +3,7 @@
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/Floor.proto"
-EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/kuka/youbot/protos/Youbot.proto"
+EXTERNPROTO "../protos/YoubotManipulation.proto"
 
 WorldInfo {
   info [
@@ -12,6 +12,14 @@ WorldInfo {
   title "KUKA youBot Only"
   basicTimeStep 16
   contactProperties [
+    ContactProperties {
+      material1 "gripper-pad"
+      material2 "demo-object"
+      coulombFriction [ 2 ]
+      bounce 0
+      softERP 0.4
+      softCFM 0.00001
+    }
     ContactProperties {
       material1 "InteriorWheelMat"
       coulombFriction [
@@ -38,7 +46,7 @@ WorldInfo {
 }
 Viewpoint {
   orientation 0.07467287892190907 0.08761296949069716 -0.9933518655192307 2.4565251739789433
-  position 32.430003995926356 31.59802927772458 14.95951242560089
+  position 4.8645 4.7397 2.2439
   follow "youBot"
 }
 TexturedBackground {
@@ -51,6 +59,15 @@ Floor {
 DEF DEMO_BOX Solid {
   translation 1.4 0 0.075
   children [
+    Pose {
+      translation 0 0 0.1
+      children [
+        Shape {
+          appearance PBRAppearance { baseColor 0.12 0.12 0.14 roughness 0.8 metalness 0 }
+          geometry Box { size 0.025 0.025 0.05 }
+        }
+      ]
+    }
     Shape {
       appearance PBRAppearance {
         baseColor 0.92 0.3 0.08
@@ -63,15 +80,22 @@ DEF DEMO_BOX Solid {
     }
   ]
   name "demo-box"
-  boundingObject Box {
-    size 0.15 0.15 0.15
+  contactMaterial "demo-object"
+  boundingObject Group {
+    children [
+      Box { size 0.15 0.15 0.15 }
+      Pose {
+        translation 0 0 0.1
+        children [ Box { size 0.025 0.025 0.05 } ]
+      }
+    ]
   }
   physics Physics {
     density -1
     mass 0.25
   }
 }
-Youbot {
+YoubotManipulation {
   hidden position_0_0 -1.1278584212826214e-09
   hidden position_0_1 -8.544116525399659e-10
   hidden position_0_2 1.1710894566833315e-09
@@ -90,6 +114,11 @@ Youbot {
   rotation -0.01910501367574832 0.9998174825639843 3.4447974017753594e-06 0.002110345492983813
   controller "youbot_web"
   supervisor TRUE
+  toolSlot [
+    DEF TCP Pose {
+      translation 0 0 0.12
+    }
+  ]
   bodySlot [
     DEF FRONT_LIDAR Lidar {
       translation 0.24 0 0.18

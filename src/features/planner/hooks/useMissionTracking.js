@@ -1,22 +1,34 @@
-import {useCallback,useEffect,useState} from "react";
+import {useCallback,useEffect,useRef,useState} from "react";
 import {getMission,listMissions,cancelMission,resumeMission} from "../services/missionClient";
 const terminal = new Set(["completed","failed","cancelled"]);
 export const useMissionTracking = ({onStarted,fetchMission = getMission}) => {
   const [missionId,setMissionId] = useState(null);
   const [state,setState] = useState(null);
+  const [actionError,setActionError] = useState(null);
+  const [actionPending,setActionPending] = useState(null);
+  const pendingAction = useRef(false);
+  const control = useCallback(async (action,request) => {
+    if (!missionId || pendingAction.current) return;
+    pendingAction.current = true;
+    setActionError(null);
+    setActionPending(action);
+    try {
+      const result = await request(missionId);
+      if (result.missionId !== missionId) throw new Error("Ответ относится к другой миссии.");
+      setState(previous => previous?.missionId === missionId ? {...previous,...result} : previous);
+    } catch(error) {setActionError(error.message);}
+    finally {pendingAction.current=false;setActionPending(null);}
+  },[missionId]);
   const cancel = useCallback(async () => {
-    if (!missionId) return;
-    try {setState(await cancelMission(missionId));}
-    catch(error) {setState(previous => ({...previous,connectionError:error.message}));}
-  },[missionId]);
+    await control("cancel",cancelMission);
+  },[control]);
   const resume = useCallback(async () => {
-    if (!missionId) return;
-    try {setState(await resumeMission(missionId));}
-    catch(error) {setState(previous => ({...previous,connectionError:error.message}));}
-  },[missionId]);
+    await control("resume",resumeMission);
+  },[control]);
   const track = useCallback(ack => {
     if (!ack?.missionId) return;
-    setState({missionId:ack.missionId,status:ack.status || "persisted"});
+    setActionError(null);
+    setState({...ack,missionId:ack.missionId,status:ack.status || "persisted"});
     setMissionId(ack.missionId);
   },[]);
   useEffect(() => {
@@ -57,5 +69,5 @@ export const useMissionTracking = ({onStarted,fetchMission = getMission}) => {
     poll();
     return () => {controller.abort();clearTimeout(timer);};
   },[missionId,fetchMission,onStarted]);
-  return {state,track,cancel,resume};
+  return {state:state ? {...state,actionError,actionPending} : null,track,cancel,resume};
 };
