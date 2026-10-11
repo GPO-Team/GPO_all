@@ -74,5 +74,15 @@ int main(void) {
   assert(strcmp(status, "mission_cancelled") == 0);
   assert(spawn_calls == 3);
   remove(path);
+  file = fopen(path, "w");
+  assert(file);
+  fputs("id 11\ntype update_obstacle\nobstacle_id 7\nx 2\ny 3\nid 12\ntype delete_obstacle\nobstacle_id 7\n", file);
+  fclose(file);
+  assert(controller_runtime_command_reload_service_run(&service, 36, 6) == CONTROLLER_RUNTIME_COMMAND_RELOAD_APPLIED);
+  assert(strcmp(status, "runtime_obstacle_updated") == 0);
+  assert(controller_runtime_command_reload_service_run(&service, 42, 6) == CONTROLLER_RUNTIME_COMMAND_RELOAD_APPLIED);
+  assert(strcmp(status, "runtime_obstacle_deleted") == 0);
+  assert(spawn_calls == 5);
+  remove(path);
   return 0;
 }

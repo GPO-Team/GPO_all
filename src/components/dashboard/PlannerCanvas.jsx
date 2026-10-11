@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { clampZoom, createViewport, zoomAt } from "../../features/planner/model/plannerViewport";
-import { MAP_WORLD_HEIGHT, MAP_WORLD_WIDTH } from "../../lib/zonePlannerCoordinates";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { clampZoom, createViewport, getCanvasEventPosition, zoomAt } from "../../features/planner/model/plannerViewport";
+import { canvasToWorld, MAP_WORLD_HEIGHT, MAP_WORLD_WIDTH, SCALE } from "../../lib/zonePlannerCoordinates";
+import { dragRuntimeObstacle, getObstacleDragMode } from "../../features/planner/model/runtimeObstacles";
 import { INITIAL_TELEMETRY } from "../../lib/telemetry/dashboardTelemetryState";
 import { createPlannerCanvasDrawState } from "../../features/planner/model/plannerCanvasDrawState";
 import { startPlannerCanvasRenderLoop } from "../../features/planner/services/plannerCanvasRenderLoop";
@@ -27,6 +28,9 @@ export default function PlannerCanvas({
   telemetry,
   mapLayers,
   runtimeObstacles,
+  activeRuntimeObstacleId,
+  onSelectRuntimeObstacle,
+  onEditRuntimeObstacle,
   pointPlacementRevision = 0,
   onCanvasClick,
   onCanvasMouseDown,
@@ -38,10 +42,15 @@ export default function PlannerCanvas({
   const viewportRef = useRef(null);
   const viewRef = useRef({ zoom: 1, pan: { x: 0, y: 0 } });
   const dragRef = useRef(null);
+  const obstacleDragRef = useRef(null);
+  const [obstaclePreview, setObstaclePreview] = useState(null);
+  const displayedObstacles = useMemo(() => obstaclePreview ? runtimeObstacles.map((obstacle) =>
+    obstacle.commandId === obstaclePreview.commandId ? { ...obstacle, ...obstaclePreview.geometry } : obstacle)
+    : runtimeObstacles, [runtimeObstacles, obstaclePreview]);
   const suppressClick = useRef(false);
   const [zoom, setZoom] = useState(1);
   const [panState, setPanState] = useState({ enabled: false, revision: 0 });
-  const panMode = panState.enabled && panState.revision === pointPlacementRevision;
+  const panMode = panState.enabled && panState.revision === pointPlacementRevision && !activeRuntimeObstacleId;
 
   const updateViewport = () => {
     const container = containerRef.current;
@@ -109,9 +118,10 @@ export default function PlannerCanvas({
       fallbackObstacleMap: INITIAL_TELEMETRY.obstacleMap,
       fallbackCameraMap: INITIAL_TELEMETRY.cameraMap,
       mapLayers,
-      runtimeObstacles,
+      runtimeObstacles: displayedObstacles,
+      activeRuntimeObstacleId,
     });
-  }, [hoveredPointIndex, optimizedRoute, plannerModel, telemetry, mapLayers, runtimeObstacles]);
+  }, [hoveredPointIndex, optimizedRoute, plannerModel, telemetry, mapLayers, displayedObstacles, activeRuntimeObstacleId]);
 
   useEffect(
     () =>
@@ -142,26 +152,62 @@ export default function PlannerCanvas({
             suppressClick.current = true;
             event.currentTarget.setPointerCapture(event.pointerId);
           } else if (event.button === 0) {
+            if (mapLayers?.runtimeObstacles !== false) {
+              const position = getCanvasEventPosition(canvasRef.current, event);
+              const point = canvasToWorld(position.x, position.y);
+              const tolerance = 8 / (SCALE * (viewportRef.current?.scale || 1));
+              const obstacle = [...(runtimeObstacles || [])].reverse().find((item) =>
+                item.confirmed && !["updating", "deleting"].includes(item.status) && getObstacleDragMode(item, point, tolerance));
+              if (obstacle) {
+                event.preventDefault();
+                const mode = obstacle.commandId === activeRuntimeObstacleId ? getObstacleDragMode(obstacle, point, tolerance) : "move";
+                obstacleDragRef.current = { obstacle, start: point, mode, geometry: null };
+                onSelectRuntimeObstacle?.(obstacle.commandId);
+                suppressClick.current = true;
+                event.currentTarget.setPointerCapture(event.pointerId);
+                return;
+              }
+            }
+            if (activeRuntimeObstacleId) {
+              onSelectRuntimeObstacle?.(null);
+              suppressClick.current = true;
+              return;
+            }
             suppressClick.current = false;
             event.currentTarget.setPointerCapture(event.pointerId);
             onCanvasMouseDown?.(event);
           }
         }}
         onPointerMove={(event) => {
-          if (dragRef.current) {
+          if (obstacleDragRef.current) {
+            const drag = obstacleDragRef.current;
+            const position = getCanvasEventPosition(canvasRef.current, event);
+            drag.geometry = dragRuntimeObstacle(drag.obstacle, drag.start, canvasToWorld(position.x, position.y), drag.mode);
+            setObstaclePreview({ commandId: drag.obstacle.commandId, geometry: drag.geometry });
+          } else if (dragRef.current) {
             const drag = dragRef.current;
             viewRef.current.pan = { x: drag.pan.x + event.clientX - drag.x, y: drag.pan.y + event.clientY - drag.y };
             updateViewport();
           } else onCanvasMouseMove?.(event);
         }}
         onPointerUp={(event) => {
+          if (obstacleDragRef.current) {
+            const drag = obstacleDragRef.current;
+            obstacleDragRef.current = null;
+            setObstaclePreview(null);
+            if (drag.geometry && ["x", "y", "sizeX", "sizeY"].some(key => drag.geometry[key] !== drag.obstacle[key])) {
+              onEditRuntimeObstacle?.(drag.obstacle.commandId, drag.geometry);
+            }
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+            return;
+          }
           dragRef.current = null;
           onCanvasMouseUp?.(event);
           if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
         }}
-        onPointerCancel={(event) => { dragRef.current = null; suppressClick.current = true; onCanvasMouseUp?.(event); }}
+        onPointerCancel={(event) => { obstacleDragRef.current = null; setObstaclePreview(null); dragRef.current = null; suppressClick.current = true; onCanvasMouseUp?.(event); }}
         onPointerLeave={(event) => { if (!event.currentTarget.hasPointerCapture(event.pointerId)) onCanvasMouseLeave?.(event); }}
-        className={`absolute inset-0 h-full w-full touch-none ${panMode ? "cursor-grab active:cursor-grabbing" : "cursor-crosshair"}`}
+        className={`absolute inset-0 h-full w-full touch-none ${panMode || activeRuntimeObstacleId ? "cursor-grab active:cursor-grabbing" : "cursor-crosshair"}`}
       />
       <div className="map-tools" role="toolbar" aria-label="Масштаб и перемещение">
         <button type="button" aria-label="Уменьшить масштаб" onClick={() => changeZoom(zoom / 1.25)}>−</button>

@@ -10,6 +10,7 @@
 #include "controller_runtime_command_reload_service.h"
 #include "controller_webots_motion_state.h"
 #include "controller_webots_zone_sync.h"
+#include <cmath>
 
 void set_error(const char *message) {
   controller_application_state_set_error(&application_state, message);
@@ -24,6 +25,22 @@ void set_status(const char *status) {
 }
 
 void spawn_runtime_obstacle(const RuntimeCommand *command) {
+  if (command && (command->has_update_obstacle || command->has_delete_obstacle)) {
+    RuntimeCommand geometry = {0};
+    if (controller_webots_simulation_get_obstacle_geometry(command->obstacle_id, &geometry)) {
+      const double margin = 0.25;
+      controller_mapping_store_forget_rectangle(&mapping_store,
+          geometry.x, geometry.y, geometry.size_x, geometry.size_y, margin);
+      int kept = 0;
+      for (int i = 0; i < perception_runtime.trace_count; ++i) {
+        const auto &point = perception_runtime.trace[i];
+        if (fabs(point.x - geometry.x) <= geometry.size_x / 2 + margin &&
+            fabs(point.y - geometry.y) <= geometry.size_y / 2 + margin) continue;
+        perception_runtime.trace[kept++] = point;
+      }
+      perception_runtime.trace_count = kept;
+    }
+  }
   controller_webots_zone_sync_spawn_obstacle(&webots_zone_sync, command);
 }
 

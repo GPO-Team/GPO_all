@@ -41,6 +41,8 @@ typedef struct {
 void controller_mapping_store_init(ControllerMappingStore *store);
 ControllerMappingStoreSnapshot controller_mapping_store_snapshot(const ControllerMappingStore *store);
 void controller_mapping_store_clear(ControllerMappingStore *store, const ControllerMappingStorePaths *paths);
+void controller_mapping_store_forget_rectangle(ControllerMappingStore *store,
+    double x, double y, double size_x, double size_y, double margin);
 int controller_mapping_store_write(
     ControllerMappingStore *store,
     const ControllerMappingStorePaths *paths,

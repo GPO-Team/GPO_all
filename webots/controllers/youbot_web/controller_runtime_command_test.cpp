@@ -60,5 +60,22 @@ int main(void) {
       !nearly_equal(command.destination_y, -2.25)) return 18;
   if (strcmp(command.scene_revision, "revision-7") != 0) return 19;
 
+  file = fopen(path, "w");
+  if (!file) return 20;
+  fprintf(file, "id 45\ntype update_obstacle\nobstacle_id 43\nx 2\ny 3\nsize_x 1.2\nsize_y 0.7\nheight 0.8\n");
+  fprintf(file, "id 46\ntype delete_obstacle\nobstacle_id 43\n");
+  fclose(file);
+  if (!controller_runtime_command_load_next_file(path, &limits, 44, &command)) return 21;
+  if (!command.has_update_obstacle || command.has_spawn_obstacle || command.obstacle_id != 43 || command.id != 45) return 22;
+  if (!nearly_equal(command.size_x, 1.2) || !nearly_equal(command.x, 2.0)) return 23;
+  if (!controller_runtime_command_load_next_file(path, &limits, 45, &command)) return 24;
+  if (!command.has_delete_obstacle || command.has_update_obstacle || command.obstacle_id != 43) return 25;
+  remove(path);
+  file = fopen(path, "w");
+  if (!file) return 26;
+  fprintf(file, "id 47\ntype delete_obstacle\nobstacle_id -1\n");
+  fclose(file);
+  if (controller_runtime_command_load_file(path, &limits, &command)) return 27;
+  remove(path);
   return 0;
 }

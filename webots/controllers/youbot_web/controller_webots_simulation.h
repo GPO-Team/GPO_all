@@ -12,6 +12,7 @@ void controller_webots_simulation_registry_remove_at(
     int index);
 void controller_webots_simulation_registry_remove_all(
     ControllerWebotsSimulationNodeRegistry *registry);
+int controller_webots_simulation_get_obstacle_geometry(long long obstacle_id, RuntimeCommand *geometry);
 void controller_webots_simulation_sync_limit_zones(
     WbFieldRef root_children_field,
     ControllerWebotsSimulationNodeRegistry *registry,

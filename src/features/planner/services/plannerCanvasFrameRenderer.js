@@ -19,7 +19,7 @@ export const renderPlannerCanvasScene = (ctx, state) => {
   if (layers.lidarTrace !== false) renderPlannerLidarTrace(ctx, state.obstacleTrace);
   if (layers.zones !== false) renderPlannerZoneLayer(ctx, state.zoneEntries);
   if (layers.route !== false) renderPlannerRouteLayer(ctx, state);
-  if (layers.runtimeObstacles !== false) renderPlannerRuntimeObstacles(ctx, state.runtimeObstacles, state.viewScale);
+  if (layers.runtimeObstacles !== false) renderPlannerRuntimeObstacles(ctx, state.runtimeObstacles, state.viewScale, state.activeRuntimeObstacleId);
   renderPlannerPointLayer(ctx, {
     ...state,
     visitEntries: layers.visits === false ? [] : state.visitEntries,

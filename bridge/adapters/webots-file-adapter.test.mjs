@@ -8,6 +8,13 @@ let directory;
 afterEach(async()=>{if(directory)await rm(directory,{recursive:true,force:true});directory=null;});
 
 describe("Webots file adapter transfer feedback",()=>{
+  it.each(["update_runtime_obstacle", "delete_runtime_obstacle"])("forwards %s to runtime command storage", async(type)=>{
+    const artifactStore={writeRuntimeCommand:vi.fn(async()=>{})};
+    const adapter=adapterModule.createWebotsFileAdapter({artifactStore,stateDir:""});
+    const payload={type,obstacleId:42,commandId:99};
+    expect(await adapter.update(payload)).toBe(true);
+    expect(artifactStore.writeRuntimeCommand).toHaveBeenCalledWith(payload);
+  });
   it("uses matching object transfer feedback before navigation feedback",async()=>{
     directory=await mkdtemp(path.join(os.tmpdir(),"gpo-transfer-feedback-"));
     await writeFile(path.join(directory,"robot_state.json"),JSON.stringify({

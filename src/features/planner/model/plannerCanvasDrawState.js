@@ -7,6 +7,7 @@ export const createPlannerCanvasDrawState = ({
   fallbackCameraMap,
   mapLayers,
   runtimeObstacles,
+  activeRuntimeObstacleId,
 }) => ({
   visitEntries: plannerModel.visitEntries,
   chargeEntries: plannerModel.chargeEntries,
@@ -21,4 +22,5 @@ export const createPlannerCanvasDrawState = ({
   hoveredPointIndex,
   ...(mapLayers ? { mapLayers } : {}),
   ...(runtimeObstacles ? { runtimeObstacles } : {}),
+  ...(activeRuntimeObstacleId ? { activeRuntimeObstacleId } : {}),
 });

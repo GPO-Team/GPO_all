@@ -39,6 +39,18 @@ const createMotionProfileText = (motion) => {
 
 const createRuntimeCommandText = (payload) => {
   const commandId = Number(payload?.commandId) > 0 ? Math.trunc(Number(payload.commandId)) : Date.now();
+  if (["update_runtime_obstacle", "delete_runtime_obstacle"].includes(payload?.type)) {
+    const obstacleId = Number(payload.obstacleId);
+    if (!Number.isSafeInteger(obstacleId) || obstacleId <= 0) throw new Error("Invalid obstacle ID.");
+    const prefix = `id ${commandId}\ntype ${payload.type === "delete_runtime_obstacle" ? "delete_obstacle" : "update_obstacle"}\nobstacle_id ${obstacleId}\n`;
+    if (payload.type === "delete_runtime_obstacle") return prefix;
+    const obstacle = payload.obstacle;
+    if (!obstacle || !["x", "y", "sizeX", "sizeY", "height"].every(key => typeof obstacle[key] === "number" && Number.isFinite(obstacle[key])) ||
+        obstacle.sizeX < 0.2 || obstacle.sizeX > 3.5 || obstacle.sizeY < 0.2 || obstacle.sizeY > 3.5 ||
+        obstacle.height < 0.12 || obstacle.height > 2.8 || Math.abs(obstacle.x) > Math.min(21.5, 22 - obstacle.sizeX / 2) ||
+        Math.abs(obstacle.y) > Math.min(16.5, 17 - obstacle.sizeY / 2)) throw new Error("Invalid obstacle dimensions or position.");
+    return `${prefix}x ${obstacle.x}\ny ${obstacle.y}\nsize_x ${obstacle.sizeX}\nsize_y ${obstacle.sizeY}\nheight ${obstacle.height}\n`;
+  }
   if (["transfer_object", "recover_transfer", "resume_transfer"].includes(payload?.type)) {
     const {validateMissionId}=require("../protocol/mission-contract.cjs");
     const missionId=validateMissionId(payload.missionId || payload.commandId);
@@ -63,7 +75,9 @@ const createRuntimeCommandText = (payload) => {
     return `id ${commandId}\ntype start_mapping_survey\nclear_map ${payload.clearMap === false ? 0 : 1}\nmode ${sanitizeMappingSurveyMode(payload.mode)}\nsurvey_speed_mps ${motion.cruiseSpeedMps}\nfield_min_x ${Math.min(minX, maxX)}\nfield_max_x ${Math.max(minX, maxX)}\nfield_min_y ${Math.min(minY, maxY)}\nfield_max_y ${Math.max(minY, maxY)}\n`;
   }
   const obstacle = sanitizeRuntimeObstacle(payload?.obstacle);
-  return `id ${commandId}\ntype spawn_obstacle\nx ${obstacle.x}\ny ${obstacle.y}\nsize_x ${obstacle.sizeX}\nsize_y ${obstacle.sizeY}\nheight ${obstacle.height}\n`;
+  const obstacleId = Number(payload.obstacleId);
+  const identity = Number.isSafeInteger(obstacleId) && obstacleId > 0 ? `obstacle_id ${obstacleId}\n` : "";
+  return `id ${commandId}\ntype spawn_obstacle\n${identity}x ${obstacle.x}\ny ${obstacle.y}\nsize_x ${obstacle.sizeX}\nsize_y ${obstacle.sizeY}\nheight ${obstacle.height}\n`;
 };
 
 module.exports = { createMotionProfileText, createRuntimeCommandText, sanitizeMotionProfile, sanitizeRuntimeObstacle };

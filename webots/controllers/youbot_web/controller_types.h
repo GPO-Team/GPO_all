@@ -81,6 +81,9 @@ typedef struct {
 typedef struct {
   long long id;
   int has_spawn_obstacle;
+  int has_update_obstacle;
+  int has_delete_obstacle;
+  long long obstacle_id;
   int has_start_mapping_survey;
   int has_cancel_mission;
   int has_transfer_object;

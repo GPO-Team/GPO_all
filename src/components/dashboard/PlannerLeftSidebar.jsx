@@ -44,6 +44,10 @@ export default function PlannerLeftSidebar({
   onSendRoute,
   onAddRandomObstacle,
   runtimeObstacles,
+  activeRuntimeObstacleId,
+  onSelectRuntimeObstacle,
+  onEditRuntimeObstacle,
+  onDeleteRuntimeObstacle,
   driveMode,
   onDriveModeChange,
   hasRoute,
@@ -196,7 +200,9 @@ export default function PlannerLeftSidebar({
           <button type="button" onClick={onAddRandomObstacle} disabled={isOptimizing} className="flex-1 rounded-xl bg-sky-600 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50">+ Препятствие в Webots</button>
           <HelpHint label="Случайное препятствие">Запрашивает объёмный объект в Webots. На карте показан его контур в реальном масштабе, в списке — размеры и статус команды. «Команда принята» подтверждает отправку, создание в симуляции зависит от контроллера.</HelpHint>
         </div>
-        <PlannerRuntimeObstaclesSection obstacles={runtimeObstacles} />
+        <PlannerRuntimeObstaclesSection obstacles={runtimeObstacles}
+          activeObstacleId={activeRuntimeObstacleId} onSelect={onSelectRuntimeObstacle}
+          onApply={onEditRuntimeObstacle} onDelete={onDeleteRuntimeObstacle} />
         <PlannerConstraintsSection
           adjustedVisitCount={adjustedVisitCount}
           polygonCount={polygonCount}

@@ -43,11 +43,15 @@ int controller_runtime_command_load_next_file(
       continue;
     } else if (sscanf(line, " type %63s", token) == 1) {
       parsed.has_spawn_obstacle = strcmp(token, "spawn_obstacle") == 0;
+      parsed.has_update_obstacle = strcmp(token, "update_obstacle") == 0;
+      parsed.has_delete_obstacle = strcmp(token, "delete_obstacle") == 0;
       parsed.has_start_mapping_survey = strcmp(token, "start_mapping_survey") == 0;
       parsed.has_cancel_mission = strcmp(token, "cancel_mission") == 0;
       parsed.has_transfer_object = strcmp(token, "transfer_object") == 0;
       parsed.has_recover_transfer = strcmp(token, "recover_transfer") == 0;
       parsed.has_resume_transfer = strcmp(token, "resume_transfer") == 0;
+    } else if (sscanf(line, " obstacle_id %lld", &id) == 1) {
+      parsed.obstacle_id = id;
     } else if (sscanf(line, " mission_id %63s", token) == 1) {
       strcpy(parsed.mission_id, token);
     } else if (sscanf(line, " object_id %31s", token) == 1) {
@@ -112,11 +116,17 @@ int controller_runtime_command_load_next_file(
   }
 
   if (parsed.id < 0 ||
-      (!parsed.has_spawn_obstacle && !parsed.has_start_mapping_survey && !parsed.has_cancel_mission &&
+      (!parsed.has_spawn_obstacle && !parsed.has_update_obstacle && !parsed.has_delete_obstacle && !parsed.has_start_mapping_survey && !parsed.has_cancel_mission &&
        !parsed.has_transfer_object && !parsed.has_recover_transfer && !parsed.has_resume_transfer)) {
     return 0;
   }
   if (parsed.has_cancel_mission && !parsed.mission_id[0]) return 0;
+  if ((parsed.has_update_obstacle || parsed.has_delete_obstacle) && parsed.obstacle_id <= 0) return 0;
+  if (parsed.has_update_obstacle &&
+      (!std::isfinite(parsed.x) || !std::isfinite(parsed.y) || !std::isfinite(parsed.size_x) ||
+       !std::isfinite(parsed.size_y) || !std::isfinite(parsed.height) ||
+       parsed.size_x < 0.2 || parsed.size_x > 3.5 || parsed.size_y < 0.2 || parsed.size_y > 3.5 ||
+       parsed.height < 0.12 || parsed.height > 2.8)) return 0;
   if ((parsed.has_transfer_object || parsed.has_recover_transfer || parsed.has_resume_transfer) &&
       !parsed.mission_id[0]) return 0;
   if (parsed.has_transfer_object && !parsed.object_id[0]) return 0;

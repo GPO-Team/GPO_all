@@ -8,6 +8,7 @@ import {
 import { sendRouteChannelPayload } from "../services/routeChannel";
 import { buildSceneSnapshot } from "../model/sceneSnapshot";
 import { calculateSceneRevision } from "../model/sceneRevision";
+import { normalizeRuntimeObstacle } from "../model/runtimeObstacles";
 
 export const usePlannerRuntimeCommands = ({
   batteryRangeMeters,
@@ -22,9 +23,58 @@ export const usePlannerRuntimeCommands = ({
   onMissionSubmitted,
 }) => {
   const [runtimeObstacles, setRuntimeObstacles] = useState([]);
+  const obstaclesRef = useRef([]);
+  const [activeRuntimeObstacleId, setActiveRuntimeObstacleId] = useState(null);
+  const commitObstacles = (update) => {
+    obstaclesRef.current = update(obstaclesRef.current);
+    setRuntimeObstacles(obstaclesRef.current);
+  };
   const lastObstacleCommandId = useRef(0);
-  const updateObstacle = (commandId, patch) => setRuntimeObstacles((previous) =>
+  const nextCommandId = () => {
+    lastObstacleCommandId.current = Math.max(Date.now(), lastObstacleCommandId.current + 1);
+    return lastObstacleCommandId.current;
+  };
+  const updateObstacle = (commandId, patch) => commitObstacles((previous) =>
     previous.map((item) => item.commandId === commandId ? { ...item, ...patch } : item));
+  const editRuntimeObstacle = (obstacleId, rawGeometry) => {
+    const item = obstaclesRef.current.find((obstacle) => obstacle.commandId === obstacleId);
+    if (!item?.confirmed || ["updating", "deleting"].includes(item.status)) return;
+    let geometry;
+    try { geometry = normalizeRuntimeObstacle(rawGeometry); }
+    catch (error) { setStatus(error.message); return; }
+    updateObstacle(obstacleId, { status: "updating", error: null });
+    return sendRouteChannelPayload(routeSocketRef, {
+      type: "update_runtime_obstacle", commandId: nextCommandId(), obstacleId, obstacle: geometry,
+    }, {
+      onSent: () => {
+        updateObstacle(obstacleId, { ...geometry, status: "accepted", error: null });
+        setStatus("Изменение препятствия принято bridge.");
+      },
+      onError: (error) => {
+        updateObstacle(obstacleId, { status: "error", error: error.message });
+        setStatus(`Не удалось изменить препятствие: ${error.message}`);
+      },
+    });
+  };
+  const deleteRuntimeObstacle = (obstacleId) => {
+    const item = obstaclesRef.current.find((obstacle) => obstacle.commandId === obstacleId);
+    if (!item || ["sending", "updating", "deleting"].includes(item.status)) return;
+    const remove = () => {
+      commitObstacles((previous) => previous.filter((obstacle) => obstacle.commandId !== obstacleId));
+      setActiveRuntimeObstacleId((previous) => previous === obstacleId ? null : previous);
+    };
+    if (!item.confirmed) { remove(); return; }
+    updateObstacle(obstacleId, { status: "deleting", error: null });
+    return sendRouteChannelPayload(routeSocketRef, {
+      type: "delete_runtime_obstacle", commandId: nextCommandId(), obstacleId,
+    }, {
+      onSent: () => { remove(); setStatus("Удаление препятствия принято bridge."); },
+      onError: (error) => {
+        updateObstacle(obstacleId, { status: "error", error: error.message });
+        setStatus(`Не удалось удалить препятствие: ${error.message}`);
+      },
+    });
+  };
   const addRandomObstacle = () => {
     const obstacle = {
       sizeX: Number(randomBetween(0.46, 1.15).toFixed(3)),
@@ -44,20 +94,20 @@ export const usePlannerRuntimeCommands = ({
     }
     const payload = {
       type: "spawn_random_obstacle",
-      commandId: Math.max(Date.now(), lastObstacleCommandId.current + 1),
+      commandId: nextCommandId(),
       obstacle: {
         x: Number(center.x.toFixed(4)),
         y: Number(center.y.toFixed(4)),
         ...obstacle,
       },
     };
-    lastObstacleCommandId.current = payload.commandId;
-    setRuntimeObstacles((previous) => [...previous, {
+    payload.obstacleId = payload.commandId;
+    commitObstacles((previous) => [...previous, {
       ...payload.obstacle, commandId: payload.commandId, status: "sending",
     }]);
     sendRouteChannelPayload(routeSocketRef, payload, {
       onSent: () => {
-        updateObstacle(payload.commandId, { status: "accepted" });
+        updateObstacle(payload.commandId, { status: "accepted", confirmed: true });
         setStatus(
           `Команда препятствия принята: X ${payload.obstacle.x.toFixed(2)} м, Y ${payload.obstacle.y.toFixed(2)} м. Размер ${obstacle.sizeX} × ${obstacle.sizeY} м.`
         );
@@ -136,5 +186,6 @@ export const usePlannerRuntimeCommands = ({
     });
   };
 
-  return { runtimeObstacles, addRandomObstacle, startMappingSurvey, startObjectTransfer };
+  return { runtimeObstacles, activeRuntimeObstacleId, selectRuntimeObstacle: setActiveRuntimeObstacleId,
+    editRuntimeObstacle, deleteRuntimeObstacle, addRandomObstacle, startMappingSurvey, startObjectTransfer };
 };
