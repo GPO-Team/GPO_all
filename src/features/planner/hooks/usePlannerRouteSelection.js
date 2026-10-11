@@ -7,6 +7,7 @@ export const usePlannerRouteSelection = ({
   resetRouteTiming,
   setAlgorithmKey,
   setAlgorithmParams,
+  setDriveMode,
   setEnergyWarning,
   setExpandedPoint,
   setHoveredPointIndex,
@@ -48,5 +49,12 @@ export const usePlannerRouteSelection = ({
     setEnergyWarning("");
   }, [clearRouteState, setAlgorithmKey, setEnergyWarning, setStatus]);
 
-  return { clearRouteState, handleAlgorithmChange, handleRouteTaskChange, updateAlgorithmParam };
+  const handleDriveModeChange = useCallback((nextMode) => {
+    if (!["optimized", "ordered"].includes(nextMode)) return;
+    setDriveMode(nextMode);
+    clearRouteState();
+    setStatus("Режим изменён. Постройте и отправьте маршрут заново.");
+  }, [clearRouteState, setDriveMode, setStatus]);
+
+  return { clearRouteState, handleDriveModeChange, handleAlgorithmChange, handleRouteTaskChange, updateAlgorithmParam };
 };

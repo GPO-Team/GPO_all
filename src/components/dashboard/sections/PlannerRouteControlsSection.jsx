@@ -38,6 +38,8 @@ export default function PlannerRouteControlsSection({
   showParameters = true,
   showActions = true,
   showObstacle = true,
+  driveMode = "optimized",
+  onDriveModeChange,
   algorithmFields,
   hasRoute,
   isOptimizing,
@@ -88,6 +90,17 @@ export default function PlannerRouteControlsSection({
           <RouteActionIcon kind="obstacle" /><span>+ Препятствие</span>
         </button>}
         </div>
+        <label className="mt-3 block text-sm font-semibold text-stone-800">
+          Режим езды
+          <select aria-label="Режим езды" className={`${inputCls} mt-2`} value={driveMode}
+            disabled={isOptimizing} onChange={(event) => onDriveModeChange?.(event.target.value)}>
+            <option value="optimized">Оптимальный порядок</option>
+            <option value="ordered">По номерам: 1 → 2 → 3</option>
+          </select>
+        </label>
+        <p className="mt-2 text-xs leading-relaxed text-stone-500">{driveMode === "ordered"
+          ? "От первой точки к последней, без возврата к первой. Зоны и зарядки учитываются."
+          : "Порядок выбирает алгоритм построения маршрута."}</p>
         {missionStatus && <p role="status" className="mt-2 text-xs leading-relaxed text-stone-700">{missionStatus}</p>}
         {hasRoute && <p className="mt-3 text-sm">Длина маршрута: <b>{routeLength.toFixed(2)} м</b></p>}
       </div>}

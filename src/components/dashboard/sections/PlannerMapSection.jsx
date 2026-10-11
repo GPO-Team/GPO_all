@@ -4,7 +4,7 @@ import { MAP_LAYER_OPTIONS } from "../../../features/planner/model/mapLayers";
 const selectCls = "w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 shadow-sm focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100";
 
 const layerGroups = [
-  { label: "Объекты и маршрут", keys: ["visits", "charges", "zones", "surfaces", "route", "robot"] },
+  { label: "Объекты и маршрут", keys: ["visits", "charges", "zones", "runtimeObstacles", "surfaces", "route", "robot"] },
   { label: "Датчики", keys: ["lidar", "lidarTrace"] },
   { label: "Ориентиры", keys: ["grid", "axes", "axisLabels"] },
 ];
@@ -12,6 +12,7 @@ const layerStyles = {
   visits: { color: "#e11d48", path: "M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z" },
   charges: { color: "#b45309", path: "m13 2-8 12h6l-1 8 9-13h-6l1-7Z" },
   zones: { color: "#2563eb", path: "m4 7 8-4 8 4-2 12H6L4 7Z" },
+  runtimeObstacles: { color: "#c24125", path: "M5 5h14v14H5zM5 5l4-3h14v14l-4 3M19 5l4-3" },
   surfaces: { color: "#0d9488", path: "m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5" },
   route: { color: "#0f766e", path: "M5 5h10a4 4 0 0 1 0 8H9a3 3 0 0 0 0 6h10M3 3h4v4H3zM17 17h4v4h-4z" },
   robot: { color: "#16a34a", path: "M5 7h14v12H5zM12 3v4M8 11h.01M16 11h.01M9 15h6M2 10v6m20-6v6" },

@@ -3,7 +3,7 @@ import { sendRouteChannelPayload } from "../services/routeChannel";
 import { buildSceneSnapshot } from "../model/sceneSnapshot";
 import { buildControllerRoutePayload, buildRouteCommand, buildRouteSentStatus } from "../model/routeCommand";
 
-export const usePlannerRouteSender = ({algorithmKey,batteryRangeMeters,cruiseSpeedMps,energyOptions,
+export const usePlannerRouteSender = ({driveMode,algorithmKey,batteryRangeMeters,cruiseSpeedMps,energyOptions,
   optimizedRoute,payloadKg,plannerModel,routeSeed,routeSocketRef,routeTaskKey,selectedAlgorithmParams,
   setEnergyWarning,setStatus,onMissionSubmitted}) => {
   const pendingCommand = useRef(null);
@@ -11,7 +11,7 @@ export const usePlannerRouteSender = ({algorithmKey,batteryRangeMeters,cruiseSpe
     if (!optimizedRoute.length) { setStatus("Сначала постройте маршрут."); return; }
     if (plannerModel.routeBlocked) { setStatus("Маршрут всё ещё пересекает ограничивающий контур."); return; }
     const payload = buildControllerRoutePayload({algorithmKey,batteryRangeMeters,cruiseSpeedMps,payloadKg,
-      route:optimizedRoute,routeTaskKey,selectedAlgorithmParams});
+      route:optimizedRoute,routeTaskKey:driveMode === "ordered" ? "hamiltonian_chain" : routeTaskKey,selectedAlgorithmParams});
     payload.seedRoute = routeSeed.length > 1 ? routeSeed : optimizedRoute;
     payload.scene = buildSceneSnapshot({plannerModel,batteryRangeMeters,energyOptions});
     const identity = JSON.stringify(payload);

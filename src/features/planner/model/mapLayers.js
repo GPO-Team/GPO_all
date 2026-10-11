@@ -2,6 +2,7 @@ export const MAP_LAYER_OPTIONS = [
   { key: "visits", label: "Точки посещения" },
   { key: "charges", label: "Станции зарядки" },
   { key: "zones", label: "Запретные зоны" },
+  { key: "runtimeObstacles", label: "Препятствия Webots" },
   { key: "surfaces", label: "Покрытия" },
   { key: "route", label: "Маршрут" },
   { key: "robot", label: "Робот" },

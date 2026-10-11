@@ -26,6 +26,7 @@ export default function PlannerCanvas({
   hoveredPointIndex,
   telemetry,
   mapLayers,
+  runtimeObstacles,
   pointPlacementRevision = 0,
   onCanvasClick,
   onCanvasMouseDown,
@@ -108,8 +109,9 @@ export default function PlannerCanvas({
       fallbackObstacleMap: INITIAL_TELEMETRY.obstacleMap,
       fallbackCameraMap: INITIAL_TELEMETRY.cameraMap,
       mapLayers,
+      runtimeObstacles,
     });
-  }, [hoveredPointIndex, optimizedRoute, plannerModel, telemetry, mapLayers]);
+  }, [hoveredPointIndex, optimizedRoute, plannerModel, telemetry, mapLayers, runtimeObstacles]);
 
   useEffect(
     () =>

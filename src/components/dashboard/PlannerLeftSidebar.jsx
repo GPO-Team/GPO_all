@@ -9,6 +9,7 @@ import PlannerSetupSection from "./sections/PlannerSetupSection";
 import PlannerMissionStatus from "./sections/PlannerMissionStatus";
 import PlannerObjectTransferSection from "./sections/PlannerObjectTransferSection";
 import HelpHint from "./HelpHint";
+import PlannerRuntimeObstaclesSection from "./sections/PlannerRuntimeObstaclesSection";
 
 
 export default function PlannerLeftSidebar({
@@ -42,6 +43,9 @@ export default function PlannerLeftSidebar({
   onOptimizeRoute,
   onSendRoute,
   onAddRandomObstacle,
+  runtimeObstacles,
+  driveMode,
+  onDriveModeChange,
   hasRoute,
   routeLength,
   visitCount,
@@ -133,6 +137,8 @@ export default function PlannerLeftSidebar({
         zoneCount={zoneCount}
       />}
       {tab === "route" && <PlannerRouteControlsSection showParameters={false} showObstacle={false}
+        driveMode={driveMode}
+        onDriveModeChange={onDriveModeChange}
         algorithmFields={algorithmFields}
         hasRoute={hasRoute}
         isOptimizing={isOptimizing}
@@ -188,8 +194,9 @@ export default function PlannerLeftSidebar({
         />
         <div className="flex items-center gap-2">
           <button type="button" onClick={onAddRandomObstacle} disabled={isOptimizing} className="flex-1 rounded-xl bg-sky-600 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50">+ Препятствие в Webots</button>
-          <HelpHint label="Случайное препятствие">Создаёт случайный объёмный объект в симуляции Webots. Его координаты появятся в сообщении после отправки команды. На веб-карте объект станет виден после обнаружения лидаром.</HelpHint>
+          <HelpHint label="Случайное препятствие">Запрашивает объёмный объект в Webots. На карте показан его контур в реальном масштабе, в списке — размеры и статус команды. «Команда принята» подтверждает отправку, создание в симуляции зависит от контроллера.</HelpHint>
         </div>
+        <PlannerRuntimeObstaclesSection obstacles={runtimeObstacles} />
         <PlannerConstraintsSection
           adjustedVisitCount={adjustedVisitCount}
           polygonCount={polygonCount}

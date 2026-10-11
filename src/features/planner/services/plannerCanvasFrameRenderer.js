@@ -3,6 +3,7 @@ import { renderPlannerPointLayer, renderPlannerRobot } from "./plannerCanvasPoin
 import { renderPlannerLidarTrace, renderPlannerRouteLayer } from "./plannerCanvasRouteRenderer";
 import { renderPlannerSensorLayers } from "./plannerCanvasSensorRenderer";
 import { renderPlannerZoneLayer } from "./plannerCanvasZoneRenderer";
+import { renderPlannerRuntimeObstacles } from "./plannerCanvasObstacleRenderer";
 
 export const renderPlannerCanvasScene = (ctx, state) => {
   const layers = state.mapLayers || {};
@@ -18,6 +19,7 @@ export const renderPlannerCanvasScene = (ctx, state) => {
   if (layers.lidarTrace !== false) renderPlannerLidarTrace(ctx, state.obstacleTrace);
   if (layers.zones !== false) renderPlannerZoneLayer(ctx, state.zoneEntries);
   if (layers.route !== false) renderPlannerRouteLayer(ctx, state);
+  if (layers.runtimeObstacles !== false) renderPlannerRuntimeObstacles(ctx, state.runtimeObstacles, state.viewScale);
   renderPlannerPointLayer(ctx, {
     ...state,
     visitEntries: layers.visits === false ? [] : state.visitEntries,

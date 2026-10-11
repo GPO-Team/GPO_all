@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import { HALF_HEIGHT, HALF_WIDTH } from "../../../lib/zonePlanner";
 import { pickRandomObstacleCenter, randomBetween } from "../model/randomObstacle";
 import {
@@ -20,6 +21,10 @@ export const usePlannerRuntimeCommands = ({
   telemetry,
   onMissionSubmitted,
 }) => {
+  const [runtimeObstacles, setRuntimeObstacles] = useState([]);
+  const lastObstacleCommandId = useRef(0);
+  const updateObstacle = (commandId, patch) => setRuntimeObstacles((previous) =>
+    previous.map((item) => item.commandId === commandId ? { ...item, ...patch } : item));
   const addRandomObstacle = () => {
     const obstacle = {
       sizeX: Number(randomBetween(0.46, 1.15).toFixed(3)),
@@ -39,20 +44,28 @@ export const usePlannerRuntimeCommands = ({
     }
     const payload = {
       type: "spawn_random_obstacle",
-      commandId: Date.now(),
+      commandId: Math.max(Date.now(), lastObstacleCommandId.current + 1),
       obstacle: {
         x: Number(center.x.toFixed(4)),
         y: Number(center.y.toFixed(4)),
         ...obstacle,
       },
     };
+    lastObstacleCommandId.current = payload.commandId;
+    setRuntimeObstacles((previous) => [...previous, {
+      ...payload.obstacle, commandId: payload.commandId, status: "sending",
+    }]);
     sendRouteChannelPayload(routeSocketRef, payload, {
-      onSent: () =>
+      onSent: () => {
+        updateObstacle(payload.commandId, { status: "accepted" });
         setStatus(
-          `Препятствие запрошено в Webots: X ${payload.obstacle.x.toFixed(2)} м, Y ${payload.obstacle.y.toFixed(2)} м. На веб-карте появится после обнаружения лидаром.`
-        ),
-      onError: (error) =>
-        setStatus(`Не удалось добавить препятствие: ${error.message}`),
+          `Команда препятствия принята: X ${payload.obstacle.x.toFixed(2)} м, Y ${payload.obstacle.y.toFixed(2)} м. Размер ${obstacle.sizeX} × ${obstacle.sizeY} м.`
+        );
+      },
+      onError: (error) => {
+        updateObstacle(payload.commandId, { status: "error", error: error.message });
+        setStatus(`Не удалось добавить препятствие: ${error.message}`);
+      },
     });
   };
 
@@ -123,5 +136,5 @@ export const usePlannerRuntimeCommands = ({
     });
   };
 
-  return { addRandomObstacle, startMappingSurvey, startObjectTransfer };
+  return { runtimeObstacles, addRandomObstacle, startMappingSurvey, startObjectTransfer };
 };
