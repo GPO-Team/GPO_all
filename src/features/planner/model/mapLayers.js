@@ -5,9 +5,11 @@ export const MAP_LAYER_OPTIONS = [
   { key: "surfaces", label: "Покрытия" },
   { key: "route", label: "Маршрут" },
   { key: "robot", label: "Робот" },
-  { key: "lidar", label: "Карта и след лидара" },
+  { key: "lidar", label: "Карта лидара" },
+  { key: "lidarTrace", label: "След лидара" },
   { key: "grid", label: "Сетка" },
   { key: "axes", label: "Оси X/Y" },
+  { key: "axisLabels", label: "Разметка осей" },
 ];
 
 export const createDefaultMapLayers = () => Object.fromEntries(
@@ -15,7 +17,7 @@ export const createDefaultMapLayers = () => Object.fromEntries(
 );
 
 export const normalizeMapLayers = (raw) => Object.fromEntries(
-  MAP_LAYER_OPTIONS.map(({ key }) => [key, typeof raw?.[key] === "boolean" ? raw[key] : true])
+  MAP_LAYER_OPTIONS.map(({ key }) => [key, typeof raw?.[key] === "boolean" ? raw[key] : key === "lidarTrace" && typeof raw?.lidar === "boolean" ? raw.lidar : true])
 );
 
 export const isPointLayerVisible = (point, layers) =>

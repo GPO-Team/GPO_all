@@ -20,7 +20,7 @@ describe("robot telemetry", () => {
     const telemetry = normalizeTelemetry(bridgePacket);
     const html = renderToStaticMarkup(<PlannerTelemetrySection telemetry={telemetry} telemetryWsUp routeWsUp solverApiUp />);
     expect(html).toContain("Телеметрия робота");
-    expect(html).toContain("<details open");
+    expect(html).not.toContain("<details open");
     for (const reading of ["1.25 м", "Следование маршруту", "3.50 м", "4.00 / 5.00 м", "90.00 °", "0.80 м/с", "120.0 энерго-ед.", "0.60 м/с", "1.20 рад/с", "1.60 м", "12.4 с"]) {
       expect(html).toContain(reading);
     }

@@ -39,8 +39,8 @@ export default function PlannerTelemetrySection({ telemetry, telemetryWsUp, rout
   return <section className={cardCls}>
     <h3 className="mb-2 text-sm font-semibold">Телеметрия робота</h3>
     {!telemetryWsUp && <p role="status" className="mb-2 text-xs text-amber-700">Нет соединения с телеметрией. Показаны последние полученные данные.</p>}
-    <details open className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-      <summary className="cursor-pointer text-sm font-semibold text-slate-700">Показания датчиков</summary>
+    <details className="planner-disclosure rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <summary className="disclosure-trigger flex items-center gap-2 text-sm font-semibold text-slate-700"><span className="flex-1">Показания датчиков</span><span className="disclosure-hint text-xs font-normal text-sky-700">Раскрыть</span></summary>
       <div className="mt-3 space-y-3 text-xs tabular-nums">
         <div>
           <h4 className="mb-1 font-semibold text-sky-800">Положение робота</h4>

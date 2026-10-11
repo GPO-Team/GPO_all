@@ -8,13 +8,14 @@ export const renderPlannerCanvasScene = (ctx, state) => {
   const layers = state.mapLayers || {};
   drawPlannerBackground(ctx, layers.surfaces === false ? [] : state.surfaceZones, {
     annotate: layers.axes === true, border: false, grid: layers.grid !== false,
+    axisLabels: layers.axisLabels !== false,
     viewScale: state.viewScale,
   });
   renderPlannerSensorLayers(ctx, {
     obstacleMap: layers.lidar === false ? null : state.obstacleMap,
     cameraMap: layers.lidar === false ? null : state.cameraMap,
   });
-  if (layers.lidar !== false) renderPlannerLidarTrace(ctx, state.obstacleTrace);
+  if (layers.lidarTrace !== false) renderPlannerLidarTrace(ctx, state.obstacleTrace);
   if (layers.zones !== false) renderPlannerZoneLayer(ctx, state.zoneEntries);
   if (layers.route !== false) renderPlannerRouteLayer(ctx, state);
   renderPlannerPointLayer(ctx, {

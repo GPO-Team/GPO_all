@@ -16,6 +16,7 @@ export function loadPlannerUiState() {
     return {
       ...defaultState(),
       ...parsed,
+      rightCollapsed: true,
       mapLayers: normalizeMapLayers(parsed.mapLayers),
     };
   } catch {

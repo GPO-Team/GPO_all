@@ -22,6 +22,7 @@ export default function PlannerSetupSection({
   status,
   visitCount,
   zoneCount,
+  surfaceCount,
 }) {
   return (
     <>
@@ -29,6 +30,7 @@ export default function PlannerSetupSection({
         {kinds.includes("visit") && <div>Точки посещения: <b>{visitCount || 0}</b><HelpHint label="Обозначения карты">Красные точки — посещения, зелёный значок — робот. Безопасно смещённых точек: {adjustedVisitCount || 0}.</HelpHint></div>}
         {kinds.includes("charge") && <div>Зарядки: <b>{chargeCount || 0}</b><HelpHint label="Станции зарядки">Жёлтые точки — станции зарядки робота.</HelpHint></div>}
         {kinds.includes("limit") && <div>Зоны: <b>{zoneCount || 0}</b><HelpHint label="Ограничивающие зоны">Синие контуры — запретные зоны. Готовых контуров: {polygonCount || 0}. Активная зона: {activeZoneName}.</HelpHint></div>}
+        {kinds.includes("surface") && <div>Покрытия: <b>{surfaceCount || 0}</b><HelpHint label="Зоны покрытий">Каждое покрытие задаёт свойства участка карты. Замкнутые контуры участвуют в расчёте скорости и энергии маршрута.</HelpHint></div>}
       </div>}
       <div className={cardCls}>
         <div className="text-xs font-semibold text-sky-800">

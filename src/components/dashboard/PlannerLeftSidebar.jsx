@@ -8,6 +8,7 @@ import PlannerImportSection from "./sections/PlannerImportSection";
 import PlannerSetupSection from "./sections/PlannerSetupSection";
 import PlannerMissionStatus from "./sections/PlannerMissionStatus";
 import PlannerObjectTransferSection from "./sections/PlannerObjectTransferSection";
+import HelpHint from "./HelpHint";
 
 
 export default function PlannerLeftSidebar({
@@ -170,6 +171,7 @@ export default function PlannerLeftSidebar({
           onClearVisitPoints={onClearVisitPoints}
           polygonCount={polygonCount}
           routeBlocked={routeBlocked}
+          status={status}
           visitCount={visitCount}
           zoneCount={zoneCount}
         />
@@ -184,7 +186,10 @@ export default function PlannerLeftSidebar({
           onToggleZoneClosed={onToggleZoneClosed}
           zoneEntries={zoneEntries || []}
         />
-        <button type="button" onClick={onAddRandomObstacle} disabled={isOptimizing} className="w-full rounded-xl bg-sky-600 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50">+ Препятствие</button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={onAddRandomObstacle} disabled={isOptimizing} className="flex-1 rounded-xl bg-sky-600 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50">+ Препятствие в Webots</button>
+          <HelpHint label="Случайное препятствие">Создаёт случайный объёмный объект в симуляции Webots. Его координаты появятся в сообщении после отправки команды. На веб-карте объект станет виден после обнаружения лидаром.</HelpHint>
+        </div>
         <PlannerConstraintsSection
           adjustedVisitCount={adjustedVisitCount}
           polygonCount={polygonCount}
@@ -240,7 +245,7 @@ export default function PlannerLeftSidebar({
       {tab === "surfaces" && <>
       <PlannerSetupSection
         kinds={["surface"]}
-        showOverview={false}
+        surfaceCount={surfaceZones?.length || 0}
         activePointKind={activePointKind}
         onActivePointKindChange={onActivePointKindChange}
         onClearSurfaceZones={onClearAllSurfaceZones}

@@ -24,6 +24,10 @@ describe("planner canvas renderer", () => {
     expect(ctx.fillText).toHaveBeenCalledWith("0", expect.any(Number), expect.any(Number));
     expect(getAxisTickStep(0.4)).toBeGreaterThan(getAxisTickStep(2));
     ctx.fillText.mockClear();
+    ctx.stroke.mockClear();
+    drawPlannerBackground(ctx, [], { axisLabels: false, border: false, grid: false });
+    expect(ctx.fillText).not.toHaveBeenCalled();
+    expect(ctx.stroke).toHaveBeenCalledOnce();
     drawPlannerBackground(ctx, [], { annotate: false, border: false, grid: false });
     expect(ctx.fillText).not.toHaveBeenCalled();
   });

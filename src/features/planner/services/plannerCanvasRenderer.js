@@ -89,7 +89,7 @@ export const getAxisTickStep = (viewScale = 1) => {
 };
 
 export const drawPlannerBackground = (ctx, surfaceZones = DEFAULT_SURFACE_ZONES, options = {}) => {
-  const { annotate = true, border = true, grid = true, viewScale = 1 } = options;
+  const { annotate = true, axisLabels = true, border = true, grid = true, viewScale = 1 } = options;
   const annotationScale = Number.isFinite(viewScale) && viewScale > 0 ? viewScale : 1;
   const gradient = ctx.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   gradient.addColorStop(0, "#fafafa");
@@ -141,6 +141,7 @@ export const drawPlannerBackground = (ctx, surfaceZones = DEFAULT_SURFACE_ZONES,
   ctx.moveTo(horizontalAxisLeft.x, horizontalAxisLeft.y);
   ctx.lineTo(horizontalAxisRight.x, horizontalAxisRight.y);
   ctx.stroke();
+  if (!axisLabels) return;
   ctx.fillStyle = "#334155";
   ctx.font = `500 ${12 / annotationScale}px 'Segoe UI', sans-serif`;
   const tickSize = 4 / annotationScale;

@@ -35,6 +35,7 @@ it("activates point placement directly from each menu section and preserves tran
       expect(button.getAttribute("aria-pressed")).toBe("true");
       if (kind === "limit") expect(container.textContent).toContain("Зоны: 1");
       if (kind === "charge") expect(container.textContent).toContain("Зарядки: 2");
+      if (kind === "surface") expect(container.textContent).toContain("Покрытия: 0");
     }
   } finally {
     await act(async () => root.unmount());

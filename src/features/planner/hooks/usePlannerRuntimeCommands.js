@@ -49,10 +49,10 @@ export const usePlannerRuntimeCommands = ({
     sendRouteChannelPayload(routeSocketRef, payload, {
       onSent: () =>
         setStatus(
-          `Команда добавления препятствия сохранена bridge: (${payload.obstacle.x.toFixed(2)}, ${payload.obstacle.y.toFixed(2)}).`
+          `Препятствие запрошено в Webots: X ${payload.obstacle.x.toFixed(2)} м, Y ${payload.obstacle.y.toFixed(2)} м. На веб-карте появится после обнаружения лидаром.`
         ),
-      onError: () =>
-        setStatus("Не удалось отправить команду добавления препятствия."),
+      onError: (error) =>
+        setStatus(`Не удалось добавить препятствие: ${error.message}`),
     });
   };
 
