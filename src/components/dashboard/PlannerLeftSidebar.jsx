@@ -90,7 +90,7 @@ export default function PlannerLeftSidebar({
     onActivePointKindChange({ route: "visit", objects: "limit", surfaces: "surface", energy: "charge" }[key]);
   };
   return (
-    <aside className="planner-sidebar flex h-full min-h-0 w-[380px] min-w-[380px] max-w-[380px] flex-none flex-col overflow-hidden border-r border-stone-200 bg-gradient-to-b from-stone-100 via-white to-slate-100">
+    <aside className="planner-sidebar planner-sidebar-left flex h-full min-h-0 w-[416px] min-w-[416px] max-w-[416px] flex-none flex-col overflow-hidden border-r border-stone-200 bg-gradient-to-b from-stone-100 via-white to-slate-100">
       <div className="flex shrink-0 items-start justify-between gap-2 border-b border-stone-200 bg-white px-3 py-2">
         <div className="min-w-0 pt-0.5">
           <div className="text-xs font-medium uppercase tracking-[0.16em] text-stone-700">

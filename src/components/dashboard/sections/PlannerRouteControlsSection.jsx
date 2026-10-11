@@ -8,8 +8,15 @@ const cardCls =
   "rounded-2xl bg-white/95 backdrop-blur border border-stone-200 shadow-[0_18px_40px_rgba(15,23,42,0.06)] p-3";
 const inputCls =
   "w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 shadow-sm transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100";
-const neutralButtonCls =
-  "rounded-xl border border-slate-300 bg-slate-800 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-900";
+const actionPaths = {
+  build: "M5 5h10a4 4 0 0 1 0 8H9a3 3 0 0 0 0 6h10M3 3h4v4H3zM17 17h4v4h-4z",
+  send: "m3 3 18 9-18 9 4-9-4-9Zm4 9h14",
+  stop: "M6 6h12v12H6z",
+  clear: "m4 14 9-10 7 7-9 10H9l-5-7Zm4-4 7 7M11 21h10",
+  trash: "M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7",
+  obstacle: "M12 3 2 21h20L12 3Zm0 6v5m0 3h.01",
+};
+const RouteActionIcon = ({ kind }) => <svg className="route-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={actionPaths[kind]} /></svg>;
 
 const missionStatusText = (mission) => {
   if (!mission) return null;
@@ -63,29 +70,29 @@ export default function PlannerRouteControlsSection({
           ))}
         </div>
       </details>}
-      {showActions && <div className={showParameters ? cardCls : ""}>
-        <div className="mb-2 text-xs font-semibold">Управление <HelpHint label="Безопасный маршрут">
+      {showActions && <div className="route-controls">
+        <div className="route-controls-title">Управление маршрутом <HelpHint label="Безопасный маршрут">
           Маршрут строится с зазором {ROUTE_CLEARANCE_MARGIN.toFixed(2)} м от контура,
           а целевые точки держатся минимум на {SAFE_POINT_MARGIN.toFixed(2)} м от запретной зоны.
         </HelpHint></div>
-        <div className="grid grid-cols-2 gap-2"><button onClick={onOptimizeRoute} disabled={isOptimizing}
-          className={`w-full h-9 rounded-xl text-white text-xs font-semibold transition ${isOptimizing ? "bg-orange-400 cursor-wait" : "bg-orange-600 hover:bg-orange-700"}`}>
-          {isOptimizing ? "Строим маршрут..." : "Построить маршрут"}
+        <div className="route-actions"><button type="button" onClick={onOptimizeRoute} disabled={isOptimizing}
+          className="route-action route-action-primary" aria-busy={isOptimizing}>
+          <RouteActionIcon kind="build" /><span>{isOptimizing ? "Строим маршрут..." : "Построить маршрут"}</span>
         </button>
-        <button onClick={onSendRoute} disabled={isOptimizing || !hasRoute}
-          className={`w-full h-9 rounded-xl text-white text-xs font-semibold transition ${isOptimizing || !hasRoute ? "bg-emerald-400 cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-700"}`}>
-          Отправить маршрут
+        <button type="button" onClick={onSendRoute} disabled={isOptimizing || !hasRoute}
+          className="route-action route-action-accent">
+          <RouteActionIcon kind="send" /><span>Отправить маршрут</span>
         </button>
         <button type="button" onClick={onCancelMission} disabled={!mission || ["completed", "cancelled", "failed", "cancelling"].includes(mission.status)}
-          className="h-9 w-full rounded-xl bg-rose-600 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50">
-          {mission?.status === "cancelling" ? "Останавливаем…" : "Остановить маршрут"}
+          className="route-action route-action-danger">
+          <RouteActionIcon kind="stop" /><span>{mission?.status === "cancelling" ? "Останавливаем…" : "Остановить маршрут"}</span>
         </button>
-        <button type="button" onClick={onClearVisitPoints} className="h-9 w-full whitespace-nowrap rounded-xl border border-slate-300 bg-slate-800 px-2 text-[11px] font-semibold text-white shadow-sm transition hover:bg-slate-900">Очистить маршрутные точки</button>
-        {showObstacle && <button onClick={onAddRandomObstacle} disabled={isOptimizing}
-          className={`w-full h-9 rounded-xl text-white text-xs font-semibold transition ${isOptimizing ? "bg-sky-400 cursor-not-allowed" : "bg-sky-600 hover:bg-sky-700"}`}>
-          + Препятствие
+        <button type="button" onClick={onClearVisitPoints} className="route-action"><RouteActionIcon kind="clear" /><span>Очистить маршрутные точки</span></button>
+        {showObstacle && <button type="button" onClick={onAddRandomObstacle} disabled={isOptimizing}
+          className="route-action">
+          <RouteActionIcon kind="obstacle" /><span>+ Препятствие</span>
         </button>}
-        <button onClick={onClearAll} className={`w-full h-9 ${neutralButtonCls}`}>Очистить всё</button></div>
+        <button type="button" onClick={onClearAll} className={`route-action ${showObstacle ? "" : "route-action-wide"}`}><RouteActionIcon kind="trash" /><span>Очистить всё</span></button></div>
         {missionStatus && <p role="status" className="mt-2 text-xs leading-relaxed text-stone-700">{missionStatus}</p>}
         {hasRoute && <p className="mt-3 text-sm">Длина маршрута: <b>{routeLength.toFixed(2)} м</b></p>}
       </div>}

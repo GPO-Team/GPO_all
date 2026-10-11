@@ -5,9 +5,9 @@ import PlannerRightSidebar from "../../components/dashboard/PlannerRightSidebar"
 import SidebarCollapseRail from "../../components/dashboard/SidebarCollapseRail";
 
 export default function DashboardPlannerWorkspace({ canvasProps, leftSidebarProps, plannerUiState, rightSidebarProps, setSidebarCollapsed }) {
-  const [compact, setCompact] = useState(() => window.matchMedia("(max-width: 1023px)").matches);
+  const [compact, setCompact] = useState(() => window.matchMedia("(max-width: 1199px)").matches);
   useEffect(() => {
-    const media = window.matchMedia("(max-width: 1023px)");
+    const media = window.matchMedia("(max-width: 1199px)");
     const update = () => setCompact(media.matches);
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
