@@ -41,7 +41,6 @@ export default function PlannerLeftSidebar({
   onOptimizeRoute,
   onSendRoute,
   onAddRandomObstacle,
-  onClearAll,
   hasRoute,
   routeLength,
   visitCount,
@@ -124,7 +123,6 @@ export default function PlannerLeftSidebar({
       {mission?.operationType === "object_transfer" && <PlannerMissionStatus mission={mission} onCancel={onCancelMission} onResume={onResumeMission} />}
       {tab === "route" && <PlannerSetupSection
         kinds={["visit"]}
-        showClear={false}
         activePointKind={activePointKind}
         activeZoneName={activeZoneName}
         adjustedVisitCount={adjustedVisitCount}
@@ -145,8 +143,6 @@ export default function PlannerLeftSidebar({
         isOptimizing={isOptimizing}
         onAddRandomObstacle={onAddRandomObstacle}
         onAlgorithmParamChange={onAlgorithmParamChange}
-        onClearAll={onClearAll}
-        onClearVisitPoints={onClearVisitPoints}
         onCancelMission={onCancelMission}
         mission={mission}
         onOptimizeRoute={onOptimizeRoute}
@@ -253,9 +249,9 @@ export default function PlannerLeftSidebar({
       <PlannerSetupSection
         kinds={["surface"]}
         showOverview={false}
-        showClear={false}
         activePointKind={activePointKind}
         onActivePointKindChange={onActivePointKindChange}
+        onClearSurfaceZones={onClearAllSurfaceZones}
       />
       <PlannerSurfaceZonesSection
         activeSurfaceProfileKey={activeSurfaceProfileKey}
@@ -264,7 +260,6 @@ export default function PlannerLeftSidebar({
         cruiseSpeedInput={cruiseSpeedInput}
         cruiseSpeedMps={cruiseSpeedMps}
         onActiveSurfaceProfileChange={onActiveSurfaceProfileChange}
-        onClearAllSurfaceZones={onClearAllSurfaceZones}
         onClearSurfaceZone={onClearSurfaceZone}
         onCreateSurfaceZone={onCreateSurfaceZone}
         onRemoveSurfaceZone={onRemoveSurfaceZone}

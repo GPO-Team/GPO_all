@@ -16,6 +16,7 @@ export default function PlannerSetupSection({
   onClearChargePoints,
   onClearLimitPoints,
   onClearVisitPoints,
+  onClearSurfaceZones,
   polygonCount,
   routeBlocked,
   status,
@@ -38,6 +39,7 @@ export default function PlannerSetupSection({
           {kinds.includes("visit") && <button onClick={onClearVisitPoints} className={subtleButtonCls}>Очистить маршрутные точки</button>}
           {kinds.includes("charge") && <button onClick={onClearChargePoints} className={subtleButtonCls}>Очистить зарядки</button>}
           {kinds.includes("limit") && <button onClick={onClearLimitPoints} className={subtleButtonCls}>Очистить зоны</button>}
+          {kinds.includes("surface") && <button onClick={onClearSurfaceZones} className={subtleButtonCls}>Очистить покрытия</button>}
         </div>}
       </div>
       {status && <div className={`text-xs ${routeBlocked ? "text-rose-700" : "text-emerald-700"}`}>{status}</div>}

@@ -7,6 +7,8 @@ import {
   normalizeCruiseSpeed,
   normalizePayload,
   validateBatteryRangeInput,
+  validateCruiseSpeedInput,
+  validatePayloadInput,
 } from "../model/energySettings";
 import { createEmptyRouteEnergyStats } from "../model/routeEnergy";
 
@@ -70,8 +72,9 @@ export const usePlannerEnergySettings = ({
     setBatteryRangeInput(String(nextValue));
   };
   const handleCruiseSpeedChange = (rawValue) => {
-    setCruiseSpeedInput(rawValue);
-    applyValue(rawValue, cruiseSpeedMps, normalizeCruiseSpeed, setCruiseSpeedMps);
+    const nextInput = validateCruiseSpeedInput(rawValue, cruiseSpeedInput);
+    setCruiseSpeedInput(nextInput);
+    applyValue(nextInput, cruiseSpeedMps, normalizeCruiseSpeed, setCruiseSpeedMps);
   };
   const handleCruiseSpeedBlur = () => {
     const nextValue = normalizeCruiseSpeed(cruiseSpeedInput);
@@ -83,8 +86,9 @@ export const usePlannerEnergySettings = ({
     setCruiseSpeedInput(formatEnergyNumber(nextValue, 3));
   };
   const handlePayloadChange = (rawValue) => {
-    setPayloadInput(rawValue);
-    applyValue(rawValue, payloadKg, normalizePayload, setPayloadKg);
+    const nextInput = validatePayloadInput(rawValue, payloadInput);
+    setPayloadInput(nextInput);
+    applyValue(nextInput, payloadKg, normalizePayload, setPayloadKg);
   };
   const handlePayloadBlur = () => {
     const nextValue = normalizePayload(payloadInput);

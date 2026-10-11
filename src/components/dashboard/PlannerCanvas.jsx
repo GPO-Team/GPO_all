@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { clampZoom, createViewport, getMapScaleBar, zoomAt } from "../../features/planner/model/plannerViewport";
-import { MAP_WORLD_HEIGHT, MAP_WORLD_WIDTH, SCALE } from "../../lib/zonePlannerCoordinates";
+import { clampZoom, createViewport, zoomAt } from "../../features/planner/model/plannerViewport";
+import { MAP_WORLD_HEIGHT, MAP_WORLD_WIDTH } from "../../lib/zonePlannerCoordinates";
 import { INITIAL_TELEMETRY } from "../../lib/telemetry/dashboardTelemetryState";
 import { createPlannerCanvasDrawState } from "../../features/planner/model/plannerCanvasDrawState";
 import { startPlannerCanvasRenderLoop } from "../../features/planner/services/plannerCanvasRenderLoop";
@@ -41,8 +41,6 @@ export default function PlannerCanvas({
   const [zoom, setZoom] = useState(1);
   const [panState, setPanState] = useState({ enabled: false, revision: 0 });
   const panMode = panState.enabled && panState.revision === pointPlacementRevision;
-  const [pixelsPerMeter, setPixelsPerMeter] = useState(0);
-  const scaleBar = getMapScaleBar(pixelsPerMeter);
 
   const updateViewport = () => {
     const container = containerRef.current;
@@ -50,7 +48,6 @@ export default function PlannerCanvas({
     const viewport = createViewport(container.clientWidth, container.clientHeight, viewRef.current.zoom, viewRef.current.pan);
     viewportRef.current = viewport;
     canvasRef.current.plannerViewport = viewport;
-    setPixelsPerMeter(viewport.scale * SCALE);
   };
   const changeZoom = (next, anchor) => {
     const current = viewRef.current;
@@ -76,7 +73,6 @@ export default function PlannerCanvas({
       const viewport = createViewport(container.clientWidth, container.clientHeight, view.zoom, view.pan);
       viewportRef.current = viewport;
       canvas.plannerViewport = viewport;
-      setPixelsPerMeter(viewport.scale * SCALE);
     };
     const wheel = (event) => {
       event.preventDefault();
@@ -172,13 +168,8 @@ export default function PlannerCanvas({
         <span className="h-5 border-l border-slate-200" />
         <button type="button" aria-pressed={panMode} title="Перемещение карты. Также Alt + перетаскивание или правая кнопка мыши" onClick={() => setPanState({ enabled: !panMode, revision: pointPlacementRevision })}>{panMode ? "✋ Двигать" : "✛ Точки"}</button>
       </div>
-      <div className="pointer-events-none absolute bottom-3 left-3 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-xs text-slate-700 shadow-sm" aria-label="Метраж карты">
+      <div className="pointer-events-none absolute bottom-3 left-3 text-sm text-slate-700" aria-label="Метраж карты">
         <div>Размер карты: <b>{MAP_WORLD_WIDTH} × {MAP_WORLD_HEIGHT} м</b></div>
-        {mapLayers?.grid !== false && <div className="mt-1 text-slate-500">Шаг сетки: 1 м</div>}
-        {scaleBar && <div className="mt-2" aria-label={`Масштаб: ${scaleBar.meters} м`}>
-          <div className="mb-1 tabular-nums">{scaleBar.meters.toLocaleString("ru-RU")} м</div>
-          <div className="h-1.5 border-x-2 border-b-2 border-slate-700" style={{ width: scaleBar.width }} />
-        </div>}
       </div>
     </main>
   );

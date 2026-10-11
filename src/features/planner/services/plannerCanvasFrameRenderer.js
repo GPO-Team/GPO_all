@@ -8,6 +8,7 @@ export const renderPlannerCanvasScene = (ctx, state) => {
   const layers = state.mapLayers || {};
   drawPlannerBackground(ctx, layers.surfaces === false ? [] : state.surfaceZones, {
     annotate: layers.axes === true, border: false, grid: layers.grid !== false,
+    viewScale: state.viewScale,
   });
   renderPlannerSensorLayers(ctx, {
     obstacleMap: layers.lidar === false ? null : state.obstacleMap,

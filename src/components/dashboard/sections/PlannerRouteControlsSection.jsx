@@ -12,8 +12,6 @@ const actionPaths = {
   build: "M5 5h10a4 4 0 0 1 0 8H9a3 3 0 0 0 0 6h10M3 3h4v4H3zM17 17h4v4h-4z",
   send: "m3 3 18 9-18 9 4-9-4-9Zm4 9h14",
   stop: "M6 6h12v12H6z",
-  clear: "m4 14 9-10 7 7-9 10H9l-5-7Zm4-4 7 7M11 21h10",
-  trash: "M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7",
   obstacle: "M12 3 2 21h20L12 3Zm0 6v5m0 3h.01",
 };
 const RouteActionIcon = ({ kind }) => <svg className="route-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={actionPaths[kind]} /></svg>;
@@ -45,8 +43,6 @@ export default function PlannerRouteControlsSection({
   isOptimizing,
   onAddRandomObstacle,
   onAlgorithmParamChange,
-  onClearAll,
-  onClearVisitPoints,
   onCancelMission,
   mission,
   onOptimizeRoute,
@@ -84,15 +80,14 @@ export default function PlannerRouteControlsSection({
           <RouteActionIcon kind="send" /><span>Отправить маршрут</span>
         </button>
         <button type="button" onClick={onCancelMission} disabled={!mission || ["completed", "cancelled", "failed", "cancelling"].includes(mission.status)}
-          className="route-action route-action-danger">
+          className={`route-action route-action-danger ${showObstacle ? "" : "route-action-wide"}`}>
           <RouteActionIcon kind="stop" /><span>{mission?.status === "cancelling" ? "Останавливаем…" : "Остановить маршрут"}</span>
         </button>
-        <button type="button" onClick={onClearVisitPoints} className="route-action"><RouteActionIcon kind="clear" /><span>Очистить маршрутные точки</span></button>
         {showObstacle && <button type="button" onClick={onAddRandomObstacle} disabled={isOptimizing}
           className="route-action">
           <RouteActionIcon kind="obstacle" /><span>+ Препятствие</span>
         </button>}
-        <button type="button" onClick={onClearAll} className={`route-action ${showObstacle ? "" : "route-action-wide"}`}><RouteActionIcon kind="trash" /><span>Очистить всё</span></button></div>
+        </div>
         {missionStatus && <p role="status" className="mt-2 text-xs leading-relaxed text-stone-700">{missionStatus}</p>}
         {hasRoute && <p className="mt-3 text-sm">Длина маршрута: <b>{routeLength.toFixed(2)} м</b></p>}
       </div>}

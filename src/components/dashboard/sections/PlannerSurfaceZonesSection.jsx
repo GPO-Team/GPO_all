@@ -25,7 +25,6 @@ export default function PlannerSurfaceZonesSection({
   cruiseSpeedInput,
   cruiseSpeedMps,
   onActiveSurfaceProfileChange,
-  onClearAllSurfaceZones,
   onClearSurfaceZone,
   onCreateSurfaceZone,
   onRemoveSurfaceZone,
@@ -65,23 +64,20 @@ export default function PlannerSurfaceZonesSection({
         </button>
         <button onClick={() => activeSurfaceZone && onClearSurfaceZone?.(activeSurfaceZone.id)}
           className={subtleButtonCls} disabled={!activeSurfaceZone?.points?.length}>Очистить зону</button>
-        <button onClick={onClearAllSurfaceZones} className={subtleButtonCls}>Очистить все</button>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+      <div className="mt-3 grid gap-2 text-xs">
         {surfaceZoneList.map((zone) => {
           const profile = SURFACE_PROFILE_OPTIONS.find((item) => item.key === zone.surfaceKey) || SURFACE_PROFILE_OPTIONS[0];
           const active = zone.id === activeSurfaceZoneId;
           return (
-            <details key={zone.id} className={`planner-disclosure rounded-xl border px-3 py-2 ${active ? "border-teal-300 bg-teal-50" : "border-stone-200 bg-stone-50"}`}>
+            <details key={zone.id} className={`planner-disclosure surface-zone-card rounded-xl border ${active ? "border-teal-300 bg-teal-50" : "border-stone-200 bg-stone-50"}`}>
               <summary onClick={() => onSelectSurfaceZone?.(zone.id)}
-                className="disclosure-trigger flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-left transition hover:border-teal-200 hover:bg-teal-50">
-                <span className="flex items-center gap-2">
-                  <span className="inline-block h-3 w-3 rounded-full border border-stone-400" style={{ background: profile.fill }} />
-                  <span className="font-semibold text-stone-800">{zone.name}</span>
-                </span>
-                <span className="text-stone-500">{zone.points?.length || 0} т.</span>
+                className="disclosure-trigger surface-zone-trigger">
+                <span className="h-3 w-3 rounded-full border border-stone-400" style={{ background: profile.fill }} />
+                <span className="surface-zone-name">{zone.name}</span>
+                <span className="surface-zone-count">{zone.points?.length || 0} т.</span>
               </summary>
-              <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-white/70 px-2 py-1 text-stone-600">
+              <div className="mx-3 mt-2 flex items-center justify-between gap-2 rounded-lg bg-white/70 px-2 py-1 text-stone-600">
                 <span>{profile.label}</span>
                 <span className={zone.closed ? "font-semibold text-emerald-700" : "font-semibold text-amber-700"}>
                   {zone.closed ? "замкнута" : "черновик"}
@@ -89,7 +85,7 @@ export default function PlannerSurfaceZonesSection({
               </div>
               {active && (
                 <button type="button" onClick={() => onRemoveSurfaceZone?.(zone.id)}
-                  className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[11px] font-semibold text-rose-700 hover:bg-rose-100">
+                  className="m-3 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[11px] font-semibold text-rose-700 hover:bg-rose-100">
                   Удалить покрытие
                 </button>
               )}

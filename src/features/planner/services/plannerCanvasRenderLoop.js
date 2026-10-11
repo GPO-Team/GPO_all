@@ -31,7 +31,7 @@ export const startPlannerCanvasRenderLoop = ({
         const width = Math.max(1, Math.round(viewport.width * dpr));
         const height = Math.max(1, Math.round(viewport.height * dpr));
         const key = `${width}:${height}:${dpr}:${viewport.scale}:${viewport.x}:${viewport.y}`;
-        const state = { ...drawStateRef.current, viewScale: viewport.scale, markerScale: viewport.fitScale * Math.max(1, viewport.zoom) };
+        const state = { ...drawStateRef.current, viewScale: viewport.scale, markerScale: viewport.fitScale };
         if (!sceneCanvas) sceneCanvas = document.createElement("canvas");
         if (key !== lastViewport || lastState !== drawStateRef.current) {
           canvas.width = sceneCanvas.width = width;
