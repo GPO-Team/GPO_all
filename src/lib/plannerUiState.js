@@ -1,8 +1,11 @@
-const STORAGE_KEY = "gpo.planner.ui.v1";
+import { createDefaultMapLayers, normalizeMapLayers } from "../features/planner/model/mapLayers";
+
+const STORAGE_KEY = "gpo.planner.ui.v2";
 
 const defaultState = () => ({
   leftCollapsed: false,
-  rightCollapsed: false,
+  rightCollapsed: true,
+  mapLayers: createDefaultMapLayers(),
 });
 
 export function loadPlannerUiState() {
@@ -13,6 +16,7 @@ export function loadPlannerUiState() {
     return {
       ...defaultState(),
       ...parsed,
+      mapLayers: normalizeMapLayers(parsed.mapLayers),
     };
   } catch {
     return defaultState();

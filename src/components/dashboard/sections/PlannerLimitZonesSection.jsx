@@ -1,3 +1,5 @@
+import HelpHint from "../HelpHint";
+
 const cardCls =
   "rounded-[18px] bg-white/97 backdrop-blur border border-sky-100 shadow-[0_12px_30px_rgba(14,165,233,0.10)] p-4";
 const zoneCardCls =
@@ -25,18 +27,13 @@ export default function PlannerLimitZonesSection({
       <div className={cardCls}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-xs uppercase tracking-[0.18em] text-sky-700">Активная зона</div>
+            <div className="text-xs uppercase tracking-[0.18em] text-sky-700">Активная зона <HelpHint label="Как работают зоны">В открытую зону можно добавлять и двигать точки. Замкнутая зона участвует в расчёте безопасного маршрута. Точки внутри замкнутого контура автоматически выносятся в безопасную позицию.</HelpHint></div>
             <div className="mt-1 text-lg font-semibold text-slate-900">{activeZoneName}</div>
           </div>
           <div className="text-right text-xs text-slate-500">
             <div>{activeZone?.closed ? "Замкнута" : "Открыта"}</div>
             <div className="mt-1">Точек: {activeZone?.points.length || 0}</div>
           </div>
-        </div>
-        <div className="mt-3 text-xs text-slate-600 space-y-1">
-          <div>В открытую зону можно добавлять и двигать точки.</div>
-          <div>Замкнутая зона участвует в расчете безопасного маршрута.</div>
-          <div>Точки внутри замкнутого контура автоматически выносятся в безопасную позицию.</div>
         </div>
       </div>
       <div className={cardCls}>
@@ -66,9 +63,9 @@ export default function PlannerLimitZonesSection({
                     </div>
                   </button>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2">
                   <button onClick={() => onToggleZoneClosed(zone.id)} className={primaryButtonCls}>{zone.closed ? "Открыть" : "Замкнуть"}</button>
-                  <button onClick={() => onClearZone(zone.id)} className={neutralButtonCls}>Очистить</button>
+                  <button onClick={() => onClearZone(zone.id)} disabled={!zone.points.length} className={neutralButtonCls}>Очистить зону</button>
                   <button onClick={() => onRemoveZone(zone.id)} className={dangerButtonCls}>Удалить</button>
                 </div>
               </div>

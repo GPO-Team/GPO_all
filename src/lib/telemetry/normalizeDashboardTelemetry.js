@@ -3,6 +3,7 @@ import { unwrapTelemetryEvent } from "../../../shared/contracts/index.js";
 import { INITIAL_TELEMETRY } from "./dashboardTelemetryState";
 import { normalizeTelemetryMap } from "./telemetryMaps";
 import { normalizeNavigation } from "./telemetryNavigation";
+import { normalizeMotionProfile } from "./telemetryMotion";
 import { normalizeCamera, normalizeObstacleTrace } from "./telemetryPerception";
 import { pickNumber } from "./telemetryNumbers";
 
@@ -21,6 +22,7 @@ export const normalizeTelemetry = (raw, prev = INITIAL_TELEMETRY) => {
   const yaw = pickNumber(pose?.yaw, raw.yaw, prev.yaw, 0);
   const simulationTime = pickNumber(raw.simulationTime, raw.time, prev.simulationTime);
   const navigation = normalizeNavigation(raw.navigation, prev.navigation);
+  const motionProfile = normalizeMotionProfile(raw.motionProfile, prev.motionProfile);
   const rawObstacleTrace =
     (raw.perception && Array.isArray(raw.perception.obstacleTrace)
       ? raw.perception.obstacleTrace
@@ -43,6 +45,7 @@ export const normalizeTelemetry = (raw, prev = INITIAL_TELEMETRY) => {
     z,
     yaw,
     navigation,
+    ...(motionProfile ? { motionProfile } : {}),
     ...((raw.objectTransfer ?? prev.objectTransfer)
       ? { objectTransfer: raw.objectTransfer ?? prev.objectTransfer }
       : {}),

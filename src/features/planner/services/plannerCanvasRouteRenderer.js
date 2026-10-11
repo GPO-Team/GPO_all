@@ -1,6 +1,6 @@
 import { worldToCanvas } from "../../../lib/zonePlanner";
 
-export const renderPlannerRouteLayer = (ctx, { obstacleTrace, optimizedRoute, routeBlocked }) => {
+export const renderPlannerLidarTrace = (ctx, obstacleTrace = []) => {
   obstacleTrace.forEach((point) => {
     const confidenceRaw = Number(point?.confidence);
     const confidence = Number.isFinite(confidenceRaw) ? Math.max(0, Math.min(1, confidenceRaw)) : 1;
@@ -13,7 +13,9 @@ export const renderPlannerRouteLayer = (ctx, { obstacleTrace, optimizedRoute, ro
     ctx.fill();
     ctx.stroke();
   });
+};
 
+export const renderPlannerRouteLayer = (ctx, { optimizedRoute, routeBlocked }) => {
   if (optimizedRoute.length <= 1) return;
   ctx.strokeStyle = routeBlocked ? "#dc2626" : "#0f766e";
   ctx.lineWidth = 5;

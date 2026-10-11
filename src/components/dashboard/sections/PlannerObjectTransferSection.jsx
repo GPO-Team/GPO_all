@@ -1,3 +1,4 @@
+import HelpHint from "../HelpHint";
 import { useState } from "react";
 
 export default function PlannerObjectTransferSection({ onStartTransfer }) {
@@ -11,8 +12,7 @@ export default function PlannerObjectTransferSection({ onStartTransfer }) {
   };
   return (
     <section className="rounded-xl border border-orange-200 bg-orange-50 p-3">
-      <div className="text-sm font-bold text-stone-900">Автоперенос объекта</div>
-      <p className="mt-1 text-xs text-stone-600">Робот подъедет к demo-box, захватит его и отвезёт в указанную точку.</p>
+      <div className="text-sm font-bold text-stone-900">Автоперенос объекта <HelpHint label="Перенос объекта">Робот подъедет к demo-box, захватит его и отвезёт в указанную точку.</HelpHint></div>
       <form className="mt-3 grid grid-cols-2 gap-2" onSubmit={submit}>
         <label className="text-xs text-stone-600">X
           <input className="mt-1 w-full rounded border border-stone-300 bg-white px-2 py-1.5" type="number" step="0.1" min="-22" max="22" value={x} onChange={event => setX(event.target.value)} />

@@ -7,6 +7,15 @@ export const normalizeNavigation = (
 ) => {
   if (!rawNavigation || typeof rawNavigation !== "object") return prevNavigation;
 
+  let target = prevNavigation?.target;
+  if (Object.hasOwn(rawNavigation, "target")) {
+    const x = pickNumber(rawNavigation.target?.x);
+    const y = pickNumber(rawNavigation.target?.y);
+    target = x !== null && y !== null
+      ? { x, y, headingDeg: pickNumber(rawNavigation.target?.headingDeg) }
+      : null;
+  }
+
   const distanceToTarget = pickNumber(
     rawNavigation.distanceToTarget,
     prevNavigation?.distanceToTarget
@@ -26,6 +35,9 @@ export const normalizeNavigation = (
         ? rawNavigation.status
         : prevNavigation?.status ?? "",
     finished: Boolean(rawNavigation.finished),
+    ...(target !== undefined ? { target } : {}),
+    ...(typeof rawNavigation.error === "string" ? { error: rawNavigation.error }
+      : typeof prevNavigation?.error === "string" ? { error: prevNavigation.error } : {}),
     currentWaypointIndex:
       pickNumber(rawNavigation.currentWaypointIndex, prevNavigation?.currentWaypointIndex, 0) ?? 0,
     ...(distanceToTarget !== null ? { distanceToTarget } : {}),

@@ -10,5 +10,13 @@ export const usePlannerSidebarState = () => {
       return next;
     });
   }, []);
-  return { plannerUiState, setSidebarCollapsed };
+  const setMapLayerVisible = useCallback((key, visible) => {
+    setPlannerUiState((previous) => {
+      if (!(key in previous.mapLayers)) return previous;
+      const next = { ...previous, mapLayers: { ...previous.mapLayers, [key]: visible } };
+      savePlannerUiState(next);
+      return next;
+    });
+  }, []);
+  return { plannerUiState, setSidebarCollapsed, setMapLayerVisible };
 };

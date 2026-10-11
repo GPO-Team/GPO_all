@@ -32,8 +32,8 @@ export const renderPlannerSensorLayers = (ctx, { obstacleMap, cameraMap }) => {
     const confidence = Number.isFinite(confidenceRaw) ? Math.max(0, confidenceRaw) : 0;
     const intensity = Math.max(0.12, Math.min(1, confidence / 10));
     const point = worldToCanvas(cell.x, cell.y);
-    ctx.fillStyle = `rgba(45, 212, 191, ${0.06 + intensity * 0.16})`;
-    ctx.strokeStyle = `rgba(20, 184, 166, ${0.10 + intensity * 0.22})`;
+    ctx.fillStyle = `rgba(196, 181, 253, ${0.06 + intensity * 0.16})`;
+    ctx.strokeStyle = `rgba(139, 92, 246, ${0.10 + intensity * 0.22})`;
     ctx.lineWidth = 1;
     ctx.fillRect(point.x - cellCanvasSize / 2, point.y - cellCanvasSize / 2, cellCanvasSize, cellCanvasSize);
     ctx.strokeRect(point.x - cellCanvasSize / 2, point.y - cellCanvasSize / 2, cellCanvasSize, cellCanvasSize);

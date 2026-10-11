@@ -8,9 +8,9 @@ export default function PlannerConstraintsSection({
   visitsInsideLimitCount,
 }) {
   return (
-    <div className={zonePanelCardCls}>
-      <h3 className="text-sm font-semibold mb-2">Контроль ограничений</h3>
-      <div className="space-y-2 text-sm text-stone-700">
+    <details className={zonePanelCardCls}>
+      <summary className="cursor-pointer text-sm font-semibold">Контроль ограничений</summary>
+      <div className="mt-3 space-y-2 text-sm text-stone-700">
         <div>
           Точек внутри зон: <b>{visitsInsideLimitCount}</b>
         </div>
@@ -29,6 +29,6 @@ export default function PlannerConstraintsSection({
         <div>Любую точку можно перетащить мышкой прямо на карте.</div>
         <div>Если безопасный обход построить нельзя, маршрут не отправляется.</div>
       </div>
-    </div>
+    </details>
   );
 }
