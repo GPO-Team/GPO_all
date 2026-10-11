@@ -19,9 +19,9 @@ export const SURFACE_PROFILES = {
 export const SURFACE_PROFILE_OPTIONS = Object.values(SURFACE_PROFILES);
 
 export const SURFACE_ZONE_PRESETS = [
-  { id: "surface-rough-west", surfaceKey: "rough", name: "Западный шероховатый участок", points: [{ x: -22, y: -17 }, { x: -6, y: -17 }, { x: -6, y: -4 }, { x: -22, y: -4 }] },
-  { id: "surface-rough-center", surfaceKey: "rough", name: "Центральная зона стыков", points: [{ x: -3.8, y: -17 }, { x: 3.8, y: -17 }, { x: 3.8, y: 17 }, { x: -3.8, y: 17 }] },
-  { id: "surface-slippery-east", surfaceKey: "slippery", name: "Восточный скользкий участок", points: [{ x: 8, y: 4.5 }, { x: 22, y: 4.5 }, { x: 22, y: 17 }, { x: 8, y: 17 }] },
+  { id: "surface-rough-west", surfaceKey: "rough", name: "Покрытие 1", points: [{ x: -22, y: -17 }, { x: -6, y: -17 }, { x: -6, y: -4 }, { x: -22, y: -4 }] },
+  { id: "surface-rough-center", surfaceKey: "rough", name: "Покрытие 2", points: [{ x: -3.8, y: -17 }, { x: 3.8, y: -17 }, { x: 3.8, y: 17 }, { x: -3.8, y: 17 }] },
+  { id: "surface-slippery-east", surfaceKey: "slippery", name: "Покрытие 3", points: [{ x: 8, y: 4.5 }, { x: 22, y: 4.5 }, { x: 22, y: 17 }, { x: 8, y: 17 }] },
 ];
 
 export const DEFAULT_ENERGY_OPTIONS = { speedMps: DEFAULT_SPEED_MPS, payloadKg: DEFAULT_PAYLOAD_KG };

@@ -5,7 +5,7 @@ const selectCls = "w-full rounded-xl border border-stone-300 bg-white px-3 py-2 
 
 const layerGroups = [
   { label: "Объекты и маршрут", keys: ["visits", "charges", "zones", "surfaces", "route", "robot"] },
-  { label: "Датчики", keys: ["lidar", "camera"] },
+  { label: "Датчики", keys: ["lidar"] },
   { label: "Ориентиры", keys: ["grid", "axes"] },
 ];
 const layerStyles = {
@@ -16,7 +16,6 @@ const layerStyles = {
   route: { color: "#0f766e", path: "M5 5h10a4 4 0 0 1 0 8H9a3 3 0 0 0 0 6h10M3 3h4v4H3zM17 17h4v4h-4z" },
   robot: { color: "#16a34a", path: "M5 7h14v12H5zM12 3v4M8 11h.01M16 11h.01M9 15h6M2 10v6m20-6v6" },
   lidar: { color: "#0891b2", path: "M12 12h.01M9 8a5 5 0 0 1 6 0M6 5a9 9 0 0 1 12 0M9 16a5 5 0 0 0 6 0M6 19a9 9 0 0 0 12 0M12 12l7-7" },
-  camera: { color: "#7c3aed", path: "M3 7h4l2-3h6l2 3h4v13H3V7Zm9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" },
   grid: { color: "#64748b", path: "M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18" },
   axes: { color: "#475569", path: "M5 3v16h16M2 6l3-3 3 3M18 16l3 3-3 3" },
 };
@@ -47,15 +46,15 @@ export default function PlannerMapSection({
       </div>)}
       <p className="mt-3 text-xs text-slate-500">Скрытые зоны и покрытия продолжают учитываться при расчёте маршрута.</p>
       <div className="mt-2 flex flex-wrap gap-3 text-xs">
-        <span className="flex items-center gap-1.5"><span className="h-2 w-4 rounded bg-teal-600" />След лидара</span>
-        <span className="flex items-center gap-1.5"><span className="h-2 w-4 rounded bg-violet-500" />Карта камеры</span>
+        <span className="flex items-center gap-1.5"><span className="h-2 w-4 rounded bg-teal-500" />Область обследования лидара</span>
+        <span className="flex items-center gap-1.5"><span className="h-2 w-4 rounded bg-violet-500" />Отметки препятствий</span>
       </div>
     </section>
       <div className="mt-3 rounded-xl border border-cyan-200 bg-cyan-50/70 p-3">
         <div className="text-xs font-semibold uppercase tracking-[0.12em] text-cyan-800">
           Карта препятствий <HelpHint label="Карта препятствий">
           Постоянная карта строится из лидарных попаданий и рисуется поверх рабочей сетки.
-          Камерная карта добавляется отдельным фиолетовым слоем по визуальным попаданиям камеры.
+          Бирюзовый слой показывает обследованную область, фиолетовые отметки — препятствия. Переключатель лидара управляет всеми этими слоями и следом.
         </HelpHint></div>
         <label className="mt-3 block">
           <div className="mb-1 text-xs font-medium text-cyan-900">Режим обследования</div>
@@ -113,7 +112,7 @@ export default function PlannerMapSection({
                     : "cursor-not-allowed border border-stone-200 bg-stone-100 text-stone-400"
                 }`}
               >
-                Камера
+                Область обследования
               </button>
             </div>
             <button

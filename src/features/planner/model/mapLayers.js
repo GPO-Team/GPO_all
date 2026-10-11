@@ -6,7 +6,6 @@ export const MAP_LAYER_OPTIONS = [
   { key: "route", label: "Маршрут" },
   { key: "robot", label: "Робот" },
   { key: "lidar", label: "Карта и след лидара" },
-  { key: "camera", label: "Карта камеры" },
   { key: "grid", label: "Сетка" },
   { key: "axes", label: "Оси X/Y" },
 ];

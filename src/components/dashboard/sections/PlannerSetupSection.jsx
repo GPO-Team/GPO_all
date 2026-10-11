@@ -25,9 +25,10 @@ export default function PlannerSetupSection({
 }) {
   return (
     <>
-      {showOverview && <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-        <span>Точки <b>{visitCount}</b> · зарядки <b>{chargeCount}</b> · зоны <b>{zoneCount}</b></span>
-        <HelpHint label="Обозначения карты">Красные точки — посещения, жёлтые — зарядки, синие контуры — запретные зоны, зелёный значок — робот. Готовых контуров: {polygonCount}; безопасно смещённых точек: {adjustedVisitCount}. Активная зона: {activeZoneName}.</HelpHint>
+      {showOverview && <div className="flex flex-wrap gap-2 text-sm text-slate-600">
+        {kinds.includes("visit") && <div>Точки посещения: <b>{visitCount || 0}</b><HelpHint label="Обозначения карты">Красные точки — посещения, зелёный значок — робот. Безопасно смещённых точек: {adjustedVisitCount || 0}.</HelpHint></div>}
+        {kinds.includes("charge") && <div>Зарядки: <b>{chargeCount || 0}</b><HelpHint label="Станции зарядки">Жёлтые точки — станции зарядки робота.</HelpHint></div>}
+        {kinds.includes("limit") && <div>Зоны: <b>{zoneCount || 0}</b><HelpHint label="Ограничивающие зоны">Синие контуры — запретные зоны. Готовых контуров: {polygonCount || 0}. Активная зона: {activeZoneName}.</HelpHint></div>}
       </div>}
       <div className={cardCls}>
         <div className="text-xs font-semibold text-sky-800">

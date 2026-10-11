@@ -90,7 +90,7 @@ export const createLeftSidebarProps = ({ state, runtime, derived, actions }) => 
     activeSurfaceZoneId: surfaces.activeSurfaceZoneId,
     activeSurfaceZone: viewModel.activeSurfaceZone,
     activeSurfaceProfileKey: surfaces.activeSurfaceProfileKey,
-    onActiveSurfaceProfileChange: actions.updateActiveSurfaceProfile,
+    onSurfaceProfileChange: actions.updateSurfaceProfile,
     onCreateSurfaceZone: actions.createSurfaceZone,
     onSelectSurfaceZone: actions.selectSurfaceZone,
     onToggleSurfaceZoneClosed: actions.toggleSurfaceZoneClosed,

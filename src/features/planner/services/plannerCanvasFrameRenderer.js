@@ -12,7 +12,7 @@ export const renderPlannerCanvasScene = (ctx, state) => {
   });
   renderPlannerSensorLayers(ctx, {
     obstacleMap: layers.lidar === false ? null : state.obstacleMap,
-    cameraMap: layers.camera === false ? null : state.cameraMap,
+    cameraMap: layers.lidar === false ? null : state.cameraMap,
   });
   if (layers.lidar !== false) renderPlannerLidarTrace(ctx, state.obstacleTrace);
   if (layers.zones !== false) renderPlannerZoneLayer(ctx, state.zoneEntries);

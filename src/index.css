@@ -132,11 +132,6 @@ html {
 .planner-disclosure > .disclosure-trigger:hover { background: #eff6ff; color: #0369a1; }
 .planner-disclosure > .disclosure-trigger:focus-visible { outline: 2px solid #0284c7; outline-offset: 3px; }
 .planner-disclosure[open] > .disclosure-trigger .disclosure-hint { display: none; }
-.surface-zone-trigger { display: grid; grid-template-columns: 12px 12px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 66px; padding: 12px; border-radius: 12px; }
-.planner-disclosure > .surface-zone-trigger::before { margin-right: 0; color: #0f766e; }
-.surface-zone-name { min-width: 0; overflow-wrap: anywhere; font-size: 14px; font-weight: 600; line-height: 1.45; color: #292524; }
-.surface-zone-count { min-width: 42px; padding: 5px 7px; border-radius: 8px; background: #fff; color: #57534e; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.surface-zone-card[open] { padding-bottom: 10px; }
 @media (max-width: 1199px) {
   .workspace-panel { position: absolute; top: 0; bottom: 0; box-shadow: 0 8px 32px #0f172a26; }
   .workspace-panel-left { left: 0; }

@@ -16,20 +16,24 @@ const createContext = () => ({
 });
 
 describe("planner canvas frame renderer", () => {
-  it("ties the turquoise lidar trace to lidar visibility independently of camera and route", () => {
+  it("ties the trace, surveyed cells and obstacles to the single lidar toggle", () => {
     const state = {
       visitEntries: [], chargeEntries: [], plannedVisitEntryMap: new Map(),
       zoneEntries: [], surfaceZones: [], optimizedRoute: [],
       obstacleTrace: [{ x: 1, y: 2 }],
+      cameraMap: { cells: [{ x: 2, y: 3 }], freeCells: [{ x: 3, y: 4 }] },
       mapLayers: { lidar: true, camera: false, route: false, robot: false, axes: false, grid: false },
     };
     const ctx = createContext();
     renderPlannerCanvasFrame(ctx, state, { x: 0, y: 0, yaw: 0 });
-    expect(ctx.arc).toHaveBeenCalledOnce();
+    expect(ctx.arc).toHaveBeenCalledTimes(2);
+    expect(ctx.fillRect).toHaveBeenCalledTimes(3);
     ctx.arc.mockClear();
+    ctx.fillRect.mockClear();
     state.mapLayers = { ...state.mapLayers, lidar: false, camera: true, route: true };
     renderPlannerCanvasFrame(ctx, state, { x: 0, y: 0, yaw: 0 });
     expect(ctx.arc).not.toHaveBeenCalled();
+    expect(ctx.fillRect).toHaveBeenCalledTimes(2);
   });
   it("renders the background and robot for an empty planner state", () => {
     const ctx = createContext();

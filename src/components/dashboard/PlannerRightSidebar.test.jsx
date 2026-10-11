@@ -33,6 +33,8 @@ it("separates robot readings from map controls, persists visibility, and keeps s
   expect(mapPanel.hidden).toBe(true);
   expect(telemetryPanel.textContent).not.toContain("Алгоритм");
   expect(mapPanel.textContent).toContain("Алгоритм");
+  expect(mapPanel.textContent).not.toContain("Камера");
+  expect(mapPanel.textContent).toContain("Карта и след лидара");
   await act(async () => [...container.querySelectorAll("nav button")].find(button => button.textContent === "Карта").click());
   expect(mapPanel.hidden).toBe(false);
   expect(telemetryPanel.hidden).toBe(true);

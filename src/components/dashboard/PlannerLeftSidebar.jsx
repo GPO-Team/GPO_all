@@ -74,9 +74,7 @@ export default function PlannerLeftSidebar({
   routeTiming,
   surfaceZones,
   activeSurfaceZoneId,
-  activeSurfaceZone,
-  activeSurfaceProfileKey,
-  onActiveSurfaceProfileChange,
+  onSurfaceProfileChange,
   onCreateSurfaceZone,
   onSelectSurfaceZone,
   onToggleSurfaceZoneClosed,
@@ -116,10 +114,6 @@ export default function PlannerLeftSidebar({
         {[["route", "Маршрут"], ["objects", "Зоны"], ["surfaces", "Покрытия"], ["energy", "Энергия"]].map(([key, label]) => <button type="button" key={key} aria-pressed={tab === key} onClick={() => selectTab(key)}>{label}</button>)}
       </nav>
       <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-2 space-y-2">
-      {tab === "route" && <details className="planner-disclosure rounded-xl border border-orange-200 bg-white p-3">
-        <summary className="disclosure-trigger text-sm font-semibold">Перенос объекта</summary>
-        <div className="mt-3"><PlannerObjectTransferSection onStartTransfer={onStartObjectTransfer} /></div>
-      </details>}
       {mission?.operationType === "object_transfer" && <PlannerMissionStatus mission={mission} onCancel={onCancelMission} onResume={onResumeMission} />}
       {tab === "route" && <PlannerSetupSection
         kinds={["visit"]}
@@ -166,7 +160,6 @@ export default function PlannerLeftSidebar({
       {tab === "objects" && <>
         <PlannerSetupSection
           kinds={["limit"]}
-          showOverview={false}
           activePointKind={activePointKind}
           activeZoneName={activeZoneName}
           adjustedVisitCount={adjustedVisitCount}
@@ -202,7 +195,6 @@ export default function PlannerLeftSidebar({
       {tab === "energy" && <>
       <PlannerSetupSection
         kinds={["charge"]}
-        showOverview={false}
         activePointKind={activePointKind}
         activeZoneName={activeZoneName}
         adjustedVisitCount={adjustedVisitCount}
@@ -254,12 +246,10 @@ export default function PlannerLeftSidebar({
         onClearSurfaceZones={onClearAllSurfaceZones}
       />
       <PlannerSurfaceZonesSection
-        activeSurfaceProfileKey={activeSurfaceProfileKey}
-        activeSurfaceZone={activeSurfaceZone}
         activeSurfaceZoneId={activeSurfaceZoneId}
         cruiseSpeedInput={cruiseSpeedInput}
         cruiseSpeedMps={cruiseSpeedMps}
-        onActiveSurfaceProfileChange={onActiveSurfaceProfileChange}
+        onSurfaceProfileChange={onSurfaceProfileChange}
         onClearSurfaceZone={onClearSurfaceZone}
         onCreateSurfaceZone={onCreateSurfaceZone}
         onRemoveSurfaceZone={onRemoveSurfaceZone}
@@ -270,6 +260,10 @@ export default function PlannerLeftSidebar({
         surfaceZones={surfaceZones}
       />
       </>}
+      {tab === "route" && <details className="planner-disclosure rounded-xl border border-orange-200 bg-white p-3">
+        <summary className="disclosure-trigger text-sm font-semibold">Перенос объекта</summary>
+        <div className="mt-3"><PlannerObjectTransferSection onStartTransfer={onStartObjectTransfer} /></div>
+      </details>}
       {tab === "route" && <PlannerImportSection onImportFile={onImportFile} />}
       </div>
     </aside>
