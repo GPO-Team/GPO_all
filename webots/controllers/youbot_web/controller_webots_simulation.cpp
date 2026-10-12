@@ -3,6 +3,16 @@
 #include <stdio.h>
 #include <string.h>
 
+static void remove_generated_nodes(WbFieldRef children, const char *prefix) {
+  if (!children) return;
+  // Registries are empty after a controller restart, while the world keeps its nodes.
+  for (int i = wb_supervisor_field_get_count(children) - 1; i >= 0; --i) {
+    WbNodeRef node = wb_supervisor_field_get_mf_node(children, i);
+    const char *def_name = node ? wb_supervisor_node_get_def(node) : NULL;
+    if (def_name && strncmp(def_name, prefix, strlen(prefix)) == 0) wb_supervisor_node_remove(node);
+  }
+}
+
 int controller_webots_simulation_get_obstacle_geometry(long long obstacle_id, RuntimeCommand *geometry) {
   if (!geometry || obstacle_id <= 0) return 0;
   char def_name[64];
@@ -49,6 +59,7 @@ void controller_webots_simulation_sync_limit_zones(
     double wall_height) {
   controller_webots_simulation_registry_remove_all(registry);
   if (!root_children_field || !registry || !zones) return;
+  remove_generated_nodes(root_children_field, "WEB_LIMIT_");
 
   for (int zone_index = 0; zone_index < zones->count; ++zone_index) {
     const LimitZone *zone = &zones->zones[zone_index];
@@ -84,6 +95,7 @@ void controller_webots_simulation_sync_surface_zones(
     int capacity) {
   controller_webots_simulation_registry_remove_all(registry);
   if (!root_children_field || !registry || !zones) return;
+  remove_generated_nodes(root_children_field, "WEB_SURFACE_");
 
   for (int zone_index = 0; zone_index < zones->count; ++zone_index) {
     const SurfaceZone *zone = &zones->zones[zone_index];
