@@ -5,7 +5,7 @@
 namespace {
 constexpr double kTimeout = 30.0;
 void enter(ControllerObjectTransferState *s, ControllerObjectTransferStage stage, double now) {
-  static const int progress[] = {0,5,15,25,35,45,60,78,88,95};
+  static const int progress[] = {0,5,10,16,22,28,34,39,44,50,65,70,76,82,90,96};
   s->stage = stage; s->stage_started_at = now; s->progress = progress[stage];
 }
 void fault(ControllerObjectTransferState *s, const char *code) {
@@ -66,20 +66,50 @@ void controller_object_transfer_service_step(ControllerObjectTransferService *se
       } else if(elapsed>kTimeout) fault(s,"grasp_failed"); break;
     case CONTROLLER_TRANSFER_LIFTING:
       out->request_arm_pose=1;
-      if(in->arm_reached && in->attached && in->grasp_valid) enter(s,CONTROLLER_TRANSFER_TRANSPORTING,now);
+      if(in->arm_reached && in->attached && in->grasp_valid) enter(s,CONTROLLER_TRANSFER_PLACING_ON_PLATFORM,now);
       else if(elapsed>kTimeout) fault(s,"lift_failed"); break;
+    case CONTROLLER_TRANSFER_PLACING_ON_PLATFORM:
+      out->request_arm_pose=1;
+      if(in->arm_reached && in->attached) enter(s,CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM,now);
+      else if(elapsed>kTimeout) fault(s,"platform_place_timeout"); break;
+    case CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM:
+      if(s->attached && in->arm_reached) {
+        out->detach_object=1; s->attached=0; s->gripper_closed=0;
+      } else if(in->on_platform && !in->attached) {
+        s->on_platform=1; enter(s,CONTROLLER_TRANSFER_RETURNING_ARM_FOR_TRANSPORT,now);
+      } else if(elapsed>kTimeout) fault(s,"platform_release_failed");
+      break;
+    case CONTROLLER_TRANSFER_RETURNING_ARM_FOR_TRANSPORT:
+      out->request_arm_pose=1;
+      if(in->arm_reached && in->on_platform) enter(s,CONTROLLER_TRANSFER_TRANSPORTING,now);
+      else if(elapsed>kTimeout) fault(s,in->arm_reached ? "cargo_lost" : "arm_timeout"); break;
     case CONTROLLER_TRANSFER_TRANSPORTING:
       out->request_navigation=1;
-      if(!in->attached) fault(s,"grip_lost");
-      else if(in->navigation_reached) enter(s,CONTROLLER_TRANSFER_PLACING,now);
+      if(!in->on_platform) fault(s,"cargo_lost");
+      else if(in->navigation_reached) enter(s,CONTROLLER_TRANSFER_PICKING_FROM_PLATFORM,now);
       else if(elapsed>180.0) fault(s,"navigation_failed"); break;
+    case CONTROLLER_TRANSFER_PICKING_FROM_PLATFORM:
+      out->request_arm_pose=1;
+      if(!in->on_platform) fault(s,"cargo_lost");
+      else if(in->arm_reached) enter(s,CONTROLLER_TRANSFER_GRASPING_FROM_PLATFORM,now);
+      else if(elapsed>kTimeout) fault(s,"platform_pick_timeout"); break;
+    case CONTROLLER_TRANSFER_GRASPING_FROM_PLATFORM:
+      out->close_gripper=1;
+      if(in->arm_reached && in->grasp_valid) {
+        out->attach_object=1; s->attached=1; s->on_platform=0; s->gripper_closed=1;
+        enter(s,CONTROLLER_TRANSFER_LIFTING_FROM_PLATFORM,now);
+      } else if(elapsed>kTimeout) fault(s,"platform_grasp_failed"); break;
+    case CONTROLLER_TRANSFER_LIFTING_FROM_PLATFORM:
+      out->request_arm_pose=1;
+      if(in->arm_reached && in->attached && in->grasp_valid) enter(s,CONTROLLER_TRANSFER_PLACING,now);
+      else if(elapsed>kTimeout) fault(s,"platform_lift_failed"); break;
     case CONTROLLER_TRANSFER_PLACING:
       out->request_arm_pose=1;
       if(in->arm_reached && in->release_safe) enter(s,CONTROLLER_TRANSFER_RELEASING,now);
       else if(elapsed>kTimeout) fault(s,"unsafe_release"); break;
     case CONTROLLER_TRANSFER_RELEASING:
       if(in->arm_reached && in->release_safe) {
-        out->detach_object=1; s->attached=0; s->gripper_closed=0; enter(s,CONTROLLER_TRANSFER_RETURNING_ARM,now);
+        out->detach_object=1; s->attached=0; s->on_platform=0; s->gripper_closed=0; enter(s,CONTROLLER_TRANSFER_RETURNING_ARM,now);
       } else if(elapsed>kTimeout) fault(s,"release_failed"); break;
     case CONTROLLER_TRANSFER_RETURNING_ARM:
       out->request_arm_pose=1;
@@ -97,6 +127,9 @@ int controller_object_transfer_service_resume(ControllerObjectTransferService *s
   if(service->state.attached) {
     service->state.error_code[0]=0;
     enter(&service->state,CONTROLLER_TRANSFER_LIFTING,now);
+  } else if(service->state.on_platform) {
+    service->state.error_code[0]=0;
+    enter(&service->state,CONTROLLER_TRANSFER_RETURNING_ARM_FOR_TRANSPORT,now);
   } else {
     service->state.cancel_pending=1;
     enter(&service->state,CONTROLLER_TRANSFER_RETURNING_ARM,now);

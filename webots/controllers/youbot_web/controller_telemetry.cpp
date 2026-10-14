@@ -37,7 +37,10 @@ static const char *transfer_status(ControllerObjectTransferStatus status) {
 
 static const char *transfer_stage(ControllerObjectTransferStage stage) {
   static const char *names[] = {"none", "approaching_object", "aligning", "lowering_arm",
-      "grasping", "lifting", "transporting", "placing", "releasing", "returning_arm"};
+      "grasping", "lifting", "placing_on_platform", "releasing_on_platform",
+      "returning_arm_for_transport", "transporting", "picking_from_platform",
+      "grasping_from_platform", "lifting_from_platform", "placing", "releasing",
+      "returning_arm"};
   return stage >= CONTROLLER_TRANSFER_STAGE_NONE && stage <= CONTROLLER_TRANSFER_RETURNING_ARM
       ? names[stage] : "none";
 }
@@ -141,6 +144,7 @@ int controller_telemetry_write_snapshot(
   fprintf(file, "    \"stage\": \"%s\",\n", transfer_stage(transfer ? transfer->stage : CONTROLLER_TRANSFER_STAGE_NONE));
   fprintf(file, "    \"progress\": %d,\n", transfer ? transfer->progress : 0);
   fprintf(file, "    \"attached\": %s,\n", json_bool(transfer && transfer->attached));
+  fprintf(file, "    \"onPlatform\": %s,\n", json_bool(transfer && transfer->on_platform));
   fprintf(file, "    \"destination\": {\"x\": %.6f, \"y\": %.6f},\n",
       transfer ? transfer->destination_x : 0.0, transfer ? transfer->destination_y : 0.0);
   if (snapshot->object_position_available) {
@@ -154,6 +158,8 @@ int controller_telemetry_write_snapshot(
   fprintf(file, "    \"recoveryEpoch\": %u,\n", transfer ? transfer->recovery_epoch : 0);
   fprintf(file, "    \"objectPose\": {\"x\": %.6f, \"y\": %.6f, \"z\": %.6f},\n",
       transfer ? transfer->object_pose[0] : 0, transfer ? transfer->object_pose[1] : 0, transfer ? transfer->object_pose[2] : 0);
+  fprintf(file, "    \"objectUp\": {\"x\": %.6f, \"y\": %.6f, \"z\": %.6f},\n",
+      transfer ? transfer->object_up[0] : 0, transfer ? transfer->object_up[1] : 0, transfer ? transfer->object_up[2] : 0);
   fprintf(file, "    \"manipulator\": {\"mode\": \"physical_contacts\", \"jointPositions\": [");
   for(int i=0;i<5;++i) fprintf(file,"%s%.6f",i ? "," : "",transfer ? transfer->joint_positions[i] : 0);
   fprintf(file, "], \"jointTargets\": [");

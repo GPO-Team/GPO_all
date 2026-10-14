@@ -38,6 +38,10 @@ int main(void) {
   snapshot.object_x = 4.25;
   snapshot.object_y = -1.5;
   snapshot.object_z = 0.075;
+  ControllerObjectTransferState transfer = {};
+  transfer.stage = CONTROLLER_TRANSFER_TRANSPORTING;
+  transfer.on_platform = 1;
+  snapshot.object_transfer = &transfer;
 
   if (!controller_telemetry_write_snapshot(temp_path, state_path, &snapshot)) return 1;
   FILE *file = fopen(state_path, "rb");
@@ -61,6 +65,8 @@ int main(void) {
   if (!strstr(json, "\"pose\": \"lift\"")) return 14;
   if (!strstr(json, "\"joints\": [0.250000")) return 15;
   if (!strstr(json, "\"position\": {\"x\": 4.250000")) return 16;
+  if (!strstr(json, "\"stage\": \"transporting\"")) return 17;
+  if (!strstr(json, "\"onPlatform\": true")) return 18;
   free(json);
   if (fopen(temp_path, "rb") != NULL) return 11;
   return 0;

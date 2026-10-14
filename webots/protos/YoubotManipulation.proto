@@ -797,8 +797,36 @@ Robot {
       children [
         PlateMesh {
         }
+        Pose {
+          translation -0.02 0 0.06
+          children [
+            Shape {
+              appearance PBRAppearance { baseColor 0.18 0.18 0.2 roughness 0.8 }
+              geometry Box { size 0.012 0.19 0.02 }
+            }
+          ]
+        }
+        Pose {
+          translation 0.065 0.085 0.07
+          children [
+            Shape {
+              appearance PBRAppearance { baseColor 0.18 0.18 0.2 roughness 0.8 }
+              geometry Box { size 0.17 0.012 0.04 }
+            }
+          ]
+        }
+        Pose {
+          translation 0.065 -0.085 0.07
+          children [
+            Shape {
+              appearance PBRAppearance { baseColor 0.18 0.18 0.2 roughness 0.8 }
+              geometry Box { size 0.17 0.012 0.04 }
+            }
+          ]
+        }
       ]
       name "plate"
+      contactMaterial "cargo-platform"
       boundingObject Group {
         children [
           Pose {
@@ -844,6 +872,18 @@ Robot {
                 size 0.08 0.08 0.007
               }
             ]
+          }
+          Pose {
+            translation -0.02 0 0.06
+            children [ Box { size 0.012 0.19 0.02 } ]
+          }
+          Pose {
+            translation 0.065 0.085 0.07
+            children [ Box { size 0.17 0.012 0.04 } ]
+          }
+          Pose {
+            translation 0.065 -0.085 0.07
+            children [ Box { size 0.17 0.012 0.04 } ]
           }
         ]
       }

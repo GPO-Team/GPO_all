@@ -15,7 +15,15 @@ WorldInfo {
     ContactProperties {
       material1 "gripper-pad"
       material2 "demo-object"
-      coulombFriction [ 2 ]
+      coulombFriction [ 5 ]
+      bounce 0
+      softERP 0.4
+      softCFM 0.00001
+    }
+    ContactProperties {
+      material1 "cargo-platform"
+      material2 "demo-object"
+      coulombFriction [ 3 ]
       bounce 0
       softERP 0.4
       softCFM 0.00001
@@ -68,6 +76,15 @@ DEF DEMO_BOX Solid {
         }
       ]
     }
+    Connector {
+      translation 0 0 0.1
+      model "demo-cargo"
+      type "passive"
+      distanceTolerance 0.04
+      axisTolerance 3.14
+      rotationTolerance 3.14
+      snap FALSE
+    }
     Shape {
       appearance PBRAppearance {
         baseColor 0.92 0.3 0.08
@@ -117,6 +134,16 @@ YoubotManipulation {
   toolSlot [
     DEF TCP Pose {
       translation 0 0 0.12
+    }
+    Connector {
+      translation 0 0 0.12
+      name "cargo_connector"
+      model "demo-cargo"
+      type "active"
+      distanceTolerance 0.04
+      axisTolerance 3.14
+      rotationTolerance 3.14
+      snap FALSE
     }
   ]
   bodySlot [

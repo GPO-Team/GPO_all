@@ -50,5 +50,10 @@ void controller_object_transfer_runtime_step(
     double heading);
 int controller_object_transfer_runtime_allows_navigation(const ControllerObjectTransferRuntime *runtime);
 void controller_object_transfer_runtime_hold(ControllerObjectTransferRuntime *runtime,const char *reason);
+void controller_object_transfer_platform_pose(
+    double robot_x,double robot_y,double robot_z,double heading,double pose[3]);
+int controller_object_transfer_object_on_platform(
+    double robot_x,double robot_y,double robot_z,double heading,
+    double object_x,double object_y,double object_z);
 
 #endif

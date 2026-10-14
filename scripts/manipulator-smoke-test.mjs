@@ -37,6 +37,7 @@ let maxJointMotion = 0;
 let maxObjectHeight = -Infinity;
 let cancelled = false;
 let maxTransportWaypoints = 0;
+let platformTransportObserved = false;
 const samples = [];
 const readState = async () => {
   try { return JSON.parse(await readFile(path.join(stateDirectory, "robot_state.json"), "utf8")); }
@@ -116,10 +117,19 @@ try {
     maxObjectHeight = Math.max(maxObjectHeight, transfer.objectPose?.z ?? -Infinity);
     if (transfer.stage === "transporting") {
       maxTransportWaypoints = Math.max(maxTransportWaypoints, state.route?.waypoints?.length || 0);
+      const dx = transfer.objectPose.x - state.pose.x;
+      const dy = transfer.objectPose.y - state.pose.y;
+      const forward = Math.cos(state.pose.yaw) * dx + Math.sin(state.pose.yaw) * dy;
+      const expectedZ = state.pose.z + 0.1235;
+      platformTransportObserved ||= transfer.onPlatform && !transfer.attached
+        && Math.abs(forward + 0.09) < 0.06
+        && Math.abs(transfer.objectPose.z - expectedZ) < 0.03;
     }
     if (samples.at(-1)?.stage !== transfer.stage || samples.length === 0) {
       samples.push({ time: state.simulationTime, stage: transfer.stage, status: transfer.status,
-        joints, tcpPose: transfer.manipulator?.tcpPose, objectPose: transfer.objectPose,
+        joints, robotPose: state.pose, tcpPose: transfer.manipulator?.tcpPose,
+        objectPose: transfer.objectPose, objectUp: transfer.objectUp,
+        attached: transfer.attached, onPlatform: transfer.onPlatform,
         gripEvidence: transfer.manipulator?.gripEvidence, releaseEvidence: transfer.manipulator?.releaseEvidence });
       console.log(`${transfer.stage}: ${JSON.stringify(transfer.objectPose)}`);
     }
@@ -137,7 +147,9 @@ try {
   assert.ok(maxJointMotion > 0.2, `No meaningful measured arm motion: ${maxJointMotion}`);
   if (!cancelStage || cancelStage === "transporting") {
     assert.ok(maxObjectHeight > firstState.objectTransfer.objectPose.z + 0.04, `No measured physical lift: ${maxObjectHeight}`);
-    assert.ok(samples.some(sample => sample.gripEvidence && sample.stage === "transporting"), "No measured grip during transport");
+    assert.ok(samples.some(sample => sample.stage === "releasing_on_platform"), "Object was never released onto the platform");
+    assert.ok(platformTransportObserved, "Object was not transported physically on the platform");
+    assert.ok(samples.some(sample => sample.stage === "grasping_from_platform"), "Object was never picked back up from the platform");
   }
   if (!cancelStage || samples.some(sample => sample.gripEvidence)) {
     assert.equal(lastState.objectTransfer.manipulator.releaseEvidence, true, "No verified physical release");

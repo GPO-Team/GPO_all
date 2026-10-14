@@ -5,6 +5,7 @@
 
 typedef struct {
   WbNodeRef node;
+  WbDeviceTag connector;
   int attached;
 } ControllerWebotsObjectAdapter;
 
@@ -18,5 +19,6 @@ int controller_webots_object_adapter_position(
     double *z);
 void controller_webots_object_adapter_attach(ControllerWebotsObjectAdapter *adapter);
 void controller_webots_object_adapter_detach(ControllerWebotsObjectAdapter *adapter);
+int controller_webots_object_adapter_locked(const ControllerWebotsObjectAdapter *adapter);
 
 #endif

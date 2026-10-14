@@ -8,8 +8,25 @@
 #include <chrono>
 namespace {
 constexpr double kHandleOffset=0.115;
+constexpr double kHandleCenterOffset=0.10;
 constexpr double kGripDistance=0.40;
-constexpr double kOpen=0.025;
+constexpr double kDestinationGripDistance=0.40;
+constexpr double kOpen=0.0115;
+constexpr double kPlatformOffset=-0.09;
+constexpr double kPlatformCargoHeight=0.1235;
+constexpr double kPlatformPlacePitch=2.4;
+constexpr double kPlatformGripPitch=2.4;
+constexpr double kPlatformTcpForward=0.111;
+constexpr double kPlatformTcpHeight=0.055;
+void object_handle_center(ControllerObjectTransferRuntime *r,double x,double y,double z,double pose[3]) {
+  pose[0]=x;pose[1]=y;pose[2]=z+kHandleCenterOffset;
+  const double *orientation=r->object.node ? wb_supervisor_node_get_orientation(r->object.node) : nullptr;
+  if(orientation) {
+    pose[0]=x+orientation[2]*kHandleCenterOffset;
+    pose[1]=y+orientation[5]*kHandleCenterOffset;
+    pose[2]=z+orientation[8]*kHandleCenterOffset;
+  }
+}
 void fail(ControllerObjectTransferRuntime *r,const char *error) {
   auto &s=r->service.state;
   const auto parked=controller_manipulator_service_target(CONTROLLER_MANIPULATOR_TRANSPORT);
@@ -27,7 +44,7 @@ void waypoint(ControllerObjectTransferRuntime *r,double x,double y) {
   auto *n=r->navigation;
   const double *base=wb_supervisor_node_get_position(wb_supervisor_node_get_self());
   if(!controller_transfer_route_plan(&n->limit_zones,base[0],base[1],x,y,
-      r->service.state.attached ? 0.50 : 0.36,&n->route)) {
+      (r->service.state.attached || r->service.state.on_platform) ? 0.50 : 0.36,&n->route)) {
     fail(r,"navigation_unreachable"); return;
   }
   std::snprintf(n->route.command_id,sizeof(n->route.command_id),"%s",r->service.state.mission_id);
@@ -35,27 +52,60 @@ void waypoint(ControllerObjectTransferRuntime *r,double x,double y) {
   n->cancelled_mission_id[0]=0;
   controller_navigation_state_reset(n,x,y);
 }
-int arm_target(ControllerObjectTransferRuntime *r,double wx,double wy,double wz,
-    double opening,double now,double rx,double ry,double heading) {
+int arm_target_pitch(ControllerObjectTransferRuntime *r,double wx,double wy,double wz,
+    double pitch,double opening,double now,double rx,double ry,double heading) {
   const double *base=wb_supervisor_node_get_position(wb_supervisor_node_get_self());
   const double dx=wx-rx,dy=wy-ry;
   ControllerManipulatorTcp tcp={std::cos(heading)*dx+std::sin(heading)*dy,
-      -std::sin(heading)*dx+std::cos(heading)*dy,wz-base[2],-2.8,0.0};
+      -std::sin(heading)*dx+std::cos(heading)*dy,wz-base[2],pitch,0.0};
   ControllerManipulatorTarget target={}; target.finger_opening=opening;
   if(!controller_manipulator_inverse(&tcp,r->service.state.joint_positions,target.joints)) {
     fail(r,"target_unreachable"); return 0;
   }
+  const double safe_fingers[2]={
+      r->service.state.finger_positions[0]<0 ? 0.0 :
+          (r->service.state.finger_positions[0]>kOpen ? kOpen : r->service.state.finger_positions[0]),
+      r->service.state.finger_positions[1]<0 ? 0.0 :
+          (r->service.state.finger_positions[1]>kOpen ? kOpen : r->service.state.finger_positions[1])};
   if(!controller_manipulator_service_start_target(&r->manipulator,&target,
-      r->service.state.joint_positions,r->service.state.finger_positions,now)) {
+      r->service.state.joint_positions,safe_fingers,now)) {
     fail(r,"sensor_invalid"); return 0;
   }
   std::memcpy(r->service.state.joint_targets,target.joints,sizeof(target.joints)); return 1;
 }
+int arm_target(ControllerObjectTransferRuntime *r,double wx,double wy,double wz,
+    double opening,double now,double rx,double ry,double heading) {
+  return arm_target_pitch(r,wx,wy,wz,-2.8,opening,now,rx,ry,heading);
+}
+void platform_target(ControllerObjectTransferRuntime *r,double rx,double ry,double heading,
+    double height_offset,double opening,double now) {
+  const double *base=wb_supervisor_node_get_position(wb_supervisor_node_get_self());
+  double pose[3]={};
+  controller_object_transfer_platform_pose(rx,ry,base[2],heading,pose);
+  pose[0]+=std::cos(heading)*kPlatformTcpForward;
+  pose[1]+=std::sin(heading)*kPlatformTcpForward;
+  if(arm_target_pitch(r,pose[0],pose[1],pose[2]+kPlatformTcpHeight+height_offset,
+      kPlatformPlacePitch,opening,now,rx,ry,heading)) {
+    r->manipulator.duration_seconds*=2.0;
+    const double timeout=r->manipulator.duration_seconds+3.0;
+    if(r->manipulator.timeout_seconds<timeout) r->manipulator.timeout_seconds=timeout;
+  }
+}
 void configure(ControllerObjectTransferRuntime *r,double now,double rx,double ry,double heading) {
   auto &s=r->service.state;
   if(s.stage==r->configured_stage) return;
+  if(s.stage==CONTROLLER_TRANSFER_PICKING_FROM_PLATFORM) {
+    const double *velocity=r->object.node ? wb_supervisor_node_get_velocity(r->object.node) : nullptr;
+    const double speed=velocity ? std::hypot(std::hypot(velocity[0],velocity[1]),velocity[2]) : 100;
+    const double *base=wb_supervisor_node_get_position(wb_supervisor_node_get_self());
+    if(!base) return;
+    if(speed>=0.025 || !controller_object_transfer_object_on_platform(
+        rx,ry,base[2],heading,s.object_pose[0],s.object_pose[1],s.object_pose[2])) return;
+  }
   r->configured_stage=s.stage; r->arm_phase=0; r->stable_since=-1;
   const double ox=s.object_pose[0],oy=s.object_pose[1];
+  double platform_handle[3]={};
+  object_handle_center(r,ox,oy,s.object_pose[2],platform_handle);
   switch(s.stage) {
     case CONTROLLER_TRANSFER_LOWERING_ARM:
       arm_target(r,ox,oy,s.object_pose[2]+kHandleOffset+0.06,kOpen,now,rx,ry,heading); break;
@@ -63,14 +113,44 @@ void configure(ControllerObjectTransferRuntime *r,double now,double rx,double ry
       arm_target(r,ox,oy,s.object_pose[2]+kHandleOffset,0.0,now,rx,ry,heading); break;
     case CONTROLLER_TRANSFER_LIFTING:
       arm_target(r,ox,oy,r->initial_object_z+kHandleOffset+0.08,0.0,now,rx,ry,heading); break;
+    case CONTROLLER_TRANSFER_PLACING_ON_PLATFORM:
+      platform_target(r,rx,ry,heading,0.06,0.0,now); break;
+    case CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM:
+    {
+      ControllerManipulatorTarget target={};target.finger_opening=kOpen;
+      std::memcpy(target.joints,s.joint_positions,sizeof(target.joints));
+      const double safe_fingers[2]={s.finger_positions[0]>0 ? s.finger_positions[0] : 0.0,
+          s.finger_positions[1]>0 ? s.finger_positions[1] : 0.0};
+      controller_manipulator_service_start_target(&r->manipulator,&target,
+          s.joint_positions,safe_fingers,now);
+      std::memcpy(s.joint_targets,target.joints,sizeof(target.joints));break;
+    }
+    case CONTROLLER_TRANSFER_RETURNING_ARM_FOR_TRANSPORT:
+      platform_target(r,rx,ry,heading,0.06,kOpen,now); break;
     case CONTROLLER_TRANSFER_TRANSPORTING:
-      waypoint(r,s.destination_x-kGripDistance,s.destination_y); break;
+      waypoint(r,s.destination_x-kDestinationGripDistance,s.destination_y); break;
+    case CONTROLLER_TRANSFER_PICKING_FROM_PLATFORM:
+      arm_target_pitch(r,platform_handle[0],platform_handle[1],platform_handle[2]+0.06,
+          kPlatformGripPitch,kOpen,now,rx,ry,heading); break;
+    case CONTROLLER_TRANSFER_GRASPING_FROM_PLATFORM:
+      arm_target_pitch(r,platform_handle[0],platform_handle[1],platform_handle[2],
+          kPlatformGripPitch,0.0,now,rx,ry,heading); break;
+    case CONTROLLER_TRANSFER_LIFTING_FROM_PLATFORM:
+      arm_target_pitch(r,platform_handle[0],platform_handle[1],platform_handle[2]+0.10,
+          kPlatformGripPitch,0.0,now,rx,ry,heading); break;
     case CONTROLLER_TRANSFER_PLACING:
       arm_target(r,s.destination_x,s.destination_y,r->initial_object_z+kHandleOffset+0.06,
           0.0,now,rx,ry,heading); break;
     case CONTROLLER_TRANSFER_RELEASING:
-      arm_target(r,s.destination_x,s.destination_y,r->initial_object_z+kHandleOffset,
-          kOpen,now,rx,ry,heading); break;
+    {
+      ControllerManipulatorTarget target={};target.finger_opening=kOpen;
+      std::memcpy(target.joints,s.joint_positions,sizeof(target.joints));
+      const double safe_fingers[2]={s.finger_positions[0]>0 ? s.finger_positions[0] : 0.0,
+          s.finger_positions[1]>0 ? s.finger_positions[1] : 0.0};
+      controller_manipulator_service_start_target(&r->manipulator,&target,
+          s.joint_positions,safe_fingers,now);
+      std::memcpy(s.joint_targets,target.joints,sizeof(target.joints));break;
+    }
     case CONTROLLER_TRANSFER_RETURNING_ARM:
       if(!s.attached && !r->object.attached && s.error_code[0]) {
         r->arm_phase=1;
@@ -85,6 +165,20 @@ void configure(ControllerObjectTransferRuntime *r,double now,double rx,double ry
     default: break;
   }
 }
+}
+void controller_object_transfer_platform_pose(double robot_x,double robot_y,double robot_z,
+    double heading,double pose[3]) {
+  if(!pose) return;
+  pose[0]=robot_x+std::cos(heading)*kPlatformOffset;
+  pose[1]=robot_y+std::sin(heading)*kPlatformOffset;
+  pose[2]=robot_z+kPlatformCargoHeight;
+}
+int controller_object_transfer_object_on_platform(double robot_x,double robot_y,double robot_z,
+    double heading,double object_x,double object_y,double object_z) {
+  double pose[3]={};
+  controller_object_transfer_platform_pose(robot_x,robot_y,robot_z,heading,pose);
+  return std::hypot(object_x-pose[0],object_y-pose[1])<0.075 &&
+      std::fabs(object_z-pose[2])<0.04;
 }
 void controller_object_transfer_runtime_init(ControllerObjectTransferRuntime *r,
     ControllerRuntime *n,ControllerWebotsDevices *d) {
@@ -160,7 +254,15 @@ void controller_object_transfer_runtime_step(ControllerObjectTransferRuntime *r,
   s.sensors_valid=s.sensors_valid && grip_sensors && tcp_valid && object_valid;
   const double *velocity=r->object.node ? wb_supervisor_node_get_velocity(r->object.node) : nullptr;
   const double speed=velocity ? std::hypot(std::hypot(velocity[0],velocity[1]),velocity[2]) : 100;
+  const double *base=wb_supervisor_node_get_position(wb_supervisor_node_get_self());
+  const bool platform_evidence=object_valid && base &&
+      controller_object_transfer_object_on_platform(rx,ry,base[2],heading,ox,oy,oz);
   const double *object_orientation=r->object.node ? wb_supervisor_node_get_orientation(r->object.node) : nullptr;
+  if(object_orientation) {
+    s.object_up[0]=object_orientation[2];
+    s.object_up[1]=object_orientation[5];
+    s.object_up[2]=object_orientation[8];
+  }
   double handle[3]={ox,oy,oz+kHandleOffset};
   if(object_orientation) {
     handle[0]=ox+object_orientation[2]*kHandleOffset;
@@ -168,15 +270,39 @@ void controller_object_transfer_runtime_step(ControllerObjectTransferRuntime *r,
     handle[2]=oz+object_orientation[8]*kHandleOffset;
   }
   const double grasp_error=tcp_valid ? std::hypot(std::hypot(tcp[0]-handle[0],tcp[1]-handle[1]),tcp[2]-handle[2]) : 100;
-  s.grip_evidence=grip_sensors && std::fabs(r->contacts[0])>0.05 && std::fabs(r->contacts[1])>0.05 && grasp_error<0.025;
+  double platform_grip[3]={};
+  object_handle_center(r,ox,oy,oz,platform_grip);
+  const double platform_grasp_error=tcp_valid ? std::hypot(std::hypot(
+      tcp[0]-platform_grip[0],tcp[1]-platform_grip[1]),tcp[2]-platform_grip[2]) : 100;
+  const bool platform_grasp=s.stage==CONTROLLER_TRANSFER_GRASPING_FROM_PLATFORM ||
+      s.stage==CONTROLLER_TRANSFER_LIFTING_FROM_PLATFORM;
+  const double active_grasp_error=platform_grasp ? platform_grasp_error : grasp_error;
+  const double finger_gap=(s.finger_positions[0]+s.finger_positions[1])*0.5;
+  const bool contact_grip=grip_sensors && finger_gap>0.0001 && std::fabs(r->contacts[0])>0.05 &&
+      std::fabs(r->contacts[1])>0.05 && (platform_grasp ? platform_grasp_error<0.03 : grasp_error<0.025);
+  s.grip_evidence=contact_grip || (r->object.attached &&
+      controller_webots_object_adapter_locked(&r->object));
   if(s.grip_evidence) r->last_grip_seen=now;
-  const bool monitoring_grip=s.stage!=CONTROLLER_TRANSFER_RELEASING && s.stage!=CONTROLLER_TRANSFER_RETURNING_ARM;
-  if(r->object.attached && monitoring_grip && (!object_valid || grasp_error>0.045 || now-r->last_grip_seen>0.20)) {
-    // Stop with the cargo resource held; losing the physical grip is a recoverable fault.
-    if(s.status==CONTROLLER_TRANSFER_RUNNING) fail(r,"grip_lost");
+  const bool monitoring_grip=s.stage!=CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM &&
+      s.stage!=CONTROLLER_TRANSFER_RETURNING_ARM_FOR_TRANSPORT &&
+      s.stage!=CONTROLLER_TRANSFER_TRANSPORTING && s.stage!=CONTROLLER_TRANSFER_PICKING_FROM_PLATFORM &&
+      s.stage!=CONTROLLER_TRANSFER_RELEASING && s.stage!=CONTROLLER_TRANSFER_RETURNING_ARM;
+  const double grip_grace=(s.stage==CONTROLLER_TRANSFER_LIFTING_FROM_PLATFORM ||
+      s.stage==CONTROLLER_TRANSFER_PLACING) ? 1.5 : 0.50;
+  if(r->object.attached && monitoring_grip &&
+      (!object_valid || active_grasp_error>0.045 || now-r->last_grip_seen>grip_grace)) {
+    if(s.status==CONTROLLER_TRANSFER_RUNNING &&
+        s.stage==CONTROLLER_TRANSFER_PLACING_ON_PLATFORM && platform_evidence) {
+      controller_webots_object_adapter_detach(&r->object);
+      s.attached=0;s.gripper_closed=0;s.stage=CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM;
+      s.stage_started_at=now;r->configured_stage=CONTROLLER_TRANSFER_STAGE_NONE;
+    } else if(s.status==CONTROLLER_TRANSFER_RUNNING) {
+      // Stop with the cargo resource held; losing the physical grip elsewhere is recoverable.
+      fail(r,"grip_lost");
+    }
   }
-  s.release_evidence=object_valid && std::fabs(oz-r->initial_object_z)<0.015 && speed<0.025 &&
-      std::hypot(ox-s.destination_x,oy-s.destination_y)<0.035;
+  s.release_evidence=object_valid && std::fabs(oz-r->initial_object_z)<0.07 && speed<0.025 &&
+      std::hypot(ox-s.destination_x,oy-s.destination_y)<0.05;
   const bool cancel=r->navigation->cancelled_mission_id[0] &&
       std::strcmp(r->navigation->cancelled_mission_id,s.mission_id)==0;
   if(s.status==CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY && cancel && s.grip_evidence && !r->cancel_recovery_attempted) {
@@ -209,12 +335,52 @@ void controller_object_transfer_runtime_step(ControllerObjectTransferRuntime *r,
   const auto command=controller_manipulator_service_sample(&r->manipulator,now);
   controller_webots_devices_set_manipulator(r->devices,command.joints,command.finger_opening);
   int arm_reached=arm==CONTROLLER_MANIPULATOR_REACHED;
+  if(s.stage==CONTROLLER_TRANSFER_PLACING_ON_PLATFORM && platform_evidence) {
+    double max_joint_error=0.0;
+    for(int i=0;i<5;++i)
+      max_joint_error=std::fmax(max_joint_error,std::fabs(s.joint_positions[i]-s.joint_targets[i]));
+    if(max_joint_error<0.06) arm_reached=1;
+  }
+  if(s.stage==CONTROLLER_TRANSFER_PLACING && s.release_evidence) {
+    arm_reached=1;
+  }
+  if(s.stage==CONTROLLER_TRANSFER_PICKING_FROM_PLATFORM && r->arm_phase>0 && tcp_valid) {
+    const double target_x=platform_grip[0];
+    const double target_y=platform_grip[1];
+    const double target_z=platform_grip[2]+(r->arm_phase==1 ? 0.01 : 0.0);
+    if(std::hypot(std::hypot(tcp[0]-target_x,tcp[1]-target_y),tcp[2]-target_z)<0.03)
+      arm_reached=1;
+  }
+  if(s.stage==CONTROLLER_TRANSFER_PICKING_FROM_PLATFORM &&
+      r->configured_stage!=CONTROLLER_TRANSFER_PICKING_FROM_PLATFORM) arm_reached=0;
+  if(arm_reached && (s.stage==CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM ||
+      s.stage==CONTROLLER_TRANSFER_RELEASING)) {
+    arm_reached=std::fabs(s.finger_positions[0]-kOpen)<0.003 &&
+        std::fabs(s.finger_positions[1]-kOpen)<0.003;
+  }
   if(arm_reached && s.stage==CONTROLLER_TRANSFER_LOWERING_ARM && r->arm_phase==0) {
     r->arm_phase=1; arm_target(r,ox,oy,oz+kHandleOffset,kOpen,now,rx,ry,heading); arm_reached=0;
   }
   if(arm_reached && s.stage==CONTROLLER_TRANSFER_PLACING && r->arm_phase==0) {
     r->arm_phase=1; arm_target(r,s.destination_x,s.destination_y,r->initial_object_z+kHandleOffset,
         0.0,now,rx,ry,heading);arm_reached=0;
+  }
+  if(arm_reached && s.stage==CONTROLLER_TRANSFER_PLACING_ON_PLATFORM && r->arm_phase==0) {
+    r->arm_phase=1;
+    platform_target(r,rx,ry,heading,0.0,0.0,now);
+    arm_reached=0;
+  }
+  if(arm_reached && s.stage==CONTROLLER_TRANSFER_PICKING_FROM_PLATFORM && r->arm_phase==0) {
+    r->arm_phase=1;
+    arm_target_pitch(r,platform_grip[0],platform_grip[1],platform_grip[2]+0.01,
+        kPlatformGripPitch,kOpen,now,rx,ry,heading);
+    arm_reached=0;
+  }
+  if(arm_reached && s.stage==CONTROLLER_TRANSFER_PICKING_FROM_PLATFORM && r->arm_phase==1) {
+    r->arm_phase=2;
+    arm_target_pitch(r,platform_grip[0],platform_grip[1],platform_grip[2],
+        kPlatformGripPitch,kOpen,now,rx,ry,heading);
+    arm_reached=0;
   }
   if(arm_reached && s.stage==CONTROLLER_TRANSFER_RETURNING_ARM && r->arm_phase==0) {
     r->arm_phase=1;
@@ -228,14 +394,25 @@ void controller_object_transfer_runtime_step(ControllerObjectTransferRuntime *r,
   input.arm_reached=arm_reached;
   input.grasp_valid=s.grip_evidence;
   if(s.stage==CONTROLLER_TRANSFER_LIFTING) input.grasp_valid=s.grip_evidence && oz>r->initial_object_z+0.07;
-  if(s.stage==CONTROLLER_TRANSFER_GRASPING || s.stage==CONTROLLER_TRANSFER_LIFTING) {
+  if(s.stage==CONTROLLER_TRANSFER_LIFTING_FROM_PLATFORM && base)
+    input.grasp_valid=s.grip_evidence && oz>base[2]+kPlatformCargoHeight+0.02;
+  if(s.stage==CONTROLLER_TRANSFER_GRASPING || s.stage==CONTROLLER_TRANSFER_LIFTING ||
+      s.stage==CONTROLLER_TRANSFER_GRASPING_FROM_PLATFORM ||
+      s.stage==CONTROLLER_TRANSFER_LIFTING_FROM_PLATFORM) {
     const bool ready=input.grasp_valid && arm_reached;
     if(!ready) r->stable_since=-1;
     else if(r->stable_since<0) r->stable_since=now;
     input.grasp_valid=ready && now-r->stable_since>=0.25;
   }
   input.attached=r->object.attached;
+  input.on_platform=platform_evidence;
   input.release_safe=s.release_evidence;
+  if(s.stage==CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM) {
+    const bool settled=platform_evidence && speed<0.025;
+    if(!settled) r->stable_since=-1;
+    else if(r->stable_since<0) r->stable_since=now;
+    input.on_platform=settled && now-r->stable_since>=0.25;
+  }
   if(s.stage==CONTROLLER_TRANSFER_PLACING || s.stage==CONTROLLER_TRANSFER_RELEASING ||
       s.stage==CONTROLLER_TRANSFER_RETURNING_ARM) {
     if(!input.release_safe || !arm_reached) r->stable_since=-1;

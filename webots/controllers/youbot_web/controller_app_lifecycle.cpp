@@ -205,7 +205,8 @@ static void run_control_cycle(void) {
   control_config.navigation.runtime.heading_tolerance_rad = transferring ? 0.02 : 0.08;
   control_config.navigation.tracking.position_tolerance = transferring ? 0.005 : 0.05;
   control_config.navigation.tracking.heading_tolerance_rad = transferring ? 0.02 : 0.08;
-  if(transferring && object_transfer_runtime.service.state.attached) {
+  if(transferring && (object_transfer_runtime.service.state.attached ||
+      object_transfer_runtime.service.state.on_platform)) {
     active_linear_speed_limit = std::fmin(active_linear_speed_limit,0.08);
     active_angular_speed_limit = std::fmin(active_angular_speed_limit,0.25);
   }
@@ -229,15 +230,17 @@ static void run_control_cycle(void) {
         if(std::hypot(point.x-cargo.object_pose[0],point.y-cargo.object_pose[1])<0.20) continue;
         const double along=((point.x-x)*dx+(point.y-y)*dy)/std::fmax(distance,1e-9);
         const double across=std::fabs((point.x-x)*dy-(point.y-y)*dx)/std::fmax(distance,1e-9);
-        if(along>0 && along<std::fmin(distance+0.5,0.75) && across<(cargo.attached ? 0.50 : 0.36)) {blocked=true;break;}
+        if(along>0 && along<std::fmin(distance+0.5,0.75) &&
+            across<((cargo.attached || cargo.on_platform) ? 0.50 : 0.36)) {blocked=true;break;}
       }
       if(blocked) {
         controller_object_transfer_runtime_hold(&object_transfer_runtime,"transport_obstacle");
         return;
       }
-      const double speed=std::fmin(std::fmin(cargo.attached ? 0.06 : 0.12,active_linear_speed_limit),distance*0.6);
-      webots_adapter.drive_config.acceleration_limit_rad_s2=4.0;
-      webots_adapter.drive_config.deceleration_limit_rad_s2=8.0;
+      const bool carrying=cargo.attached || cargo.on_platform;
+      const double speed=std::fmin(std::fmin(carrying ? 0.06 : 0.12,active_linear_speed_limit),distance*0.6);
+      webots_adapter.drive_config.acceleration_limit_rad_s2=carrying ? 1.0 : 4.0;
+      webots_adapter.drive_config.deceleration_limit_rad_s2=carrying ? 2.0 : 8.0;
       controller_webots_adapter_apply_velocity(&webots_adapter,speed*(std::cos(heading)*dx+std::sin(heading)*dy)/std::fmax(distance,1e-9),
           speed*(-std::sin(heading)*dx+std::cos(heading)*dy)/std::fmax(distance,1e-9),
           std::fmax(-0.1,std::fmin(0.1,-heading*0.6)));

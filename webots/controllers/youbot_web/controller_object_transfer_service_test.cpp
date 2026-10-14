@@ -10,6 +10,7 @@ static ControllerObjectTransferInput ready_input() {
   input.arm_reached = 1;
   input.grasp_valid = 1;
   input.attached = 1;
+  input.on_platform = 1;
   input.release_safe = 1;
   return input;
 }
@@ -33,6 +34,7 @@ int main() {
   service.state.stage=CONTROLLER_TRANSFER_TRANSPORTING;
   service.state.attached=1;
   premature.attached=0;
+  premature.on_platform=0;
   controller_object_transfer_service_step(&service,&premature,0.3,&guarded_output);
   assert(service.state.status==CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY);
   controller_object_transfer_service_init(&service);
@@ -42,11 +44,28 @@ int main() {
 
   ControllerObjectTransferInput input = ready_input();
   double now = 1.0;
+  bool placed_on_platform = false;
+  bool transported_on_platform = false;
+  bool picked_from_platform = false;
   while (service.state.status != CONTROLLER_TRANSFER_COMPLETED && now < 20.0) {
     ControllerObjectTransferOutput output = {};
     controller_object_transfer_service_step(&service, &input, now, &output);
+    if (output.attach_object) input.attached = 1;
+    if (output.detach_object) input.attached = 0;
+    if (service.state.stage == CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM)
+      placed_on_platform = true;
+    if (service.state.stage == CONTROLLER_TRANSFER_TRANSPORTING) {
+      transported_on_platform = service.state.on_platform && !service.state.attached;
+    }
+    if (service.state.stage == CONTROLLER_TRANSFER_GRASPING_FROM_PLATFORM) {
+      picked_from_platform = true;
+      input.attached = 1;
+    }
     now += 1.0;
   }
+  assert(placed_on_platform);
+  assert(transported_on_platform);
+  assert(picked_from_platform);
   assert(service.state.status == CONTROLLER_TRANSFER_COMPLETED);
   assert(service.state.stage == CONTROLLER_TRANSFER_STAGE_NONE);
   assert(service.state.progress == 100);
