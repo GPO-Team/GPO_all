@@ -16,7 +16,12 @@ export const useMissionTracking = ({onStarted,fetchMission = getMission}) => {
       const result = await request(missionId);
       if (result.missionId !== missionId) throw new Error("Ответ относится к другой миссии.");
       setState(previous => previous?.missionId === missionId ? {...previous,...result} : previous);
-    } catch(error) {setActionError(error.message);}
+    } catch(error) {
+      setActionError(error.message);
+      setState(previous => previous?.missionId === missionId
+        ? {...previous,connectionError:error.message}
+        : previous);
+    }
     finally {pendingAction.current=false;setActionPending(null);}
   },[missionId]);
   const cancel = useCallback(async () => {

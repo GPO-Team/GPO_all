@@ -1,6 +1,7 @@
 #include "controller_manipulator.h"
 #include <cmath>
 #include <string.h>
+using std::isfinite;
 
 #define ARM_PI 3.14159265358979323846
 #define ARM_TOOL_LENGTH 0.199

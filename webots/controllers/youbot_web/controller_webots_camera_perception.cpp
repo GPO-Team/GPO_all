@@ -2,7 +2,8 @@
 
 #include "controller_camera.h"
 #include "controller_webots_sensors.h"
-#include <math.h>
+#include <cmath>
+using std::isfinite;
 
 int controller_webots_camera_perception_confirm_range(
     ControllerWebotsCameraPerception *perception, double measured_range) {

@@ -1,6 +1,7 @@
 #include "controller_delivery.h"
 #include <cmath>
 #include <string.h>
+using std::isfinite;
 #define GRID_WIDTH 215
 #define GRID_HEIGHT 165
 #define GRID_COUNT (GRID_WIDTH*GRID_HEIGHT)

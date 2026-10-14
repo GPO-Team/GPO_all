@@ -10,6 +10,7 @@
 #include <webots/position_sensor.h>
 #include <webots/supervisor.h>
 #include <webots/robot.h>
+using std::isfinite;
 
 // Grip 15 mm above the centre of a small box, leaving finger tips above the floor.
 #define GRIP_OFFSET 0.015
