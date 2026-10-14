@@ -1,6 +1,8 @@
 #include "gpo/route_solver_service.h"
 
 #include <cassert>
+#include <limits>
+#include <stdexcept>
 
 int main() {
   gpo::SolveConfig empty;
@@ -19,6 +21,12 @@ int main() {
   assert((single_output.order == std::vector<int>{0}));
   assert(single_output.route.size() == 1U);
   assert(single_output.route[0].x == 1.25);
+  gpo::SolveConfig invalid = single;
+  invalid.points[0].x = std::numeric_limits<double>::quiet_NaN();
+  bool rejected = false;
+  try { (void)gpo::solve_route(invalid); }
+  catch (const std::runtime_error&) { rejected = true; }
+  assert(rejected);
   for (const char* algorithm : {"ga_tabu", "otshig", "rasseivanie", "cuckoo"}) {
     gpo::SolveConfig pair;
     pair.algorithm_key = algorithm;

@@ -38,4 +38,11 @@ int main() {
   } catch (const std::runtime_error& error) {
     assert(std::string(error.what()) == "Unknown task key: unknown");
   }
+  try {
+    std::istringstream oversized("task tsp\nalgorithm ga_tabu\nseed 42\nparams 30 0.25 200 0.12 1.5\ncount 769\n");
+    (void)gpo::read_solve_config(oversized);
+    assert(false);
+  } catch (const std::runtime_error& error) {
+    assert(std::string(error.what()) == "At most 768 route points are supported.");
+  }
 }

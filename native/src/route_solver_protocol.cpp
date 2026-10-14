@@ -92,6 +92,9 @@ SolveConfig read_solve_config(std::istream& input) {
     }
   }
 
+  if (static_cast<std::size_t>(count) > kMaxRoutePoints) {
+    throw std::runtime_error("At most 768 route points are supported.");
+  }
   config.points.reserve(static_cast<std::size_t>(count));
   for (int index = 0; index < count; ++index) {
     read_required_line();

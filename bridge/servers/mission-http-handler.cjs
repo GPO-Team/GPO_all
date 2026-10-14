@@ -1,6 +1,7 @@
 const {isAllowedOrigin}=require("../protocol/origin-policy.cjs");
 const {sendJson,sendError}=require("./service-http.cjs");
 const publicMission = mission => ({ok:true,missionId:mission.missionId,operationType:mission.operationType || "route",status:mission.status,
+  failureReason:mission.failureReason || null,
   sceneRevision:mission.command?.sceneRevision,createdAt:mission.createdAt,updatedAt:mission.updatedAt,
   feedbackFresh:mission.feedbackFresh,lastFeedbackAt:mission.lastFeedbackAt,connectionError:mission.connectionError,
   stage:mission.stage,progress:mission.progress,errorCode:mission.errorCode,attached:mission.attached,

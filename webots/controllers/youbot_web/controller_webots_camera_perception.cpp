@@ -2,6 +2,14 @@
 
 #include "controller_camera.h"
 #include "controller_webots_sensors.h"
+#include <math.h>
+
+int controller_webots_camera_perception_confirm_range(
+    ControllerWebotsCameraPerception *perception, double measured_range) {
+  if (!perception) return 0;
+  perception->visible = perception->visible && isfinite(measured_range) && measured_range > 0.0;
+  return perception->visible;
+}
 
 typedef struct {
   const unsigned char *image;

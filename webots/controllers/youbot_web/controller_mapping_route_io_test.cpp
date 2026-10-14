@@ -6,7 +6,7 @@
 int main(void) {
   const char *path = "controller_mapping_route_io_test.csv";
   const SurveyPoint route[2] = {{1.25, -2.5}, {3.0, 4.125}};
-  if (!controller_mapping_route_write(path, route, 2, MAPPING_SURVEY_MODE_DOUBLE)) return 1;
+  if (!controller_mapping_route_write(path, route, 2, MAPPING_SURVEY_MODE_DOUBLE, "survey-1")) return 1;
 
   FILE *file = fopen(path, "r");
   if (!file) return 2;
@@ -17,6 +17,7 @@ int main(void) {
   buffer[size] = '\0';
   if (strcmp(
           buffer,
+          "# command survey-1\n"
           "# Auto-generated mapping survey route: perimeter first, then double coverage\n"
           "# x,y\n"
           "1.250,-2.500\n"

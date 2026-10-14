@@ -6,6 +6,7 @@ import {
   normalizeBatteryRange,
   normalizeCruiseSpeed,
   normalizePayload,
+  validateBatteryRangeInput,
 } from "../model/energySettings";
 import { createEmptyRouteEnergyStats } from "../model/routeEnergy";
 
@@ -55,8 +56,9 @@ export const usePlannerEnergySettings = ({
     invalidateRoute();
   };
   const handleBatteryRangeChange = (rawValue) => {
-    setBatteryRangeInput(rawValue);
-    applyValue(rawValue, batteryRangeMeters, normalizeBatteryRange, setBatteryRangeMeters);
+    const nextInput = validateBatteryRangeInput(rawValue, batteryRangeInput);
+    setBatteryRangeInput(nextInput);
+    applyValue(nextInput, batteryRangeMeters, normalizeBatteryRange, setBatteryRangeMeters);
   };
   const handleBatteryRangeBlur = () => {
     const nextValue = normalizeBatteryRange(batteryRangeInput);

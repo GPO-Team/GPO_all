@@ -1,3 +1,5 @@
+import HelpHint from "../HelpHint";
+import { MAX_BATTERY_RANGE } from "../../../features/planner/model/energySettings";
 const cardCls =
   "rounded-2xl bg-white/95 backdrop-blur border border-stone-200 shadow-[0_18px_40px_rgba(15,23,42,0.06)] p-4";
 const inputCls =
@@ -42,11 +44,12 @@ export default function PlannerEnergySection({
 
   return (
     <div className={cardCls}>
-      <h3 className="text-sm font-semibold mb-3">Энергия и динамика</h3>
+      <h3 className="text-sm font-semibold mb-3">Энергия и динамика <HelpHint label="Энергия и динамика">Карта покрытий влияет на расход, допустимую скорость и риски в поворотах. Укажите запас хода, скорость и массу груза перед построением маршрута.</HelpHint></h3>
       <label>
         <div className="text-xs text-stone-600 mb-1">Запас хода (энерго-ед.)</div>
         <input type="text" inputMode="numeric" value={batteryRangeInput} className={inputCls}
           onChange={(event) => onBatteryRangeChange(event.target.value)} onBlur={onBatteryRangeBlur} />
+        <div className="mt-1 text-xs text-stone-500">Максимум: {MAX_BATTERY_RANGE} энерго-ед.</div>
       </label>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <label className="col-span-1">
@@ -80,9 +83,6 @@ export default function PlannerEnergySection({
           ))}
         </div>
       )}
-      <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
-        Карта покрытий влияет на расход, допустимую скорость и риски в поворотах.
-      </div>
       {energyWarning && (
         <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{energyWarning}</div>
       )}

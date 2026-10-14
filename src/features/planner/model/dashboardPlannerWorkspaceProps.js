@@ -5,7 +5,9 @@ export const createCanvasProps = ({ state, runtime, derived, actions }) => ({
   plannerModel: derived.plannerModel,
   optimizedRoute: state.route?.optimizedRoute,
   hoveredPointIndex: state.interaction?.hoveredPointIndex,
+  pointPlacementRevision: state.interaction?.pointPlacementRevision,
   telemetry: runtime.telemetry,
+  mapLayers: state.sidebar?.plannerUiState?.mapLayers,
   onCanvasClick: actions.addPointFromCanvas,
   onCanvasMouseDown: actions.handleCanvasMouseDown,
   onCanvasMouseMove: actions.handleCanvasMouseMove,
@@ -14,14 +16,23 @@ export const createCanvasProps = ({ state, runtime, derived, actions }) => ({
 });
 
 export const createLeftSidebarProps = ({ state, runtime, derived, actions }) => {
-  const { algorithm = {}, energy = {}, interaction = {}, route = {}, surfaces = {} } = state;
+  const { algorithm = {}, energy = {}, interaction = {}, limits = {}, route = {}, surfaces = {} } = state;
   const plannerModel = derived.plannerModel || {};
   const viewModel = derived.viewModel || {};
 
   return {
     onImportFile: actions.handleImportFile,
+    visitEntries: plannerModel.visitEntries,
+    chargeEntries: plannerModel.chargeEntries,
+    plannedVisitEntries: plannerModel.plannedVisitEntries,
+    expandedPoint: interaction.expandedPoint,
+    hoveredPointIndex: interaction.hoveredPointIndex,
+    onToggleExpandedPoint: interaction.setExpandedPoint,
+    onHoverPoint: interaction.setHoveredPointIndex,
+    onDeletePoint: actions.deletePoint,
+    onUpdatePointTask: actions.updatePointTask,
     activePointKind: interaction.activePointKind,
-    onActivePointKindChange: interaction.setActivePointKind,
+    onActivePointKindChange: interaction.activatePointPlacement || interaction.setActivePointKind,
     onClearVisitPoints: () => actions.clearPoints?.("visit"),
     onClearChargePoints: () => actions.clearPoints?.("charge"),
     onClearLimitPoints: () => actions.clearPoints?.("limit"),
@@ -52,6 +63,15 @@ export const createLeftSidebarProps = ({ state, runtime, derived, actions }) => 
     visitCount: plannerModel.visitEntries?.length,
     chargeCount: plannerModel.chargeEntries?.length,
     zoneCount: plannerModel.zoneEntries?.length,
+    zoneEntries: plannerModel.zoneEntries,
+    activeLimitZoneId: limits.activeLimitZoneId,
+    activeZone: plannerModel.activeZone,
+    onCreateZone: actions.createZone,
+    onSelectZone: actions.selectZone,
+    onToggleZoneClosed: actions.toggleZoneClosed,
+    onClearZone: actions.clearZone,
+    onRemoveZone: actions.removeZone,
+    visitsInsideLimitCount: plannerModel.visitsInsideLimit?.length,
     polygonCount: plannerModel.polygons?.length,
     adjustedVisitCount: plannerModel.adjustedVisits?.length,
     activeZoneName: plannerModel.activeZoneName,
@@ -84,8 +104,9 @@ export const createLeftSidebarProps = ({ state, runtime, derived, actions }) => 
 };
 
 export const createRightSidebarProps = ({ state, runtime, derived, actions }) => {
-  const { interaction = {}, limits = {}, mapping = {} } = state;
+  const { algorithm = {}, interaction = {}, limits = {}, mapping = {} } = state;
   const plannerModel = derived.plannerModel || {};
+  const viewModel = derived.viewModel || {};
 
   return {
     activeZone: plannerModel.activeZone,
@@ -103,6 +124,9 @@ export const createRightSidebarProps = ({ state, runtime, derived, actions }) =>
     routeBlocked: plannerModel.routeBlocked,
     telemetry: derived.telemetryForSidebar,
     telemetryWsUp: runtime.telemetryWsUp,
+    mapLayers: state.sidebar?.plannerUiState?.mapLayers,
+    onMapLayerChange: state.sidebar?.setMapLayerVisible,
+    status: state.route?.status,
     routeWsUp: runtime.routeWsUp,
     solverApiUp: runtime.solverApiUp,
     mappingSurveyMode: mapping.mappingSurveyMode,
@@ -110,9 +134,19 @@ export const createRightSidebarProps = ({ state, runtime, derived, actions }) =>
     onMappingSurveyModeChange: mapping.setMappingSurveyMode,
     mapExportPromptOpen: interaction.mapExportPromptOpen,
     onStartMappingSurvey: actions.startMappingSurvey,
+    onStartPickPlace: actions.startPickPlace,
+    mission: runtime.mission?.state,
+    onCancelMission: runtime.mission?.cancel,
     onRequestMapExport: actions.requestMapExport,
     onExportMapVariant: actions.exportMapImage,
     onCancelMapExport: () => interaction.setMapExportPromptOpen?.(false),
+    routeTaskKey: algorithm.routeTaskKey,
+    onRouteTaskChange: actions.handleRouteTaskChange,
+    algorithmKey: algorithm.algorithmKey,
+    onAlgorithmChange: actions.handleAlgorithmChange,
+    algorithmFields: viewModel.algorithmFields,
+    selectedAlgorithmParams: viewModel.selectedAlgorithmParams,
+    onAlgorithmParamChange: actions.updateAlgorithmParam,
     onCreateZone: actions.createZone,
     onSelectZone: actions.selectZone,
     onToggleZoneClosed: actions.toggleZoneClosed,

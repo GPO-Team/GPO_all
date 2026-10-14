@@ -7,8 +7,15 @@ import {
   removePlannerPointsByKind,
   updatePlannerPointTask,
 } from "./pointEditor";
+import { isPointLayerVisible } from "./mapLayers";
 
 describe("planner point editor model", () => {
+  it("skips hidden points when selecting overlapping objects", () => {
+    const points = [{ x: 1, y: 1, kind: "visit" }, { x: 1, y: 1, kind: "limit" }];
+    const index = findPointIndexAtCanvasPosition(points, { x: 1, y: 1 }, point => point, 1,
+      point => isPointLayerVisible(point, { zones: false }));
+    expect(index).toBe(0);
+  });
   it("selects the topmost point inside the drag radius", () => {
     const points = [{ x: 1, y: 1 }, { x: 1.05, y: 1.05 }];
     const index = findPointIndexAtCanvasPosition(

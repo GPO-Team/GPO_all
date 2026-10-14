@@ -141,6 +141,15 @@ void run_navigation_step(void) {
     set_status("mission_cancelled");
     return;
   }
+  if (controller_runtime.failed_mission_id[0] &&
+      strcmp(controller_runtime.failed_mission_id, controller_runtime.route.command_id) == 0) {
+    controller_runtime.route_finished = 1;
+    controller_runtime.mapping_survey.route_active = 0;
+    controller_runtime.avoidance.active = 0;
+    stop_robot();
+    set_status("route_failed");
+    return;
+  }
   double x = 0.0;
   double z = 0.0;
   double heading = 0.0;

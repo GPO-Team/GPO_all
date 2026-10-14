@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { HALF_HEIGHT, HALF_WIDTH } from "../../../lib/zonePlanner";
 import { pickRandomObstacleCenter, randomBetween } from "../model/randomObstacle";
 import {
@@ -20,6 +21,35 @@ export const usePlannerRuntimeCommands = ({
   telemetry,
   onMissionSubmitted,
 }) => {
+  const pendingManipulation = useRef(null);
+
+  const startPickPlace = async ({ objectDef, destination }) => {
+    const payload = { type: "pick_place", objectDef, destination };
+    const identity = JSON.stringify(payload);
+    if (pendingManipulation.current?.identity !== identity) {
+      pendingManipulation.current = {
+        identity,
+        command: { ...payload, requestId: crypto.randomUUID() },
+      };
+    }
+    const command = pendingManipulation.current.command;
+    let rejection;
+    const accepted = await sendRouteChannelPayload(routeSocketRef, command, {
+      timeoutMs: 35000,
+      onSent: acknowledgement => {
+        if (pendingManipulation.current?.command === command) pendingManipulation.current = null;
+        onMissionSubmitted?.(acknowledgement);
+        setStatus(`Миссия переноса объекта ${objectDef} сохранена. Ожидаем выполнения контроллером.`);
+      },
+      onError: error => {
+        rejection = error;
+        setStatus(error.message);
+      },
+    });
+    if (!accepted) throw rejection || new Error("Bridge не подтвердил команду манипулятора.");
+    return true;
+  };
+
   const addRandomObstacle = () => {
     const obstacle = {
       sizeX: Number(randomBetween(0.46, 1.15).toFixed(3)),
@@ -132,5 +162,5 @@ export const usePlannerRuntimeCommands = ({
     }
   );
 
-  return { addRandomObstacle, setManipulatorPose, startMappingSurvey, startObjectTransfer };
+  return { addRandomObstacle, setManipulatorPose, startMappingSurvey, startPickPlace, startObjectTransfer };
 };

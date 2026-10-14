@@ -194,7 +194,7 @@ static int write_virtual_frame(ControllerCameraRuntime *runtime) {
   const int height = runtime->config.frame_height;
   static unsigned char pixels[CAMERA_FRAME_WIDTH * CAMERA_FRAME_HEIGHT * 3];
   ControllerCameraVirtualCluster clusters[CAMERA_MAX_VIRTUAL_CLUSTERS];
-  ControllerCameraVirtualSummary summary = {0};
+  ControllerCameraVirtualSummary summary = {};
   controller_camera_render_background(pixels, width, height);
   controller_perception_runtime_reset_camera_observation(
       runtime->perception, *runtime->step_counter);

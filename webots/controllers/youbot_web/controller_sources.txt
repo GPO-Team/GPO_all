@@ -118,3 +118,6 @@ controller_webots_zone_sync.cpp
 controller_zone_geometry.cpp
 controller_zones.cpp
 youbot_web.cpp
+controller_delivery.cpp
+controller_manipulator.cpp
+controller_webots_manipulator.cpp

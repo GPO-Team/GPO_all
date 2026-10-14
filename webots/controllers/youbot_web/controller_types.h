@@ -83,6 +83,10 @@ typedef struct {
   int has_spawn_obstacle;
   int has_start_mapping_survey;
   int has_cancel_mission;
+  int has_pick_place;
+  char object_def[64];
+  double target_x, target_y, target_z;
+  int target_fields;
   int has_transfer_object;
   int has_recover_transfer;
   int has_resume_transfer;

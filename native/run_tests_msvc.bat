@@ -26,7 +26,8 @@ for %%T in (route_solver_protocol_test route_problem_test route_solver_service_t
   cl /nologo /std:c++20 /EHsc /W4 /I"%SCRIPT_DIR%include" "%SCRIPT_DIR%tests\%%T.cpp" !OBJECTS! /Fo"%TEST_DIR%\%%T.obj" /Fe:"%TEST_DIR%\%%T.exe"
   if errorlevel 1 exit /b 1
   "%TEST_DIR%\%%T.exe"
-  if errorlevel 1 exit /b 1
+  set "TEST_EXIT=!ERRORLEVEL!"
+  if not "!TEST_EXIT!"=="0" exit /b 1
 )
 
 echo [native-test] 7 tests passed

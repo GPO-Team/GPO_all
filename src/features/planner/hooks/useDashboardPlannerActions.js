@@ -65,6 +65,8 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
   });
 
   const editors = useDashboardPlannerEditors({
+    mapLayers: state.sidebar?.plannerUiState?.mapLayers,
+    setMapLayerVisible: state.sidebar?.setMapLayerVisible,
     activeLimitZoneId: limits.activeLimitZoneId,
     activePointKind: interaction.activePointKind,
     activeSurfaceProfileKey: surfaces.activeSurfaceProfileKey,

@@ -23,6 +23,11 @@ const createStore = async () => {
 };
 
 describe("web state store", () => {
+  it("does not turn a mistyped manipulator action into an obstacle", async () => {
+    const {store} = await createStore();
+    await expect(store.writeRuntimeCommand({type:"pick_place_typo",commandId:100})).rejects.toThrow("Unsupported runtime command");
+    await expect(fs.access(store.paths.runtimeCommand)).rejects.toMatchObject({code:"ENOENT"});
+  });
   it("preserves an explicit mission command id across delivery retries", async () => {
     const {store} = await createStore();
     const command = {commandId:"mission-42",route:[{x:0,y:0},{x:1,y:0}]};

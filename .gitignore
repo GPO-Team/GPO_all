@@ -50,5 +50,9 @@ web_state/gateway-journal/
 web_state/runtime-project/
 public/webots/wwi/
 
-# Generated physics acceptance reports
-output/
+# Local review notes and generated test artifacts
+/.playwright-cli/
+/output/
+/tmp/
+/docs/audit-*/
+/docs/superpowers/

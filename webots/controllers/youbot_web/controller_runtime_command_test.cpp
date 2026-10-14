@@ -26,7 +26,7 @@ int main(void) {
   fprintf(file, "field_min_y 25\nfield_max_y -25\n");
   fclose(file);
 
-  RuntimeCommand command = {0};
+  RuntimeCommand command = {};
   if (!controller_runtime_command_load_file(path, &limits, &command)) return 2;
   remove(path);
   if (command.id != 42 || !command.has_start_mapping_survey) return 3;

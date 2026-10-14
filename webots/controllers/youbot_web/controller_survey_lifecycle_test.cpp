@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 typedef struct {
   char calls[8];
@@ -112,6 +113,7 @@ int main(void) {
       mark_started,
   };
   const RuntimeCommand command = {
+      .mission_id = "survey-1",
       .clear_map = 1,
       .survey_mode = MAPPING_SURVEY_MODE_DOUBLE,
       .survey_speed_mps = 0.4,
@@ -128,6 +130,7 @@ int main(void) {
       &callbacks,
       &start_context));
   assert(active.count == 3 && waypoint_index == 0 && !route_finished);
+  assert(strcmp(active.command_id, "survey-1") == 0);
   assert(state.route_active && state.mode == MAPPING_SURVEY_MODE_DOUBLE);
   assert(start_context.count == 7);
   assert(start_context.calls[0] == 'C' && start_context.calls[1] == 'S' &&
@@ -158,6 +161,7 @@ int main(void) {
       &replan_callbacks,
       &start_context));
   assert(active.count == 3 && waypoint_index == 2 && !route_finished);
+  assert(strcmp(active.command_id, "survey-1") == 0);
   assert(state.route_active && state.replan_cooldown_steps == 25);
   assert(start_context.count == 7);
   assert(start_context.calls[0] == 'M' && start_context.calls[1] == 'G' &&

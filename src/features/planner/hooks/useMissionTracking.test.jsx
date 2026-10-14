@@ -11,6 +11,43 @@ vi.mock("../services/missionClient", () => ({
   resumeMission:vi.fn(),
 }));
 let root;
+it("keeps the tracked mission when cancellation returns another mission", async () => {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  missionClient.cancelMission.mockResolvedValue({missionId:"other-arm",status:"cancelled"});
+  const fetchMission = vi.fn(async id => ({missionId:id,status:"running"}));
+  const exposed = {};
+  function Harness() {
+    const mission = useMissionTracking({fetchMission});
+    React.useEffect(() => {exposed.mission=mission;});
+    return null;
+  }
+  root=createRoot(document.createElement("div"));
+  await act(async () => root.render(<Harness/>));
+  await act(async () => exposed.mission.track({missionId:"current-arm",status:"running"}));
+  await act(async () => exposed.mission.cancel());
+  expect(exposed.mission.state).toMatchObject({missionId:"current-arm",status:"running",connectionError:expect.any(String)});
+});
+
+it("ignores a late cancellation reply after another mission is tracked", async () => {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  const pending = Promise.withResolvers();
+  missionClient.cancelMission.mockReturnValue(pending.promise);
+  const fetchMission = vi.fn(async id => ({missionId:id,status:"running"}));
+  const exposed = {};
+  function Harness() {
+    const mission = useMissionTracking({fetchMission});
+    React.useEffect(() => { exposed.mission = mission; });
+    return null;
+  }
+  root = createRoot(document.createElement("div"));
+  await act(async () => root.render(<Harness />));
+  await act(async () => exposed.mission.track({missionId:"arm-old",status:"running"}));
+  let cancellation;
+  await act(async () => { cancellation = exposed.mission.cancel(); });
+  await act(async () => exposed.mission.track({missionId:"arm-new",status:"running"}));
+  await act(async () => { pending.resolve({missionId:"arm-old",status:"cancelled"}); await cancellation; });
+  expect(exposed.mission.state).toMatchObject({missionId:"arm-new",status:"running"});
+});
 afterEach(async () => {if(root) await act(async () => root.unmount());root=null;vi.clearAllMocks();vi.useRealTimers();});
 it("shows execution only for the matching mission and starts timing after controller feedback", async () => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;

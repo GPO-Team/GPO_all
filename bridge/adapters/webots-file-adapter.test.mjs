@@ -2,6 +2,7 @@ import {afterEach,describe,expect,it,vi} from "vitest";
 import {mkdtemp,rm,writeFile} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import scenes from "../protocol/scene-validation.cjs";
 import adapterModule from "./webots-file-adapter.cjs";
 
 let directory;
@@ -21,7 +22,8 @@ describe("Webots file adapter transfer feedback",()=>{
   it("writes transfer submissions through the transfer artifact boundary",async()=>{
     const artifactStore={writeTransfer:vi.fn(async()=>{})};
     const adapter=adapterModule.createWebotsFileAdapter({artifactStore,stateDir:""});
-    const command={type:"transfer_object",commandId:"transfer-1"};
+    const scene=scenes.normalizeScene({});
+    const command={type:"transfer_object",commandId:"transfer-1",objectId:"demo-box",destination:{x:2,y:1},scene,sceneRevision:scenes.sceneRevision(scene)};
     await adapter.submit(command);
     expect(artifactStore.writeTransfer).toHaveBeenCalledWith(command);
   });
