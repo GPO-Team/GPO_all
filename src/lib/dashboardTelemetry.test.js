@@ -44,6 +44,7 @@ describe("normalizeTelemetry", () => {
     });
 
     expect(result).toEqual({
+      manipulator: null,
       simulationTime: 12.5,
       x: 1.25,
       y: -2.5,
@@ -103,6 +104,7 @@ describe("normalizeTelemetry", () => {
     );
 
     expect(result).toEqual({
+      manipulator: null,
       simulationTime: null,
       x: 3,
       y: 4,

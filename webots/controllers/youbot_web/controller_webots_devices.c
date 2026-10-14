@@ -4,14 +4,17 @@
 #include <stdio.h>
 
 #include <webots/motor.h>
+#include <webots/position_sensor.h>
 
 static void init_wheels(ControllerWebotsDevices *devices) {
   char name[16];
   for (int i = 0; i < 4; ++i) {
     snprintf(name, sizeof(name), "wheel%d", i + 1);
     devices->wheels[i] = wb_robot_get_device(name);
-    wb_motor_set_position(devices->wheels[i], INFINITY);
-    wb_motor_set_velocity(devices->wheels[i], 0.0);
+    if (devices->wheels[i]) {
+      wb_motor_set_position(devices->wheels[i], INFINITY);
+      wb_motor_set_velocity(devices->wheels[i], 0.0);
+    }
     devices->applied_wheel_speeds[i] = 0.0;
   }
 }
@@ -39,6 +42,10 @@ static void init_manipulator_pose(ControllerWebotsDevices *devices) {
 
   for (int i = 0; i < 5; ++i) {
     devices->arm_joints[i] = wb_robot_get_device(arm_names[i]);
+    char sensor_name[32];
+    snprintf(sensor_name, sizeof(sensor_name), "%ssensor", arm_names[i]);
+    devices->arm_sensors[i] = wb_robot_get_device(sensor_name);
+    if (devices->arm_sensors[i]) wb_position_sensor_enable(devices->arm_sensors[i], 16);
     if (devices->arm_joints[i]) {
       wb_motor_set_velocity(devices->arm_joints[i], 1.0);
       wb_motor_set_position(devices->arm_joints[i], arm_positions[i]);
@@ -47,6 +54,10 @@ static void init_manipulator_pose(ControllerWebotsDevices *devices) {
 
   for (int i = 0; i < 2; ++i) {
     devices->gripper_fingers[i] = wb_robot_get_device(finger_names[i]);
+    char sensor_name[32];
+    snprintf(sensor_name, sizeof(sensor_name), "%ssensor", finger_names[i]);
+    devices->finger_sensors[i] = wb_robot_get_device(sensor_name);
+    if (devices->finger_sensors[i]) wb_position_sensor_enable(devices->finger_sensors[i], 16);
     if (devices->gripper_fingers[i]) {
       wb_motor_set_velocity(devices->gripper_fingers[i], 0.03);
       wb_motor_set_position(devices->gripper_fingers[i], finger_opening);

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { renderPlannerRouteLayer } from "./plannerCanvasRouteRenderer";
 
 describe("planner canvas route renderer", () => {
-  it("renders obstacle trace and a blocked route", () => {
+  it("hides the lidar trace and renders a blocked route", () => {
     const ctx = { arc: vi.fn(), beginPath: vi.fn(), fill: vi.fn(), lineTo: vi.fn(), moveTo: vi.fn(), stroke: vi.fn() };
 
     renderPlannerRouteLayer(ctx, {
@@ -11,7 +11,7 @@ describe("planner canvas route renderer", () => {
       routeBlocked: true,
     });
 
-    expect(ctx.arc).toHaveBeenCalledOnce();
+    expect(ctx.arc).not.toHaveBeenCalled();
     expect(ctx.strokeStyle).toBe("#dc2626");
     expect(ctx.lineTo).toHaveBeenCalledOnce();
   });

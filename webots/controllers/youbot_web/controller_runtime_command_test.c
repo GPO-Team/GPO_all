@@ -46,5 +46,17 @@ int main(void) {
   if (!nearly_equal(command.size_x, 0.8) || !nearly_equal(command.size_y, 0.8)) return 13;
   if (!nearly_equal(command.height, 0.6)) return 14;
 
+  file = fopen(path, "w");
+  if (!file) return 15;
+  fprintf(file, "id 44\ntype pick_place\nmission_id arm-1\nobject_def PICK_BOX\ntarget_x 0.4\ntarget_y 0.1\ntarget_z 0.04\n");
+  fclose(file);
+  if (!controller_runtime_command_load_file(path, &limits, &command)) return 16;
+  if (!command.has_pick_place || command.target_fields != 7 || !nearly_equal(command.target_z, 0.04)) return 17;
+  file = fopen(path, "w");
+  if (!file) return 18;
+  fprintf(file, "id 45\ntype pick_place\nmission_id arm-2\nobject_def PICK_BOX\ntarget_x nan\ntarget_y 0\ntarget_z 0.04\n");
+  fclose(file);
+  if (controller_runtime_command_load_file(path, &limits, &command)) return 19;
+  remove(path);
   return 0;
 }

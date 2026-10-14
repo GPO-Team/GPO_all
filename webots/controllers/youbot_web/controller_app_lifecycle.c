@@ -150,6 +150,7 @@ static void write_state_snapshot(void) {
   };
   ControllerTelemetryPublisherOutput output = {0};
   controller_telemetry_publisher_build(&input, &output);
+  output.snapshot.manipulator = &controller_app.manipulator;
   controller_telemetry_write_snapshot(STATE_TEMP_PATH, STATE_PATH, &output.snapshot);
 }
 
@@ -178,7 +179,10 @@ static void maybe_write_camera_frame_step(void *context) {
   (void)context;
   controller_camera_runtime_publish(&camera_runtime);
 }
-STEP_CALLBACK(run_navigation_step)
+static void run_navigation_step_step(void *context) {
+  (void)context;
+  if (!controller_webots_manipulator_step((double)TIME_STEP / 1000.0)) run_navigation_step();
+}
 STEP_CALLBACK(update_route_avoidance_metrics)
 STEP_CALLBACK(write_state_snapshot)
 #undef STEP_CALLBACK
@@ -279,6 +283,7 @@ int controller_app_lifecycle_run(int argc, char **argv) {
       set_error,
       reset_route_avoidance_metrics,
       reset_navigation_mode);
+  route_zone_reload_service.motion_blocked = controller_webots_manipulator_busy;
   static const ControllerInputOrchestrationOperations input_operations = {
       reload_motion_profile_input,
       reload_runtime_command_input,
@@ -322,18 +327,14 @@ int controller_app_lifecycle_run(int argc, char **argv) {
       spawn_runtime_obstacle);
   runtime_command_reload_service.last_modified = get_file_mtime(RUNTIME_COMMAND_PATH);
   runtime_command_reload_service.last_processed_id = controller_runtime_command_latest_id(RUNTIME_COMMAND_PATH);
+  runtime_command_reload_service.start_pick_place = controller_webots_manipulator_start;
+  runtime_command_reload_service.cancel_pick_place = controller_webots_manipulator_cancel;
+  runtime_command_reload_service.motion_blocked = controller_webots_manipulator_busy;
 
   if (!controller_webots_pose_is_ready(&webots_pose) || !webots_pose.root_children_field) {
     set_status("error");
     set_error("Supervisor fields are not available");
   } else {
-    controller_mapping_survey_lifecycle_service_ensure_default_route(
-        ROUTE_PATH,
-        get_file_mtime(ROUTE_PATH),
-        &(ControllerSurveyDefaultRouteConfig){
-            SURVEY_X_MIN, SURVEY_X_MAX, SURVEY_Y_MIN, SURVEY_Y_MAX, SURVEY_STRIP},
-        clear_persistent_map,
-        set_status);
     wait_for_fresh_route();
   }
 

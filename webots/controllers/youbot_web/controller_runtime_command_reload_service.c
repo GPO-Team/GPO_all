@@ -39,6 +39,10 @@ ControllerRuntimeCommandReloadResult controller_runtime_command_reload_service_r
 
   RuntimeCommand command = {0};
   if (!controller_runtime_command_load_next_file(service->command_path, &service->limits, service->last_processed_id, &command)) {
+    if (command.id > service->last_processed_id) {
+      service->last_processed_id = command.id;
+      return CONTROLLER_RUNTIME_COMMAND_RELOAD_INVALID;
+    }
     if (mtime == service->last_modified) return CONTROLLER_RUNTIME_COMMAND_RELOAD_UNCHANGED;
     return CONTROLLER_RUNTIME_COMMAND_RELOAD_INVALID;
   }
@@ -50,6 +54,7 @@ ControllerRuntimeCommandReloadResult controller_runtime_command_reload_service_r
   service->last_processed_id = command.id;
 
   if (command.has_cancel_mission) {
+    if (service->cancel_pick_place) service->cancel_pick_place(command.mission_id);
     strcpy(service->runtime->cancelled_mission_id, command.mission_id);
     if (!service->runtime->route.command_id[0] ||
         strcmp(service->runtime->route.command_id, command.mission_id) == 0) {
@@ -60,6 +65,22 @@ ControllerRuntimeCommandReloadResult controller_runtime_command_reload_service_r
       if (service->survey_ops.reset_navigation) service->survey_ops.reset_navigation();
       if (service->survey_ops.set_status) service->survey_ops.set_status("mission_cancelled");
     }
+    return CONTROLLER_RUNTIME_COMMAND_RELOAD_APPLIED;
+  }
+
+  if ((command.has_pick_place || command.has_start_mapping_survey) &&
+      service->motion_blocked && service->motion_blocked()) {
+    /* Consume foreign launches without disturbing the arm or blocking cancellation. */
+    return CONTROLLER_RUNTIME_COMMAND_RELOAD_INVALID;
+  }
+
+  if (command.has_pick_place) {
+    if (strcmp(command.mission_id, service->runtime->cancelled_mission_id) == 0 ||
+        strcmp(command.mission_id, service->runtime->route.command_id) == 0) {
+      return CONTROLLER_RUNTIME_COMMAND_RELOAD_DUPLICATE;
+    }
+    if (!service->start_pick_place) return CONTROLLER_RUNTIME_COMMAND_RELOAD_INVALID;
+    service->start_pick_place(&command);
     return CONTROLLER_RUNTIME_COMMAND_RELOAD_APPLIED;
   }
 

@@ -13,6 +13,13 @@ const setup = async () => {
   return { repository, adapter, service:missions.createMissionService({repository,adapter}) };
 };
 const payload = { type:"route", route:[{x:0,y:0},{x:1,y:0}] };
+it("rejects an unknown movement type before persisting or delivering a mission", async () => {
+  const {repository,adapter,service} = await setup();
+  await expect(service.submit({...payload,type:"pick_plac"},{requestId:"unknown-arm"})).rejects.toMatchObject({statusCode:400});
+  expect(await repository.get("unknown-arm")).toBeNull();
+  expect(adapter.submit).not.toHaveBeenCalled();
+  await expect(service.submit(payload,{requestId:"valid-route"})).resolves.toMatchObject({status:"persisted"});
+});
 it("tracks surveys durably, excludes other movement and waits for cancellation feedback", async () => {
   const {repository, adapter, service} = await setup();
   const survey = {type:"start_mapping_survey", mode:"snake"};

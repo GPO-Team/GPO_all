@@ -5,6 +5,7 @@ import { normalizeTelemetryMap } from "./telemetryMaps";
 import { normalizeNavigation } from "./telemetryNavigation";
 import { normalizeCamera, normalizeObstacleTrace } from "./telemetryPerception";
 import { pickNumber } from "./telemetryNumbers";
+import { normalizeManipulator } from "./manipulatorTelemetry";
 
 const TELEMETRY_MESSAGE_TYPE = coordinateContract.telemetry.messageType;
 const TELEMETRY_POSE_KEY = coordinateContract.telemetry.poseKey;
@@ -43,6 +44,7 @@ export const normalizeTelemetry = (raw, prev = INITIAL_TELEMETRY) => {
     z,
     yaw,
     navigation,
+    manipulator: normalizeManipulator(raw.manipulator, prev.manipulator ?? null),
     obstacleTrace,
     obstacleMap,
     cameraMap,

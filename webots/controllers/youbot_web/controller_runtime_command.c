@@ -14,6 +14,7 @@ int controller_runtime_command_load_next_file(
     long long after_id,
     RuntimeCommand *command) {
   if (!path || !limits || !command) return 0;
+  *command = (RuntimeCommand){.id = -1};
   FILE *file = fopen(path, "r");
   if (!file) return 0;
 
@@ -45,6 +46,18 @@ int controller_runtime_command_load_next_file(
       parsed.has_spawn_obstacle = strcmp(token, "spawn_obstacle") == 0;
       parsed.has_start_mapping_survey = strcmp(token, "start_mapping_survey") == 0;
       parsed.has_cancel_mission = strcmp(token, "cancel_mission") == 0;
+      parsed.has_pick_place = strcmp(token, "pick_place") == 0;
+    } else if (sscanf(line, " object_def %63s", token) == 1) {
+      strcpy(parsed.object_def, token);
+    } else if (sscanf(line, " target_x %lf", &numeric) == 1) {
+      parsed.target_x = numeric;
+      parsed.target_fields |= 1;
+    } else if (sscanf(line, " target_y %lf", &numeric) == 1) {
+      parsed.target_y = numeric;
+      parsed.target_fields |= 2;
+    } else if (sscanf(line, " target_z %lf", &numeric) == 1) {
+      parsed.target_z = numeric;
+      parsed.target_fields |= 4;
     } else if (sscanf(line, " mission_id %63s", token) == 1) {
       strcpy(parsed.mission_id, token);
     } else if (sscanf(line, " clear_map %lf", &numeric) == 1) {
@@ -100,11 +113,16 @@ int controller_runtime_command_load_next_file(
     }
   }
 
+  // Preserve a rejected record's id so the consumer can advance past it.
+  *command = parsed;
   if (parsed.id < 0 ||
-      (!parsed.has_spawn_obstacle && !parsed.has_start_mapping_survey && !parsed.has_cancel_mission)) {
+      (!parsed.has_spawn_obstacle && !parsed.has_start_mapping_survey && !parsed.has_cancel_mission && !parsed.has_pick_place)) {
     return 0;
   }
   if (parsed.has_cancel_mission && !parsed.mission_id[0]) return 0;
+  if (parsed.has_pick_place && (!parsed.mission_id[0] || !parsed.object_def[0] || parsed.target_fields != 7 ||
+      !isfinite(parsed.target_x) || !isfinite(parsed.target_y) || !isfinite(parsed.target_z) ||
+      parsed.target_z < 0.015 || parsed.target_z > 1.0)) return 0;
   *command = parsed;
   return 1;
 }

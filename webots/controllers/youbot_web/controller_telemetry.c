@@ -3,6 +3,7 @@
 #include "controller_io.h"
 
 #include <stdio.h>
+#include <math.h>
 
 #define CONTROLLER_TELEMETRY_PI 3.14159265358979323846
 
@@ -33,6 +34,19 @@ int controller_telemetry_write_snapshot(
 
   fprintf(file, "{\n");
   fprintf(file, "  \"coordinateContractVersion\": 1,\n");
+  const ControllerWebotsManipulator *manipulator = snapshot->manipulator;
+  if (manipulator) {
+    fprintf(file, "  \"manipulator\": {\"stage\": \"%s\", \"error\": \"%s\", \"missionId\": \"%s\", \"objectDef\": \"%s\", \"active\": %s,\n",
+        controller_webots_manipulator_stage(manipulator), safe_text(manipulator->state.error),
+        safe_command_id(manipulator->mission_id), safe_command_id(manipulator->object_def),
+        json_bool(controller_webots_manipulator_active(manipulator)));
+    fprintf(file, "    \"objectPosition\": {\"x\": %.6f, \"y\": %.6f, \"z\": %.6f}, \"fingers\": [%.6f, %.6f], \"joints\": [",
+        manipulator->object_world[0], manipulator->object_world[1], manipulator->object_world[2],
+        isfinite(manipulator->sample.fingers[0]) ? manipulator->sample.fingers[0] : 0,
+        isfinite(manipulator->sample.fingers[1]) ? manipulator->sample.fingers[1] : 0);
+    for (int i = 0; i < 5; ++i) fprintf(file, "%s%.6f", i ? ", " : "", isfinite(manipulator->sample.joints[i]) ? manipulator->sample.joints[i] : 0);
+    fprintf(file, "]},\n");
+  }
   fprintf(file, "  \"simulationTime\": %.6f,\n", snapshot->simulation_time);
   fprintf(file, "  \"pose\": {\n    \"x\": %.6f,\n    \"y\": %.6f,\n    \"z\": %.6f,\n    \"yaw\": %.6f\n  },\n",
           snapshot->pose_x, snapshot->pose_y, snapshot->pose_z, snapshot->pose_yaw);

@@ -13,6 +13,7 @@ const createMapState = ({ cellSize, mapFile, excelCsvFile, imageFile }) => ({
 
 export const INITIAL_TELEMETRY = {
   simulationTime: null,
+  manipulator: null,
   x: 0,
   y: 0,
   z: 0,

@@ -19,6 +19,7 @@ controller_camera_runtime.c
 controller_camera_virtual.c
 controller_control_config.c
 controller_drive.c
+controller_delivery.c
 controller_io.c
 controller_input_orchestration.c
 controller_input_runtime.c
@@ -46,6 +47,7 @@ controller_mapping_survey_coverage_service.c
 controller_mapping_survey_generator_callbacks.c
 controller_mapping_survey_route_generation_service.c
 controller_math.c
+controller_manipulator.c
 controller_motion_profile.c
 controller_motion_profile_reload_service.c
 controller_navigation_adapter.c
@@ -101,6 +103,7 @@ controller_webots_camera_map_sync.c
 controller_webots_camera_perception.c
 controller_webots_camera_range.c
 controller_webots_devices.c
+controller_webots_manipulator.c
 controller_webots_motion_state.c
 controller_webots_pose.c
 controller_webots_sensors.c

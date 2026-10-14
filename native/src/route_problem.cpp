@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
+#include <limits>
 
 namespace gpo {
 namespace {
@@ -13,8 +14,11 @@ constexpr int kPenaltyDistance = 100000000;
 int scaled_distance(const InputPoint& left, const InputPoint& right) {
   const double dx = left.x - right.x;
   const double dy = left.y - right.y;
-  return static_cast<int>(std::llround(
-      std::hypot(dx, dy) * static_cast<double>(kMetricScale)));
+  const double scaled = std::hypot(dx, dy) * static_cast<double>(kMetricScale);
+  if (!std::isfinite(scaled) || scaled > std::numeric_limits<int>::max()) {
+    throw std::runtime_error("Point distance exceeds the supported integer metric.");
+  }
+  return static_cast<int>(std::llround(scaled));
 }
 
 }  // namespace

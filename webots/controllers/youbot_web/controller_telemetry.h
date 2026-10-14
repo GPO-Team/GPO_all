@@ -2,6 +2,7 @@
 #define YOUBOT_WEB_CONTROLLER_TELEMETRY_H
 
 #include "controller_types.h"
+#include "controller_webots_manipulator.h"
 
 typedef struct {
   double x;
@@ -87,6 +88,7 @@ typedef struct {
   double camera_map_cell_size;
   const Waypoint *route_waypoints;
   int route_waypoint_count;
+  const ControllerWebotsManipulator *manipulator;
 } ControllerTelemetrySnapshot;
 
 int controller_telemetry_write_snapshot(

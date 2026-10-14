@@ -17,6 +17,10 @@ const validatePoints = (points) => {
   }
 
   return points.map((point) => {
+    const isCoordinate = value => typeof value === "number" || (typeof value === "string" && value.trim() !== "");
+    if (!isCoordinate(point?.x) || !isCoordinate(point?.y)) {
+      throw createValidationError("Every route point must contain finite x and y.");
+    }
     const x = Number(point?.x);
     const y = Number(point?.y);
     if (!Number.isFinite(x) || !Number.isFinite(y)) {

@@ -39,6 +39,13 @@ const createMotionProfileText = (motion) => {
 
 const createRuntimeCommandText = (payload) => {
   const commandId = Number(payload?.commandId) > 0 ? Math.trunc(Number(payload.commandId)) : Date.now();
+  if (payload?.type === "pick_place") {
+    const { validatePickPlace } = require("../protocol/manipulator-validation.cjs");
+    const { validateMissionId } = require("../protocol/mission-contract.cjs");
+    const command = validatePickPlace(payload);
+    const target = command.destination;
+    return `id ${commandId}\ntype pick_place\nmission_id ${validateMissionId(payload.missionId)}\nobject_def ${command.objectDef}\ntarget_x ${target.x}\ntarget_y ${target.y}\ntarget_z ${target.z}\n`;
+  }
   if (payload?.type === "cancel_mission") {
     const {validateMissionId}=require("../protocol/mission-contract.cjs");
     return `id ${commandId}\ntype cancel_mission\nmission_id ${validateMissionId(payload.missionId)}\n`;
@@ -53,6 +60,9 @@ const createRuntimeCommandText = (payload) => {
     const minY = normalizeNumber(field.minY, -17);
     const maxY = normalizeNumber(field.maxY, 17);
     return `id ${commandId}\ntype start_mapping_survey\n${missionLine}clear_map ${payload.clearMap === false ? 0 : 1}\nmode ${sanitizeMappingSurveyMode(payload.mode)}\nsurvey_speed_mps ${motion.cruiseSpeedMps}\nfield_min_x ${Math.min(minX, maxX)}\nfield_max_x ${Math.max(minX, maxX)}\nfield_min_y ${Math.min(minY, maxY)}\nfield_max_y ${Math.max(minY, maxY)}\n`;
+  }
+  if (payload?.type !== undefined && !["spawn_random_obstacle", "spawn_obstacle"].includes(payload.type)) {
+    throw Object.assign(new Error("Unsupported runtime command."), {statusCode:400});
   }
   const obstacle = sanitizeRuntimeObstacle(payload?.obstacle);
   return `id ${commandId}\ntype spawn_obstacle\nx ${obstacle.x}\ny ${obstacle.y}\nsize_x ${obstacle.sizeX}\nsize_y ${obstacle.sizeY}\nheight ${obstacle.height}\n`;

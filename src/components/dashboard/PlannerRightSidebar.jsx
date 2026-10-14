@@ -3,6 +3,7 @@ import PlannerLimitZonesSection from "./sections/PlannerLimitZonesSection";
 import PlannerRoutePointsSection from "./sections/PlannerRoutePointsSection";
 import PlannerTelemetrySection from "./sections/PlannerTelemetrySection";
 import PlannerSimulationSection from "./sections/PlannerSimulationSection";
+import PlannerManipulatorSection from "./sections/PlannerManipulatorSection";
 
 export default function PlannerRightSidebar({
   onCollapse,
@@ -28,6 +29,9 @@ export default function PlannerRightSidebar({
   onMappingSurveyModeChange,
   mapExportPromptOpen,
   onStartMappingSurvey,
+  onStartPickPlace,
+  mission,
+  onCancelMission,
   onRequestMapExport,
   onExportMapVariant,
   onCancelMapExport,
@@ -97,6 +101,13 @@ export default function PlannerRightSidebar({
       />
 
       <PlannerSimulationSection />
+      <PlannerManipulatorSection
+        telemetry={telemetry}
+        connected={telemetryWsUp && routeWsUp}
+        mission={mission}
+        onStart={onStartPickPlace}
+        onCancel={onCancelMission}
+      />
       <PlannerTelemetrySection
         mapExportPromptOpen={mapExportPromptOpen}
         mappingSurveyMode={mappingSurveyMode}

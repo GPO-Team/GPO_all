@@ -9,6 +9,8 @@ typedef struct {
   WbDeviceTag wheels[4];
   WbDeviceTag arm_joints[5];
   WbDeviceTag gripper_fingers[2];
+  WbDeviceTag arm_sensors[5];
+  WbDeviceTag finger_sensors[2];
   double applied_wheel_speeds[4];
 } ControllerWebotsDevices;
 

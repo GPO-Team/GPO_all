@@ -21,8 +21,11 @@ typedef struct {
   ControllerRuntime *runtime;
   ControllerSurveyIntegrationOps survey_ops;
   void (*spawn_obstacle)(const RuntimeCommand *command);
+  void (*start_pick_place)(const RuntimeCommand *command);
+  void (*cancel_pick_place)(const char *mission_id);
   long long last_modified;
   long long last_processed_id;
+  int (*motion_blocked)(void);
 } ControllerRuntimeCommandReloadService;
 
 void controller_runtime_command_reload_service_init(

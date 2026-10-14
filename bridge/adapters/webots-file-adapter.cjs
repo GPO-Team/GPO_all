@@ -1,11 +1,30 @@
 const fs = require("fs/promises");
 const path = require("path");
 const {fingerprint} = require("../protocol/service-contract.cjs");
+const {serviceError} = require("../protocol/service-contract.cjs");
+const {validateMissionId} = require("../protocol/mission-contract.cjs");
+const {validatePickPlace} = require("../protocol/manipulator-validation.cjs");
+const {validatePoints} = require("../protocol/route-validation.cjs");
+const {normalizeScene} = require("../protocol/scene-validation.cjs");
+
+const validateSubmit = command => {
+  if (!["route", "start_mapping_survey", "pick_place"].includes(command?.type)) {
+    throw serviceError(400, "unsupported_command", "Unsupported simulator command.");
+  }
+  validateMissionId(command.commandId);
+  if (command.type === "pick_place") validatePickPlace(command);
+  if (command.type === "route") {
+    if (validatePoints(command.route).length < 2) throw serviceError(400, "invalid_route", "At least two route points are required.");
+    if (command.scene) normalizeScene(command.scene);
+  }
+};
 
 // The simulator file layout and legacy command vocabulary terminate here.
 const createWebotsFileAdapter = ({artifactStore, stateDir}) => ({
+  validateSubmit,
   async submit(command) {
-    if (command.type === "start_mapping_survey") {
+    validateSubmit(command);
+    if (["start_mapping_survey", "pick_place"].includes(command.type)) {
       await artifactStore.writeRuntimeCommand({...command,missionId:command.commandId,requestKey:fingerprint({survey:command.commandId}).slice(0,63)});
       return;
     }
@@ -38,7 +57,10 @@ const createWebotsFileAdapter = ({artifactStore, stateDir}) => ({
       if (state.navigation?.missionId !== missionId) return null;
       const navigation = state.navigation || {};
       const status = navigation.status === "mission_cancelled" ? "cancelled" : navigation.status === "route_failed" ? "failed" : navigation.finished === true ? "completed" : navigation.status === "route_loaded" ? "accepted" : "running";
-      return {missionId,status,observedAt:new Date(stat.mtimeMs).toISOString()};
+      const arm = state.manipulator?.missionId === missionId ? state.manipulator : null;
+      const reason = typeof arm?.error === "string" && arm.error ? arm.error : navigation.error;
+      return {missionId,status,observedAt:new Date(stat.mtimeMs).toISOString(),
+        ...(status === "failed" && typeof reason === "string" && reason ? {error:reason.slice(0,128)} : {})};
     } catch (error) {
       if (error.code === "ENOENT" || error instanceof SyntaxError) return null;
       throw error;

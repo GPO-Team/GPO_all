@@ -2,6 +2,10 @@ import {webots} from "./wwi/webots.js";
 import {changeGtaoLevel} from "./wwi/nodes/wb_preferences.js";
 import ImageLoader from "./wwi/ImageLoader.js";
 import {bufferSceneUpdates} from "./scene-buffer.js";
+import WbLidar from "./wwi/nodes/WbLidar.js";
+import {hideLidarFrustum} from "./lidar-display.js";
+
+hideLidarFrustum(WbLidar);
 
 // Serve this world's release-pinned textures from the frontend image too.
 const loadTextureData=ImageLoader.loadTextureData;

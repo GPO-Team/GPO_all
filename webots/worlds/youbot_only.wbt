@@ -7,7 +7,7 @@ EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/project
 
 WorldInfo {
   info [
-    "Clean KUKA youBot world without extra objects."
+    "KUKA youBot with a small physical box for pick-place missions."
   ]
   title "KUKA youBot Only"
   basicTimeStep 16
@@ -35,6 +35,23 @@ WorldInfo {
       ]
     }
   ]
+}
+
+DEF PICK_BOX Solid {
+  translation 0.4 -0.1 0.04
+  name "pick box"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.9 0.3 0.05
+        roughness 1
+        metalness 0
+      }
+      geometry Box { size 0.03 0.03 0.08 }
+    }
+  ]
+  boundingObject Box { size 0.03 0.03 0.08 }
+  physics Physics { density -1 mass 0.04 }
 }
 Viewpoint {
   orientation 0.07467287892190907 0.08761296949069716 -0.9933518655192307 2.4565251739789433

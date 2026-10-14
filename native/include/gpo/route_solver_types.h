@@ -3,10 +3,14 @@
 #include "tsp/common.h"
 
 #include <cstdint>
+#include <cstddef>
 #include <string>
 #include <vector>
 
 namespace gpo {
+
+// Keep in sync with shared/controller-limits.json and the Webots waypoint buffer.
+constexpr std::size_t kMaxRoutePoints = 768;
 
 enum class TaskKind {
   kTsp,

@@ -14,6 +14,7 @@
 #include "controller_runtime_command_reload_service.h"
 #include "controller_webots_adapter.h"
 #include "controller_webots_devices.h"
+#include "controller_webots_manipulator.h"
 #include "controller_webots_motion_state.h"
 #include "controller_webots_pose.h"
 #include "controller_webots_sensors.h"
@@ -22,6 +23,7 @@
 
 typedef struct {
   ControllerWebotsDevices webots_devices;
+  ControllerWebotsManipulator manipulator;
   ControllerWebotsAdapter webots_adapter;
   ControllerWebotsPose webots_pose;
   ControllerWebotsSensors webots_sensors;

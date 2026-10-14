@@ -3,6 +3,7 @@ const { validateMissionId, terminalStates } = require("../protocol/mission-contr
 const { fingerprint, serviceError } = require("../protocol/service-contract.cjs");
 const { validatePoints } = require("../protocol/route-validation.cjs");
 const { prepareRoute } = require("./route-planning.cjs");
+const { validatePickPlace } = require("../protocol/manipulator-validation.cjs");
 const createMissionService = ({repository, adapter, now = () => new Date().toISOString()}) => {
   let pending = Promise.resolve();
   const serial = action => {const result=pending.then(action);pending=result.catch(()=>{});return result;};
@@ -26,12 +27,14 @@ const createMissionService = ({repository, adapter, now = () => new Date().toISO
     const rank={persisted:0,accepted:1,running:2,cancelling:3,completed:4,failed:4,cancelled:4};
     const status=matching && feedback.status in rank && rank[feedback.status]>=rank[record.status] ? feedback.status : record.status;
     const updated={...record,status,feedbackFresh:Boolean(matching && !feedback.cached),connectionError:null,
+      ...(matching && status === "failed" && typeof feedback.error === "string" ? {failureReason:feedback.error.slice(0,128)} : {}),
       ...(matching ? {lastFeedbackAt:feedback.observedAt || now()} : {}),
       updatedAt:status!==record.status ? now() : record.updatedAt};
     // Do not rewrite SQLite on every idle poll without a changed observation.
     return JSON.stringify(updated)===JSON.stringify(record) ? record : save(updated);
   };
   const submit = (payload,{requestId=randomUUID()}={}) => serial(async()=>{
+    if (!["route", "start_mapping_survey", "pick_place"].includes(payload?.type)) throw serviceError(400,"unsupported_command","Unsupported mission command.");
     const missionId=validateMissionId(requestId || randomUUID());
     const hash=fingerprint(payload);
     let record=await repository.get(missionId);
@@ -41,12 +44,13 @@ const createMissionService = ({repository, adapter, now = () => new Date().toISO
       const active=(await all()).find(item=>!terminalStates.has(item.status));
       if(active) throw serviceError(409,"mission_active",`Mission ${active.missionId} is active. Cancel it and wait for confirmation before replacing it.`);
       const survey = payload.type === "start_mapping_survey";
-      let command=survey ? {...payload,commandId:missionId} : {...payload,route:validatePoints(payload.route),commandId:missionId};
-      if(!survey && payload.scene) {
+      const manipulation = payload.type === "pick_place";
+      let command=manipulation ? {...validatePickPlace(payload),commandId:missionId} : survey ? {...payload,commandId:missionId} : {...payload,route:validatePoints(payload.route),commandId:missionId};
+      if(!survey && !manipulation && payload.scene) {
         const result=await prepareRoute({seedRoute:payload.seedRoute || payload.route,scene:payload.scene});
         command={...command,route:result.route,scene:result.scene,motion:result.scene.motion,sceneRevision:result.sceneRevision,planning:result.planning};
       }
-      if(!survey && command.route.length<2) throw serviceError(400,"invalid_route","At least two route points are required.");
+      if(!survey && !manipulation && command.route.length<2) throw serviceError(400,"invalid_route","At least two route points are required.");
       record={missionId,fingerprint:hash,status:"prepared",createdAt:now(),updatedAt:now(),command};
       await save(record);
     }
@@ -74,7 +78,7 @@ const createMissionService = ({repository, adapter, now = () => new Date().toISO
     }
   });
   const update = (payload,{requestId=randomUUID()}={}) => serial(async()=>{
-    if(payload?.type === "start_mapping_survey") throw serviceError(400,"mission_required","Mapping surveys must be submitted as missions.");
+    if(["start_mapping_survey", "pick_place"].includes(payload?.type)) throw serviceError(400,"mission_required","Movement commands must be submitted as missions.");
     if((await all()).some(record=>!terminalStates.has(record.status))) throw serviceError(409,"mission_active","Scene changes are blocked while a mission is active.");
     return adapter.update(payload,requestId || randomUUID());
   });
