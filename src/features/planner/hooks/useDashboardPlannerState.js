@@ -20,6 +20,7 @@ export const useDashboardPlannerState = () => {
   const [energyWarning, setEnergyWarning] = useState("");
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [routeTaskKey, setRouteTaskKey] = useState("tsp");
+  const [driveMode, setDriveMode] = useState("optimized");
   const [algorithmKey, setAlgorithmKey] = useState("ga_tabu");
   const [algorithmParams, setAlgorithmParams] = useState(createDashboardAlgorithmParams);
   const [expandedPoint, setExpandedPoint] = useState(null);
@@ -61,6 +62,7 @@ export const useDashboardPlannerState = () => {
       status, setStatus, energyWarning, setEnergyWarning, isOptimizing, setIsOptimizing,
     },
     algorithm: {
+      driveMode, setDriveMode,
       routeTaskKey, setRouteTaskKey, algorithmKey, setAlgorithmKey,
       algorithmParams, setAlgorithmParams,
     },

@@ -5,15 +5,13 @@ import PlannerSurfaceZonesSection from "./PlannerSurfaceZonesSection";
 
 describe("PlannerSurfaceZonesSection", () => {
   it("renders surface zones and active runtime information", () => {
-    const zone = { id: "surface-1", name: "Грунт", surfaceKey: "soil", closed: true, points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }] };
+    const zone = { id: "surface-1", name: "Западный участок", surfaceKey: "rough", closed: true, points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }] };
     const html = renderToStaticMarkup(
       <PlannerSurfaceZonesSection
-        activeSurfaceProfileKey="soil"
-        activeSurfaceZone={zone}
         activeSurfaceZoneId={zone.id}
         cruiseSpeedInput="0.4"
         cruiseSpeedMps={0.4}
-        onActiveSurfaceProfileChange={vi.fn()}
+        onSurfaceProfileChange={vi.fn()}
         onClearAllSurfaceZones={vi.fn()}
         onClearSurfaceZone={vi.fn()}
         onCreateSurfaceZone={vi.fn()}
@@ -26,7 +24,8 @@ describe("PlannerSurfaceZonesSection", () => {
       />
     );
     expect(html).toContain("Покрытия карты");
-    expect(html).toContain("Редактируемые зоны: 1");
-    expect(html).toContain("Грунт");
+    expect(html).toContain("Замкнутых контуров: 1");
+    expect(html).toContain("Шероховатое покрытие");
+    expect(html).not.toContain("Западный участок");
   });
 });

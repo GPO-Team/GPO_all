@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { renderPlannerSensorLayers } from "./plannerCanvasSensorRenderer";
 
 describe("planner canvas sensor renderer", () => {
-  it("hides lidar and turquoise free-space cells while retaining camera obstacles", () => {
+  it("renders obstacle and camera cells with their own canvas primitives", () => {
     const ctx = {
       arc: vi.fn(),
       beginPath: vi.fn(),
@@ -21,7 +21,7 @@ describe("planner canvas sensor renderer", () => {
       },
     });
 
-    expect(ctx.fillRect).not.toHaveBeenCalled();
+    expect(ctx.fillRect).toHaveBeenCalledTimes(2);
     expect(ctx.arc).toHaveBeenCalledOnce();
   });
 });

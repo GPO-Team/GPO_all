@@ -102,7 +102,9 @@ const simplifyCollinearPath = (path) => {
       (current.x - prev.x) * (next.y - current.y) -
       (current.y - prev.y) * (next.x - current.x)
     );
-    if (cross > COLLINEAR_EPS) simplified.push(copyPoint(current));
+    const forward = (current.x - prev.x) * (next.x - current.x) +
+      (current.y - prev.y) * (next.y - current.y);
+    if (cross > COLLINEAR_EPS || forward <= 0) simplified.push(copyPoint(current));
   }
   simplified.push(copyPoint(path[path.length - 1]));
   return simplified;

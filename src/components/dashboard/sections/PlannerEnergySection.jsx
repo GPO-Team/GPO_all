@@ -1,5 +1,5 @@
 import HelpHint from "../HelpHint";
-import { MAX_BATTERY_RANGE } from "../../../features/planner/model/energySettings";
+import { MAX_BATTERY_RANGE, MIN_CRUISE_SPEED, MAX_CRUISE_SPEED, MAX_PAYLOAD } from "../../../features/planner/model/energySettings";
 const cardCls =
   "rounded-2xl bg-white/95 backdrop-blur border border-stone-200 shadow-[0_18px_40px_rgba(15,23,42,0.06)] p-4";
 const inputCls =
@@ -35,6 +35,7 @@ export default function PlannerEnergySection({
   routeInfluenceRows,
   routeTiming,
 }) {
+  const speedBelowMinimum = cruiseSpeedInput !== "" && Number(String(cruiseSpeedInput).replace(",", ".")) < MIN_CRUISE_SPEED;
   const actualRouteTimeText =
     routeTiming?.status === "running"
       ? `идет ${formatSeconds(routeTiming.actualTimeSec)}`
@@ -55,12 +56,16 @@ export default function PlannerEnergySection({
         <label className="col-span-1">
           <div className="text-xs text-stone-600 mb-1">Скорость, м/с</div>
           <input type="text" inputMode="decimal" value={cruiseSpeedInput} className={inputCls}
+            aria-invalid={speedBelowMinimum} aria-describedby="cruise-speed-range"
             onChange={(event) => onCruiseSpeedChange(event.target.value)} onBlur={onCruiseSpeedBlur} />
+          <div id="cruise-speed-range" className={`mt-1 text-xs ${speedBelowMinimum ? "text-rose-700" : "text-stone-500"}`}>От {MIN_CRUISE_SPEED} до {MAX_CRUISE_SPEED} м/с</div>
         </label>
         <label className="col-span-1">
           <div className="text-xs text-stone-600 mb-1">Масса груза, кг</div>
           <input type="text" inputMode="decimal" value={payloadInput} className={inputCls}
+            aria-describedby="payload-range"
             onChange={(event) => onPayloadChange(event.target.value)} onBlur={onPayloadBlur} />
+          <div id="payload-range" className="mt-1 text-xs text-stone-500">От 0 до {MAX_PAYLOAD} кг</div>
         </label>
       </div>
       <div className="mt-3 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-700 space-y-1">

@@ -23,10 +23,16 @@ const createStore = async () => {
 };
 
 describe("web state store", () => {
-  it("does not turn a mistyped manipulator action into an obstacle", async () => {
-    const {store} = await createStore();
-    await expect(store.writeRuntimeCommand({type:"pick_place_typo",commandId:100})).rejects.toThrow("Unsupported runtime command");
-    await expect(fs.access(store.paths.runtimeCommand)).rejects.toMatchObject({code:"ENOENT"});
+  it("preserves stable obstacle IDs even when command sequence IDs collide", async () => {
+    const { store } = await createStore();
+    const obstacle = { x: 2, y: 3, sizeX: 1, sizeY: 0.8, height: 0.6 };
+    await store.writeRuntimeCommand({ type: "spawn_random_obstacle", commandId: 10, obstacleId: 42, obstacle });
+    await store.writeRuntimeCommand({ type: "update_runtime_obstacle", commandId: 10, obstacleId: 42, obstacle: { ...obstacle, x: 4 } });
+    await store.writeRuntimeCommand({ type: "delete_runtime_obstacle", commandId: 10, obstacleId: 42 });
+    const text = await fs.readFile(store.paths.runtimeCommand, "utf8");
+    expect([...text.matchAll(/^id (\d+)$/gm)].map(match => Number(match[1]))).toEqual([10, 11, 12]);
+    expect([...text.matchAll(/^obstacle_id (\d+)$/gm)].map(match => Number(match[1]))).toEqual([42, 42, 42]);
+    expect(text).toContain("type delete_obstacle");
   });
   it("preserves an explicit mission command id across delivery retries", async () => {
     const {store} = await createStore();

@@ -7,6 +7,7 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
   const { algorithm, canvas, energy, interaction, limits, mapping, route, surfaces } = state;
   const { plannerModel, syncPayloads, viewModel } = derived;
   const routeLifecycle = useDashboardPlannerRouteLifecycle({
+    driveMode: algorithm.driveMode,
     plannerModel,
     optimizedRoute: route.optimizedRoute,
     onMissionSubmitted: runtime.mission?.track,
@@ -50,6 +51,7 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
   });
 
   const routeSelection = usePlannerRouteSelection({
+    setDriveMode: algorithm.setDriveMode,
     algorithmKey: algorithm.algorithmKey,
     resetRouteTiming: runtime.routeTiming.reset,
     setAlgorithmKey: algorithm.setAlgorithmKey,

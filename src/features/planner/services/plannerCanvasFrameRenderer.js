@@ -3,19 +3,23 @@ import { renderPlannerPointLayer, renderPlannerRobot } from "./plannerCanvasPoin
 import { renderPlannerLidarTrace, renderPlannerRouteLayer } from "./plannerCanvasRouteRenderer";
 import { renderPlannerSensorLayers } from "./plannerCanvasSensorRenderer";
 import { renderPlannerZoneLayer } from "./plannerCanvasZoneRenderer";
+import { renderPlannerRuntimeObstacles } from "./plannerCanvasObstacleRenderer";
 
 export const renderPlannerCanvasScene = (ctx, state) => {
   const layers = state.mapLayers || {};
   drawPlannerBackground(ctx, layers.surfaces === false ? [] : state.surfaceZones, {
     annotate: layers.axes === true, border: false, grid: layers.grid !== false,
+    axisLabels: layers.axisLabels !== false,
+    viewScale: state.viewScale,
   });
   renderPlannerSensorLayers(ctx, {
     obstacleMap: layers.lidar === false ? null : state.obstacleMap,
-    cameraMap: layers.camera === false ? null : state.cameraMap,
+    cameraMap: layers.lidar === false ? null : state.cameraMap,
   });
-  if (layers.lidar === true) renderPlannerLidarTrace(ctx, state.obstacleTrace, true);
+  if (layers.lidarTrace !== false) renderPlannerLidarTrace(ctx, state.obstacleTrace, true);
   if (layers.zones !== false) renderPlannerZoneLayer(ctx, state.zoneEntries);
   if (layers.route !== false) renderPlannerRouteLayer(ctx, state);
+  if (layers.runtimeObstacles !== false) renderPlannerRuntimeObstacles(ctx, state.runtimeObstacles, state.viewScale, state.activeRuntimeObstacleId);
   renderPlannerPointLayer(ctx, {
     ...state,
     visitEntries: layers.visits === false ? [] : state.visitEntries,

@@ -154,7 +154,9 @@ const createTelemetryNormalizer = (coordinateContract) => {
       z,
       yaw,
       navigation: raw?.navigation || null,
+      motionProfile: raw?.motionProfile || null,
       objectTransfer: raw?.objectTransfer || null,
+    manipulator: raw?.manipulator || null,
       perception: {
         lidar: raw?.perception?.lidar || null,
         camera,

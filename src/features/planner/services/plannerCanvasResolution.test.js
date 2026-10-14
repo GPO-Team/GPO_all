@@ -36,8 +36,10 @@ it("keeps native pixel resolution with thousands of points and repeated zoom, wh
     viewportRef.current = createViewport(960, 700, zoom);
     nextFrame();
     expect([canvas.width, canvas.height]).toEqual([1920, 1400]);
-    const expectedMarkerScale = viewportRef.current.fitScale * Math.max(1, zoom);
+    const expectedMarkerScale = viewportRef.current.fitScale;
     expect(front.arc).toHaveBeenLastCalledWith(expect.any(Number), expect.any(Number), 11 / expectedMarkerScale, 0, Math.PI * 2);
+    const robotRadius = front.arc.mock.lastCall[2];
+    expect(robotRadius * viewportRef.current.scale).toBeCloseTo(11 * zoom);
   }
   expect(background.strokeText).toHaveBeenCalledTimes(18000);
   stop();

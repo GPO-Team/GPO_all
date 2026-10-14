@@ -77,5 +77,20 @@ int main(void) {
   assert(strstr(node_string, "baseColor 0.7608 0.2549 0.1451") != NULL);
   assert(strstr(node_string, "geometry Box { size 0.200000 3.500000 1.200000 }") != NULL);
   assert(strstr(node_string, "boundingObject Box { size 0.200000 3.500000 1.200000 }") != NULL);
+  obstacle.id = 99;
+  obstacle.obstacle_id = 37;
+  obstacle.has_spawn_obstacle = 0;
+  obstacle.has_update_obstacle = 1;
+  obstacle.x = 3.0;
+  obstacle.y = 4.0;
+  obstacle.size_x = 1.8;
+  obstacle.size_y = 0.9;
+  obstacle.height = 0.8;
+  assert(controller_webots_simulation_format_runtime_obstacle(
+      node_string, sizeof(node_string), &obstacle, -21.5, 21.5, -16.5, 16.5) > 0);
+  assert(strstr(node_string, "DEF WEB_OBS_37 Solid {") != NULL);
+  assert(strstr(node_string, "translation 3.000000 4.000000 0.400000") != NULL);
+  assert(strstr(node_string, "geometry Box { size 1.800000 0.900000 0.800000 }") != NULL);
+  assert(strstr(node_string, "boundingObject Box { size 1.800000 0.900000 0.800000 }") != NULL);
   return 0;
 }

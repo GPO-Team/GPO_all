@@ -127,6 +127,6 @@ ControllerRuntimeCommandReloadResult controller_runtime_command_reload_service_r
 
   if (service->spawn_obstacle) service->spawn_obstacle(&command);
   if (service->survey_ops.clear_error) service->survey_ops.clear_error();
-  if (service->survey_ops.set_status) service->survey_ops.set_status("runtime_obstacle_spawned");
+  if (service->survey_ops.set_status) service->survey_ops.set_status(command.has_delete_obstacle ? "runtime_obstacle_deleted" : command.has_update_obstacle ? "runtime_obstacle_updated" : "runtime_obstacle_spawned");
   return CONTROLLER_RUNTIME_COMMAND_RELOAD_APPLIED;
 }

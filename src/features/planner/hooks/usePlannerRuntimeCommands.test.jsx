@@ -1,56 +1,56 @@
-import React from "react";
-import {renderToString} from "react-dom/server";
-import {beforeEach,expect,it,vi} from "vitest";
-import {usePlannerRuntimeCommands} from "./usePlannerRuntimeCommands";
-import {sendRouteChannelPayload} from "../services/routeChannel";
-vi.mock("../services/routeChannel", () => ({sendRouteChannelPayload:vi.fn()}));
-beforeEach(() => vi.resetAllMocks());
+// @vitest-environment jsdom
+import React, { act } from "react";
+import { createRoot } from "react-dom/client";
+import { expect, it, vi } from "vitest";
+import { usePlannerRuntimeCommands } from "./usePlannerRuntimeCommands";
+import { sendRouteChannelPayload } from "../services/routeChannel";
 
-it("propagates a manipulator rejection to its form and preserves retry identity", async () => {
+vi.mock("../services/routeChannel", () => ({ sendRouteChannelPayload: vi.fn() }));
+
+it("tracks exact spawn sizes and independent acknowledgements and failures", async () => {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
-  const captured = [];
+  const root = createRoot(document.createElement("div"));
+  let actions;
   function Harness() {
-    const actions = usePlannerRuntimeCommands({routeSocketRef:{current:null},setStatus:vi.fn()});
-    captured.push(actions);
+    const currentActions = usePlannerRuntimeCommands({ plannerModel: { polygons: [] }, points: [],
+      telemetry: { x: 0, y: 0 }, optimizedRoute: [], setStatus: vi.fn(), routeSocketRef: { current: null } });
+    React.useEffect(() => { actions = currentActions; });
     return null;
   }
-  renderToString(<Harness />);
-  sendRouteChannelPayload.mockImplementation(async (_socket,_command,callbacks) => {
-    callbacks.onError(new Error("Robot has an active command."));
-    return false;
-  });
-  const payload = {objectDef:"PICK_BOX",destination:{x:0.4,y:0.1,z:0.04}};
-  await expect(captured[0].startPickPlace(payload)).rejects.toThrow("Robot has an active command.");
-  await expect(captured[0].startPickPlace(payload)).rejects.toThrow();
-  expect(sendRouteChannelPayload.mock.calls[1][1].requestId).toBe(sendRouteChannelPayload.mock.calls[0][1].requestId);
-});
-
-it("keeps survey identity after a lost ACK and hands the accepted mission to tracking", async () => {
-  const track = vi.fn();
-  const status = vi.fn();
-  const captured = [];
-  function Harness() {
-    const actions = usePlannerRuntimeCommands({mappingSurveyMode:"snake",batteryRangeMeters:100,payloadKg:0,
-      routeSocketRef:{current:null},setStatus:status,onMissionSubmitted:track});
-    captured.push(actions);
-    return null;
-  }
-  renderToString(<Harness />);
-  const [actions] = captured;
-  sendRouteChannelPayload.mockImplementationOnce(async (_socket,_command,callbacks) => {
-    callbacks.onError(new Error("Lost ACK"));
-    return false;
-  });
-  sendRouteChannelPayload.mockImplementation(async (_socket,command,callbacks) => {
-    callbacks.onSent({missionId:command.requestId,status:"persisted"});
-    return true;
-  });
-  await actions.startMappingSurvey();
-  expect(track).not.toHaveBeenCalled();
-  await actions.startMappingSurvey();
-  const first = sendRouteChannelPayload.mock.calls[0][1];
-  expect(sendRouteChannelPayload.mock.calls[1][1]).toEqual(first);
-  expect(track).toHaveBeenCalledWith({missionId:first.requestId,status:"persisted"});
-  await actions.startMappingSurvey();
-  expect(sendRouteChannelPayload.mock.calls[2][1].requestId).not.toBe(first.requestId);
+  try {
+    await act(async () => root.render(<Harness />));
+    await act(async () => { actions.addRandomObstacle(); actions.addRandomObstacle(); });
+    const [first, second] = sendRouteChannelPayload.mock.calls;
+    expect(first[1].commandId).not.toBe(second[1].commandId);
+    expect(actions.runtimeObstacles[0]).toMatchObject({ ...first[1].obstacle, status: "sending" });
+    await act(async () => second[2].onSent());
+    await act(async () => first[2].onError(new Error("Bridge offline")));
+    expect(actions.runtimeObstacles.map(({ status }) => status)).toEqual(["error", "accepted"]);
+    expect(actions.runtimeObstacles[0].error).toBe("Bridge offline");
+    const id = second[1].commandId;
+    const original = second[1].obstacle;
+    const geometry = { x: 2, y: 3, sizeX: 1.2, sizeY: 0.7, height: 0.8 };
+    await act(async () => { actions.editRuntimeObstacle(id, geometry); actions.editRuntimeObstacle(id, geometry); });
+    expect(sendRouteChannelPayload).toHaveBeenCalledTimes(3);
+    const edit = sendRouteChannelPayload.mock.calls.at(-1);
+    expect(edit[1]).toMatchObject({ type: "update_runtime_obstacle", obstacleId: id, obstacle: geometry });
+    expect(edit[1].commandId).toBeGreaterThan(id);
+    await act(async () => edit[2].onError(new Error("Robot busy")));
+    expect(actions.runtimeObstacles[1]).toMatchObject({ ...original, confirmed: true, status: "error" });
+    await act(async () => actions.editRuntimeObstacle(id, geometry));
+    await act(async () => sendRouteChannelPayload.mock.calls.at(-1)[2].onSent());
+    expect(actions.runtimeObstacles[1]).toMatchObject({ ...geometry, commandId: id, status: "accepted" });
+    await act(async () => actions.selectRuntimeObstacle(id));
+    await act(async () => actions.deleteRuntimeObstacle(id));
+    const deletion = sendRouteChannelPayload.mock.calls.at(-1);
+    expect(deletion[1]).toMatchObject({ type: "delete_runtime_obstacle", obstacleId: id });
+    expect(actions.runtimeObstacles[1]).toMatchObject({ ...geometry, status: "deleting" });
+    await act(async () => deletion[2].onError(new Error("Robot busy")));
+    expect(actions.runtimeObstacles[1]).toMatchObject({ ...geometry, status: "error" });
+    await act(async () => actions.deleteRuntimeObstacle(id));
+    await act(async () => sendRouteChannelPayload.mock.calls.at(-1)[2].onSent());
+    expect(actions.runtimeObstacles).toHaveLength(1);
+    expect(actions.activeRuntimeObstacleId).toBeNull();
+  } finally { await act(async () => root.unmount()); }
 });

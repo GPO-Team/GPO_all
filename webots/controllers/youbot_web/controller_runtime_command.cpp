@@ -44,6 +44,8 @@ int controller_runtime_command_load_next_file(
       continue;
     } else if (sscanf(line, " type %63s", token) == 1) {
       parsed.has_spawn_obstacle = strcmp(token, "spawn_obstacle") == 0;
+      parsed.has_update_obstacle = strcmp(token, "update_obstacle") == 0;
+      parsed.has_delete_obstacle = strcmp(token, "delete_obstacle") == 0;
       parsed.has_start_mapping_survey = strcmp(token, "start_mapping_survey") == 0;
       parsed.has_cancel_mission = strcmp(token, "cancel_mission") == 0;
       parsed.has_pick_place = strcmp(token, "pick_place") == 0;
@@ -51,6 +53,8 @@ int controller_runtime_command_load_next_file(
       parsed.has_recover_transfer = strcmp(token, "recover_transfer") == 0;
       parsed.has_resume_transfer = strcmp(token, "resume_transfer") == 0;
       parsed.has_manipulator_pose = strcmp(token, "set_manipulator_pose") == 0;
+    } else if (sscanf(line, " obstacle_id %lld", &id) == 1) {
+      parsed.obstacle_id = id;
     } else if (sscanf(line, " object_id %31s", token) == 1) {
       strcpy(parsed.object_id, token);
     } else if (sscanf(line, " scene_revision %63s", token) == 1) {
@@ -130,12 +134,19 @@ int controller_runtime_command_load_next_file(
   // Preserve a rejected record's id so the consumer can advance past it.
   *command = parsed;
   if (parsed.id < 0 ||
-      (!parsed.has_spawn_obstacle && !parsed.has_start_mapping_survey && !parsed.has_cancel_mission &&
+      (!parsed.has_spawn_obstacle && !parsed.has_update_obstacle && !parsed.has_delete_obstacle &&
+       !parsed.has_start_mapping_survey && !parsed.has_cancel_mission &&
        !parsed.has_pick_place && !parsed.has_transfer_object && !parsed.has_recover_transfer &&
        !parsed.has_resume_transfer && !parsed.has_manipulator_pose)) {
     return 0;
   }
   if (parsed.has_cancel_mission && !parsed.mission_id[0]) return 0;
+  if ((parsed.has_update_obstacle || parsed.has_delete_obstacle) && parsed.obstacle_id <= 0) return 0;
+  if (parsed.has_update_obstacle &&
+      (!std::isfinite(parsed.x) || !std::isfinite(parsed.y) || !std::isfinite(parsed.size_x) ||
+       !std::isfinite(parsed.size_y) || !std::isfinite(parsed.height) ||
+       parsed.size_x < 0.2 || parsed.size_x > 3.5 || parsed.size_y < 0.2 || parsed.size_y > 3.5 ||
+       parsed.height < 0.12 || parsed.height > 2.8)) return 0;
   if (parsed.has_pick_place && (!parsed.mission_id[0] || !parsed.object_def[0] || parsed.target_fields != 7 ||
       !isfinite(parsed.target_x) || !isfinite(parsed.target_y) || !isfinite(parsed.target_z) ||
       parsed.target_z < 0.015 || parsed.target_z > 1.0)) return 0;

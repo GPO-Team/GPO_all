@@ -23,13 +23,16 @@ export const usePlannerSurfaceZoneEditor = ({ activeSurfaceProfileKey, activeSur
     setActiveSurfaceProfileKey(target.surfaceKey);
     setActivePointKind("surface");
   };
-  const updateActiveSurfaceProfile = (surfaceKey) => {
+  const updateSurfaceProfile = (zoneId, surfaceKey) => {
+    if (!surfaceZones.some((zone) => zone.id === zoneId)) return;
     const nextKey = isSurfaceProfileKey(surfaceKey) ? surfaceKey : DEFAULT_SURFACE_PROFILE_KEY;
+    setActiveSurfaceZoneId(zoneId);
     setActiveSurfaceProfileKey(nextKey);
-    if (!activeSurfaceZoneId) return;
-    setSurfaceZones((previous) => setSurfaceZoneProfile(previous, activeSurfaceZoneId, nextKey));
+    setActivePointKind("surface");
+    setSurfaceZones((previous) => setSurfaceZoneProfile(previous, zoneId, nextKey));
     clearRouteState({ dropSolvedRoute: false });
   };
+  const updateActiveSurfaceProfile = (surfaceKey) => updateSurfaceProfile(activeSurfaceZoneId, surfaceKey);
   const toggleSurfaceZoneClosed = (zoneId) => {
     const target = surfaceZones.find((zone) => zone.id === zoneId);
     if (!target) return;
@@ -39,13 +42,17 @@ export const usePlannerSurfaceZoneEditor = ({ activeSurfaceProfileKey, activeSur
     }
     setSurfaceZones((previous) => setSurfaceZoneClosed(previous, zoneId, !target.closed));
     setActiveSurfaceZoneId(zoneId);
+    setActiveSurfaceProfileKey(target.surfaceKey);
     setActivePointKind("surface");
     clearRouteState({ dropSolvedRoute: false });
     setStatus(target.closed ? `${target.name} открыта для редактирования.` : `${target.name} замкнута и будет учитываться в расчёте.`);
   };
   const clearSurfaceZone = (zoneId) => {
+    const target = surfaceZones.find((zone) => zone.id === zoneId);
+    if (!target) return;
     setSurfaceZones((previous) => previous.map((zone) => zone.id === zoneId ? { ...zone, points: [], closed: false } : zone));
     setActiveSurfaceZoneId(zoneId);
+    setActiveSurfaceProfileKey(target.surfaceKey);
     setActivePointKind("surface");
     clearRouteState({ dropSolvedRoute: false });
     setStatus("Точки выбранного покрытия очищены.");
@@ -67,5 +74,5 @@ export const usePlannerSurfaceZoneEditor = ({ activeSurfaceProfileKey, activeSur
     clearRouteState({ dropSolvedRoute: false });
     setStatus("Все зоны покрытий очищены.");
   };
-  return { clearAllSurfaceZones, clearSurfaceZone, createSurfaceZone, removeSurfaceZone, selectSurfaceZone, toggleSurfaceZoneClosed, updateActiveSurfaceProfile };
+  return { clearAllSurfaceZones, clearSurfaceZone, createSurfaceZone, removeSurfaceZone, selectSurfaceZone, toggleSurfaceZoneClosed, updateActiveSurfaceProfile, updateSurfaceProfile };
 };

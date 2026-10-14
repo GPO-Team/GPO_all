@@ -16,17 +16,21 @@ export default function PlannerSetupSection({
   onClearChargePoints,
   onClearLimitPoints,
   onClearVisitPoints,
+  onClearSurfaceZones,
   polygonCount,
   routeBlocked,
   status,
   visitCount,
   zoneCount,
+  surfaceCount,
 }) {
   return (
     <>
-      {showOverview && <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-        <span>Точки <b>{visitCount}</b> · зарядки <b>{chargeCount}</b> · зоны <b>{zoneCount}</b></span>
-        <HelpHint label="Обозначения карты">Красные точки — посещения, жёлтые — зарядки, синие контуры — запретные зоны, зелёный значок — робот. Готовых контуров: {polygonCount}; безопасно смещённых точек: {adjustedVisitCount}. Активная зона: {activeZoneName}.</HelpHint>
+      {showOverview && <div className="flex flex-wrap gap-2 text-sm text-slate-600">
+        {kinds.includes("visit") && <div>Точки посещения: <b>{visitCount || 0}</b><HelpHint label="Обозначения карты">Красные точки — посещения, зелёный значок — робот. Безопасно смещённых точек: {adjustedVisitCount || 0}.</HelpHint></div>}
+        {kinds.includes("charge") && <div>Зарядки: <b>{chargeCount || 0}</b><HelpHint label="Станции зарядки">Жёлтые точки — станции зарядки робота.</HelpHint></div>}
+        {kinds.includes("limit") && <div>Зоны: <b>{zoneCount || 0}</b><HelpHint label="Ограничивающие зоны">Синие контуры — запретные зоны. Готовых контуров: {polygonCount || 0}. Активная зона: {activeZoneName}.</HelpHint></div>}
+        {kinds.includes("surface") && <div>Покрытия: <b>{surfaceCount || 0}</b><HelpHint label="Зоны покрытий">Каждое покрытие задаёт свойства участка карты. Замкнутые контуры участвуют в расчёте скорости и энергии маршрута.</HelpHint></div>}
       </div>}
       <div className={cardCls}>
         <div className="text-xs font-semibold text-sky-800">
@@ -38,6 +42,7 @@ export default function PlannerSetupSection({
           {kinds.includes("visit") && <button onClick={onClearVisitPoints} className={subtleButtonCls}>Очистить маршрутные точки</button>}
           {kinds.includes("charge") && <button onClick={onClearChargePoints} className={subtleButtonCls}>Очистить зарядки</button>}
           {kinds.includes("limit") && <button onClick={onClearLimitPoints} className={subtleButtonCls}>Очистить зоны</button>}
+          {kinds.includes("surface") && <button onClick={onClearSurfaceZones} className={subtleButtonCls}>Очистить покрытия</button>}
         </div>}
       </div>
       {status && <div className={`text-xs ${routeBlocked ? "text-rose-700" : "text-emerald-700"}`}>{status}</div>}

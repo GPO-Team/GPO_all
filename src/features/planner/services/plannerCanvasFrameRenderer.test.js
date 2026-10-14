@@ -16,18 +16,26 @@ const createContext = () => ({
 });
 
 describe("planner canvas frame renderer", () => {
-  it("ties the turquoise lidar trace to lidar visibility independently of camera and route", () => {
+  it("shows the lidar map and current trace independently", () => {
     const state = {
       visitEntries: [], chargeEntries: [], plannedVisitEntryMap: new Map(),
       zoneEntries: [], surfaceZones: [], optimizedRoute: [],
       obstacleTrace: [{ x: 1, y: 2 }],
-      mapLayers: { lidar: true, camera: false, route: false, robot: false, axes: false, grid: false },
+      cameraMap: { cells: [{ x: 2, y: 3 }], freeCells: [{ x: 3, y: 4 }] },
+      mapLayers: { lidar: true, lidarTrace: false, camera: false, route: false, robot: false, axes: false, grid: false },
     };
     const ctx = createContext();
     renderPlannerCanvasFrame(ctx, state, { x: 0, y: 0, yaw: 0 });
     expect(ctx.arc).toHaveBeenCalledOnce();
+    expect(ctx.fillRect).toHaveBeenCalledTimes(3);
     ctx.arc.mockClear();
-    state.mapLayers = { ...state.mapLayers, lidar: false, camera: true, route: true };
+    ctx.fillRect.mockClear();
+    state.mapLayers = { ...state.mapLayers, lidar: false, lidarTrace: true, camera: true, route: true };
+    renderPlannerCanvasFrame(ctx, state, { x: 0, y: 0, yaw: 0 });
+    expect(ctx.arc).toHaveBeenCalledOnce();
+    expect(ctx.fillRect).toHaveBeenCalledTimes(2);
+    ctx.arc.mockClear();
+    state.mapLayers.lidarTrace = false;
     renderPlannerCanvasFrame(ctx, state, { x: 0, y: 0, yaw: 0 });
     expect(ctx.arc).not.toHaveBeenCalled();
   });

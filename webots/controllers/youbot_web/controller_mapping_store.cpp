@@ -2,6 +2,29 @@
 
 #include "controller_camera_map_io.h"
 #include "controller_obstacle_map.h"
+#include <cmath>
+
+static int forget_rectangle(MapCell *cells, int count, double x, double y,
+    double size_x, double size_y, double margin) {
+  int kept = 0;
+  for (int i = 0; i < count; ++i) {
+    if (fabs(cells[i].x - x) <= size_x / 2 + margin &&
+        fabs(cells[i].y - y) <= size_y / 2 + margin) continue;
+    cells[kept++] = cells[i];
+  }
+  return kept;
+}
+
+void controller_mapping_store_forget_rectangle(ControllerMappingStore *store,
+    double x, double y, double size_x, double size_y, double margin) {
+  if (!store) return;
+  const int persistent = forget_rectangle(store->persistent_map, store->persistent_count, x, y, size_x, size_y, margin);
+  const int camera = forget_rectangle(store->camera_map, store->camera_count, x, y, size_x, size_y, margin);
+  if (persistent != store->persistent_count) store->persistent_dirty = 1;
+  if (camera != store->camera_count) store->camera_dirty = 1;
+  store->persistent_count = persistent;
+  store->camera_count = camera;
+}
 
 void controller_mapping_store_init(ControllerMappingStore *store) {
   if (!store) return;
