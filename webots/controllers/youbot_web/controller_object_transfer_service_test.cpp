@@ -10,6 +10,7 @@ static ControllerObjectTransferInput ready_input() {
   input.arm_reached = 1;
   input.grasp_valid = 1;
   input.attached = 1;
+  input.platform_pose_reached = 1;
   input.release_safe = 1;
   return input;
 }
@@ -84,6 +85,56 @@ int main() {
   controller_object_transfer_service_step(&service, &input, 35.0, &output);
   assert(service.state.status == CONTROLLER_TRANSFER_FAILED);
   assert(strcmp(service.state.error_code, "grasp_failed") == 0);
+
+  controller_object_transfer_service_init(&service);
+  controller_object_transfer_service_start(
+      &service, "transfer-grip-gate", "demo-box", 1.0, 1.0, 0.0);
+  service.state.stage = CONTROLLER_TRANSFER_GRASPING;
+  service.state.stage_started_at = 0.0;
+  input = ready_input();
+  input.arm_reached = 0;
+  controller_object_transfer_service_step(&service, &input, 1.0, &output);
+  assert(service.state.stage == CONTROLLER_TRANSFER_GRASPING);
+  assert(output.close_gripper == 1);
+  assert(output.attach_object == 0);
+  input.arm_reached = 1;
+  controller_object_transfer_service_step(&service, &input, 2.0, &output);
+  assert(service.state.stage == CONTROLLER_TRANSFER_LIFTING);
+  assert(output.attach_object == 1);
+
+  controller_object_transfer_service_init(&service);
+  controller_object_transfer_service_start(
+      &service, "transfer-platform-release", "demo-box", 1.0, 1.0, 0.0);
+  service.state.stage = CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM;
+  service.state.stage_started_at = 0.0;
+  service.state.attached = 1;
+  input = ready_input();
+  input.arm_reached = 0;
+  controller_object_transfer_service_step(&service, &input, 1.0, &output);
+  assert(service.state.stage == CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM);
+  assert(output.store_object_on_platform == 0);
+  input.arm_reached = 1;
+  input.platform_pose_reached = 0;
+  controller_object_transfer_service_step(&service, &input, 2.0, &output);
+  assert(service.state.stage == CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM);
+  assert(output.store_object_on_platform == 0);
+  input.platform_pose_reached = 1;
+  controller_object_transfer_service_step(&service, &input, 3.0, &output);
+  assert(service.state.stage == CONTROLLER_TRANSFER_RETURNING_ARM_FOR_TRANSPORT);
+  assert(output.store_object_on_platform == 1);
+
+  controller_object_transfer_service_init(&service);
+  controller_object_transfer_service_start(
+      &service, "transfer-final-recovery", "demo-box", 1.0, 1.0, 0.0);
+  service.state.stage = CONTROLLER_TRANSFER_PLACING;
+  service.state.stage_started_at = 0.0;
+  service.state.attached = 1;
+  input = ready_input();
+  input.release_safe = 0;
+  controller_object_transfer_service_step(&service, &input, 31.0, &output);
+  assert(service.state.status == CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY);
+  assert(controller_object_transfer_service_resume(&service, 32.0));
+  assert(service.state.stage == CONTROLLER_TRANSFER_PLACING);
 
   controller_object_transfer_service_init(&service);
   controller_object_transfer_service_start(

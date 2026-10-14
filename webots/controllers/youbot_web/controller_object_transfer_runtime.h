@@ -18,6 +18,11 @@ typedef struct {
   int available;
 } ControllerObjectTransferRuntime;
 
+void controller_object_transfer_carry_pose(
+    ControllerObjectTransferStage stage,
+    double *offset,
+    double *height);
+
 void controller_object_transfer_runtime_init(
     ControllerObjectTransferRuntime *runtime,
     ControllerRuntime *navigation,

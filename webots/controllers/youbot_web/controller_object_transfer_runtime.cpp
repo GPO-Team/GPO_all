@@ -13,20 +13,8 @@ constexpr double kGripperForwardOffset = 0.35;
 constexpr double kGripperCarryHeight = 0.43;
 constexpr double kPlatformOffset = -0.15;
 constexpr double kPlatformCargoHeight = 0.225;
-
-void object_carry_pose(
-    ControllerObjectTransferStage stage,
-    double *offset,
-    double *height) {
-  const int over_platform =
-      stage == CONTROLLER_TRANSFER_PLACING_ON_PLATFORM ||
-      stage == CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM ||
-      stage == CONTROLLER_TRANSFER_PICKING_FROM_PLATFORM ||
-      stage == CONTROLLER_TRANSFER_GRASPING_FROM_PLATFORM ||
-      stage == CONTROLLER_TRANSFER_LIFTING_FROM_PLATFORM;
-  *offset = over_platform ? kPlatformOffset : kGripperForwardOffset;
-  *height = over_platform ? 0.34 : kGripperCarryHeight;
-}
+constexpr double kPlatformLiftHeight = 0.34;
+constexpr double kPlatformPoseTolerance = 0.015;
 
 int object_in_grasp_zone(
     double robot_x,
@@ -40,6 +28,21 @@ int object_in_grasp_zone(
   const double lateral = -std::sin(heading) * dx + std::cos(heading) * dy;
   return forward >= kGraspForwardMinimum && forward <= kGraspForwardMaximum &&
          std::fabs(lateral) <= kGraspLateralMaximum;
+}
+
+int object_at_platform_pose(
+    double robot_x,
+    double robot_y,
+    double heading,
+    double object_x,
+    double object_y,
+    double object_z) {
+  const double target_x = robot_x + std::cos(heading) * kPlatformOffset;
+  const double target_y = robot_y + std::sin(heading) * kPlatformOffset;
+  return std::hypot(object_x - target_x, object_y - target_y) <=
+             kPlatformPoseTolerance &&
+         std::fabs(object_z - kPlatformCargoHeight) <=
+             kPlatformPoseTolerance;
 }
 
 void set_single_waypoint(
@@ -100,6 +103,30 @@ void configure_stage(
 }
 }
 
+void controller_object_transfer_carry_pose(
+    ControllerObjectTransferStage stage,
+    double *offset,
+    double *height) {
+  if (!offset || !height) return;
+  switch (stage) {
+    case CONTROLLER_TRANSFER_PLACING_ON_PLATFORM:
+    case CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM:
+    case CONTROLLER_TRANSFER_PICKING_FROM_PLATFORM:
+    case CONTROLLER_TRANSFER_GRASPING_FROM_PLATFORM:
+      *offset = kPlatformOffset;
+      *height = kPlatformCargoHeight;
+      return;
+    case CONTROLLER_TRANSFER_LIFTING_FROM_PLATFORM:
+      *offset = kPlatformOffset;
+      *height = kPlatformLiftHeight;
+      return;
+    default:
+      *offset = kGripperForwardOffset;
+      *height = kGripperCarryHeight;
+      return;
+  }
+}
+
 void controller_object_transfer_runtime_init(
     ControllerObjectTransferRuntime *runtime,
     ControllerRuntime *navigation,
@@ -142,7 +169,8 @@ void controller_object_transfer_runtime_command(
           &runtime->service, command->mission_id, command->object_id,
           command->destination_x, command->destination_y, now)) return;
   double object_x = 0.0, object_y = 0.0;
-  controller_webots_object_adapter_position(&runtime->object, &object_x, &object_y, nullptr);
+  controller_webots_object_adapter_position(
+      &runtime->object, &object_x, &object_y, nullptr);
   set_single_waypoint(runtime, object_x - 0.42, object_y, command->mission_id);
 }
 
@@ -190,8 +218,9 @@ void controller_object_transfer_runtime_step(
       ? controller_manipulator_service_step(&runtime->manipulator, joints, fingers, now)
       : CONTROLLER_MANIPULATOR_MOVING;
 
-  double object_x = 0.0, object_y = 0.0;
-  controller_webots_object_adapter_position(&runtime->object, &object_x, &object_y, nullptr);
+  double object_x = 0.0, object_y = 0.0, object_z = 0.0;
+  controller_webots_object_adapter_position(
+      &runtime->object, &object_x, &object_y, &object_z);
   ControllerObjectTransferInput input = {};
   input.navigation_reached = runtime->navigation->route_finished;
   input.base_aligned = input.navigation_reached;
@@ -200,6 +229,8 @@ void controller_object_transfer_runtime_step(
       robot_x, robot_y, heading, object_x, object_y);
   input.attached = runtime->object.attached;
   input.on_platform = runtime->object.on_platform;
+  input.platform_pose_reached = object_at_platform_pose(
+      robot_x, robot_y, heading, object_x, object_y, object_z);
   input.release_safe = runtime->object.attached &&
       std::hypot(object_x - runtime->service.state.destination_x,
                  object_y - runtime->service.state.destination_y) <=
@@ -236,7 +267,8 @@ void controller_object_transfer_runtime_step(
   if (runtime->object.attached) {
     double carry_offset = kGripperForwardOffset;
     double carry_height = kGripperCarryHeight;
-    object_carry_pose(runtime->service.state.stage, &carry_offset, &carry_height);
+    controller_object_transfer_carry_pose(
+        runtime->service.state.stage, &carry_offset, &carry_height);
     controller_webots_object_adapter_update(
         &runtime->object, robot_x, robot_y, heading,
         carry_offset, carry_height, kPlatformOffset, kPlatformCargoHeight);

@@ -53,6 +53,7 @@ typedef struct {
   int grasp_valid;
   int attached;
   int on_platform;
+  int platform_pose_reached;
   int release_safe;
   int cancel_requested;
 } ControllerObjectTransferInput;

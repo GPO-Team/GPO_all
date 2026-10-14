@@ -131,7 +131,7 @@ void controller_object_transfer_service_step(
       break;
     case CONTROLLER_TRANSFER_GRASPING:
       output->close_gripper = 1;
-      if (input->grasp_valid) {
+      if (input->arm_reached && input->grasp_valid) {
         output->attach_object = 1;
         state->attached = 1;
         state->gripper_closed = 1;
@@ -157,10 +157,14 @@ void controller_object_transfer_service_step(
       }
       break;
     case CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM:
-      output->store_object_on_platform = 1;
-      state->on_platform = 1;
-      state->gripper_closed = 0;
-      enter(state, CONTROLLER_TRANSFER_RETURNING_ARM_FOR_TRANSPORT, now);
+      if (input->arm_reached && input->platform_pose_reached) {
+        output->store_object_on_platform = 1;
+        state->on_platform = 1;
+        state->gripper_closed = 0;
+        enter(state, CONTROLLER_TRANSFER_RETURNING_ARM_FOR_TRANSPORT, now);
+      } else if (elapsed > kTimeout) {
+        fail(state, "platform_release_timeout");
+      }
       break;
     case CONTROLLER_TRANSFER_RETURNING_ARM_FOR_TRANSPORT:
       output->request_arm_pose = 1;
@@ -188,7 +192,7 @@ void controller_object_transfer_service_step(
       break;
     case CONTROLLER_TRANSFER_GRASPING_FROM_PLATFORM:
       output->close_gripper = 1;
-      if (input->attached && input->on_platform) {
+      if (input->arm_reached && input->attached && input->on_platform) {
         output->take_object_from_platform = 1;
         state->on_platform = 0;
         state->gripper_closed = 1;
@@ -219,11 +223,20 @@ void controller_object_transfer_service_step(
       }
       break;
     case CONTROLLER_TRANSFER_RELEASING:
-      output->detach_object = 1;
-      state->attached = 0;
-      state->on_platform = 0;
-      state->gripper_closed = 0;
-      enter(state, CONTROLLER_TRANSFER_RETURNING_ARM, now);
+      if (input->arm_reached) {
+        output->detach_object = 1;
+        state->attached = 0;
+        state->on_platform = 0;
+        state->gripper_closed = 0;
+        enter(state, CONTROLLER_TRANSFER_RETURNING_ARM, now);
+      } else if (elapsed > kTimeout) {
+        state->status = CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY;
+        std::snprintf(
+            state->error_code,
+            sizeof(state->error_code),
+            "%s",
+            "release_timeout");
+      }
       break;
     case CONTROLLER_TRANSFER_RETURNING_ARM:
       output->request_arm_pose = 1;
@@ -249,10 +262,14 @@ int controller_object_transfer_service_resume(
   }
   service->state.status = CONTROLLER_TRANSFER_RUNNING;
   service->state.error_code[0] = '\0';
-  enter(&service->state,
-        service->state.on_platform
-            ? CONTROLLER_TRANSFER_TRANSPORTING
-            : CONTROLLER_TRANSFER_PLACING_ON_PLATFORM,
-        now);
+  ControllerObjectTransferStage recovery_stage =
+      service->state.on_platform
+          ? CONTROLLER_TRANSFER_TRANSPORTING
+          : CONTROLLER_TRANSFER_PLACING_ON_PLATFORM;
+  if (!service->state.on_platform &&
+      service->state.stage >= CONTROLLER_TRANSFER_PLACING) {
+    recovery_stage = service->state.stage;
+  }
+  enter(&service->state, recovery_stage, now);
   return 1;
 }
