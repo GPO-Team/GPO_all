@@ -108,9 +108,9 @@ const simplifyCollinearPath = (path) => {
   return simplified;
 };
 
-const findShortestSafePath = (start, end, polygons, margin) => {
+const findShortestSafePath = (start, end, polygons, margin, getGrid) => {
   if (segmentClear(start, end, polygons, margin)) return [copyPoint(start), copyPoint(end)];
-  const grid = createTraversalGrid(polygons, margin);
+  const grid = getGrid ? getGrid() : createTraversalGrid(polygons, margin);
   const startIndex = findNearestFreeGridCell(start, grid, polygons, margin);
   const endIndex = findNearestFreeGridCell(end, grid, polygons, margin);
   if (startIndex < 0 || endIndex < 0) return null;
@@ -181,10 +181,25 @@ export const buildObstacleAwareRoute = (route, polygons) => {
     if (!result.length) result.push(...path);
     else result.push(...path.slice(1));
   }
-  return simplifyCollinearPath(result);
+  return result;
 };
 
-export const sanitizeRouteForController = (route) => {
+export const createSafePathDistance = (polygons) => {
+  let grid;
+  const cache=new Map();
+  return (start,end)=>{
+    const key=JSON.stringify([start.x,start.y,end.x,end.y]);
+    if(cache.has(key))return cache.get(key);
+    const path=findShortestSafePath(start,end,polygons,ROUTE_CLEARANCE_MARGIN,()=>grid||(grid=createTraversalGrid(polygons)));
+    const length=path ? path.slice(1).reduce((sum,p,i)=>sum+dist(path[i],p),0) : Infinity;
+    cache.set(key,length);cache.set(JSON.stringify([end.x,end.y,start.x,start.y]),length);
+    return length;
+  };
+};
+
+export const sanitizeRouteForController = (route,mandatoryPoints=[]) => {
+  const mandatory=new Set(mandatoryPoints.map(p=>`${p.x},${p.y}`));
+  const required=p=>mandatory.has(`${p.x},${p.y}`);
   const cleaned = [];
   const minSegment = Math.max(CONTROLLER_MIN_SEGMENT, GRID_PATH_STEP * 0.55);
   for (const point of route) {
@@ -192,7 +207,7 @@ export const sanitizeRouteForController = (route) => {
     const y = Number(point?.y);
     if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
     const candidate = { x, y };
-    if (!cleaned.length || dist(cleaned[cleaned.length - 1], candidate) >= minSegment) {
+    if (!cleaned.length || dist(cleaned[cleaned.length - 1], candidate) >= minSegment || (required(candidate) && dist(cleaned.at(-1),candidate)>EPS)) {
       cleaned.push(candidate);
     }
   }
@@ -209,7 +224,7 @@ export const sanitizeRouteForController = (route) => {
       (current.x - prev.x) * (next.y - current.y) -
       (current.y - prev.y) * (next.x - current.x)
     );
-    if (cross <= 0.02 && firstLeg + secondLeg - direct <= 0.08) continue;
+    if (!required(current) && cross <= 0.02 && firstLeg + secondLeg - direct <= 0.08) continue;
     smoothed.push(current);
   }
   smoothed.push(cleaned[cleaned.length - 1]);

@@ -7,12 +7,14 @@ import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
 import WebSocket from "ws";
+import sceneContract from "../bridge/protocol/scene-validation.cjs";
 const root=path.resolve(import.meta.dirname,"..");
-const mobile=process.argv.includes("--mobile");
+const afterDemo=process.argv.includes("--after-demo");
+const mobile=process.argv.includes("--mobile") || afterDemo;
 const nearObject=process.argv.includes("--near-object");
 const obstacle=process.argv.includes("--obstacle");
 const blocked=process.argv.includes("--blocked");
-const destination={x:mobile ? (obstacle ? 4 : nearObject ? 1 : 2) : 0.4,y:mobile ? 1 : 0.1,z:0.04};
+const destination={x:mobile ? (obstacle ? 4 : nearObject ? 1 : 2) : 0.4,y:afterDemo ? 3 : mobile ? 1 : 0.1,z:0.04};
 const directory=await mkdtemp(path.join(os.tmpdir(),"gpo-manipulator-"));
 await cp(path.join(root,"webots/protos"),path.join(directory,"protos"),{recursive:true});
 const children=[];
@@ -35,7 +37,7 @@ try {
   await mkdir(path.join(directory,"controllers","youbot_web"),{recursive:true});
   await mkdir(stateDir,{recursive:true});
   let world = await readFile(path.join(root,"webots/worlds/youbot_only.wbt"),"utf8");
-  if(mobile && !nearObject)world=world.replace(/(DEF PICK_BOX Solid\s*\{\s*translation\s+)[^\r\n]+/,(_line,prefix)=>`${prefix}${obstacle ? 3.4 : 1.4} -0.1 0.04`);
+  if(mobile && !nearObject && !afterDemo)world=world.replace(/(DEF PICK_BOX Solid\s*\{\s*translation\s+)[^\r\n]+/,(_line,prefix)=>`${prefix}${obstacle ? 3.4 : 1.4} -0.1 0.04`);
   if(obstacle)world+='\nDEF DELIVERY_OBSTACLE Solid { translation 1.5 0 0.2 children [ Shape { geometry Box { size 0.1 0.4 0.4 } } ] boundingObject Box { size 0.1 0.4 0.4 } }\n';
   if(blocked)world+=`\nDEF BLOCKED_DESTINATION Solid { translation ${destination.x} ${destination.y} 0.2 children [ Shape { geometry Box { size 0.3 0.3 0.4 } } ] boundingObject Box { size 0.3 0.3 0.4 } }\n`;
   await writeFile(path.join(directory,"worlds/test.wbt"), world);
@@ -47,8 +49,21 @@ try {
   await until(async()=>{if(simulator.exitCode!==null)throw new Error(simulator.logs);try{const state=JSON.parse(await readFile(path.join(stateDir,"robot_state.json"),"utf8"));return Boolean(state.pose);}catch{return false;}},"controller telemetry");
   socket=new WebSocket(`ws://127.0.0.1:${missionPort}/ui`);await once(socket,"open");
   await until(async () => (await readState()).simulationTime > 2, "settling");
-  const before=await readState();
+  let before=await readState();
   assert.ok(Math.hypot(before.pose.x,before.pose.y)<0.015,"Robot started moving without a mission");
+  if(afterDemo) {
+    const scene=sceneContract.normalizeScene({});
+    const demoAck=await send({requestId:"demo-before-pick",type:"transfer_object",objectId:"demo-box",
+      destination:{x:2,y:2},scene,sceneRevision:sceneContract.sceneRevision(scene)});
+    assert.equal(demoAck.ok,true,JSON.stringify(demoAck));
+    await until(async()=>{
+      const mission=await getMission("demo-before-pick");
+      if(["failed","holding_for_recovery"].includes(mission.status))throw new Error(JSON.stringify(mission));
+      return mission.status==="completed";
+    },"demo delivery before PICK_BOX",180000);
+    before=await readState();
+    console.log(`DEMO_BOX placed; fetching PICK_BOX from ${JSON.stringify(before.pose)}`);
+  }
   runScenario: {
   const ack = await send({requestId:"arm-physics",type:"pick_place",objectDef:"PICK_BOX",destination});
   assert.equal(ack.ok,true,JSON.stringify(ack));
@@ -70,7 +85,9 @@ try {
   let injectedRuntime = false;
   await until(async()=>{
     const state=await readState();
-    baseTrace.push({x:state.pose.x,y:state.pose.y,stage:state.manipulator?.stage});
+    baseTrace.push({x:state.pose.x,y:state.pose.y,yaw:state.pose.yaw,time:state.simulationTime,
+      stage:state.manipulator?.stage,distance:state.navigation.distanceToTarget,
+      waypoint:state.navigation.currentWaypointIndex});
     if (process.argv.includes("--inject-route") && !injectedRoute && state.manipulator?.active) {
       await writeFile(path.join(stateDir,"route.csv"), "x,y,heading_deg\n# command foreign-route\n0,0,0\n1,0,0\n");
       const runtimePath = path.join(stateDir,"runtime_command.txt");
@@ -86,8 +103,21 @@ try {
     const m=await getMission("arm-physics");
     if(m.status==="failed")throw new Error(JSON.stringify(state));
     return m.status==="completed";
-  },"physical pick-place",90000);
+  },"physical pick-place",mobile ? 180000 : 90000);
   const final=await readState();
+  let naturalDrivingChecks=0;
+  for(let i=1;i<baseTrace.length;++i) {
+    const previous=baseTrace[i-1],current=baseTrace[i];
+    const dx=current.x-previous.x,dy=current.y-previous.y;
+    const turn=Math.atan2(Math.sin(current.yaw-previous.yaw),Math.cos(current.yaw-previous.yaw));
+    if(previous.stage!=="carrying" || current.stage!=="carrying" || current.waypoint!==previous.waypoint ||
+        Math.min(previous.distance,current.distance)<.2 || Math.abs(turn)>.05 || Math.hypot(dx,dy)<.005)continue;
+    const heading=previous.yaw+turn*.5;
+    const error=Math.atan2(Math.sin(Math.atan2(dy,dx)-heading),Math.cos(Math.atan2(dy,dx)-heading));
+    assert.ok(Math.abs(error)<.45,`Cargo moved sideways during cruise: heading error ${error}`);
+    ++naturalDrivingChecks;
+  }
+  if(mobile)assert.ok(naturalDrivingChecks>0,"No measured forward cargo travel");
   if(obstacle) {
     assert.ok(baseTrace.some(p=>Math.abs(p.y)>0.6),"Robot did not detour around the obstacle");
     assert.ok(baseTrace.every(p=>Math.hypot(Math.max(0,Math.abs(p.x-1.5)-0.05),Math.max(0,Math.abs(p.y)-0.2))>0.30),"Base collided with the obstacle");
@@ -131,7 +161,7 @@ try {
     const mission=await getMission("arm-reverse");
     if(mission.status==="failed") throw new Error(await readFile(path.join(stateDir,"robot_state.json"),"utf8"));
     return mission.status==="completed";
-  },"repeat transfer",90000);
+  },"repeat transfer",mobile ? 180000 : 90000);
   const reverse=await readState();
   assert.ok(Math.hypot(reverse.manipulator.objectPosition.x-0.4,reverse.manipulator.objectPosition.y+0.1)<0.035);
   const badAck=await send({requestId:"arm-unreachable",type:"pick_place",objectDef:"PICK_BOX",destination:{x:4,y:0,z:0.9}});
@@ -157,7 +187,7 @@ try {
     if(arm.stage!=="carrying")return false;
     carryStartPose ||= snapshot.pose;
     return Math.hypot(snapshot.pose.x-carryStartPose.x,snapshot.pose.y-carryStartPose.y)>0.15;
-  },"lifting before cancel",30000,5);
+  },"lifting before cancel",mobile ? 90000 : 30000,5);
   const cancel=await fetch(`http://127.0.0.1:${missionPort}/api/missions/arm-cancel/cancel`,{method:"POST"});
   assert.equal(cancel.status,202);
   await until(async()=>(await getMission("arm-cancel")).status==="cancelled","arm cancellation");
@@ -175,8 +205,8 @@ try {
   assert.ok(heldObject.z>(mobile ? 0.08 : 0.06) && Math.abs(heldObject.z-stoppedObject.z)<0.015,"Cargo dropped after cancellation");
   assert.ok(Math.hypot(heldObject.x-stoppedObject.x,heldObject.y-stoppedObject.y,heldObject.z-stoppedObject.z)<(mobile ? 0.03 : 0.02),"Object moved out of the grasp after cancellation");
   await mkdir(path.join(root,"output/manipulator-smoke"),{recursive:true});
-  const reportName = mobile ? obstacle ? "mobile-delivery-obstacle.json" : nearObject ? "mobile-delivery-near.json" : "mobile-delivery.json" : injectedRoute ? "manipulator-route-interlock.json" : "manipulator-physics.json";
-  await writeFile(path.join(root,"output/manipulator-smoke",reportName),JSON.stringify({injectedRoute,injectedRuntime,baseTrace,observations,final,reverse,failed,failedMission,stopped,afterStop},null,2));
+  const reportName = afterDemo ? "pick-after-demo.json" : mobile ? obstacle ? "mobile-delivery-obstacle.json" : nearObject ? "mobile-delivery-near.json" : "mobile-delivery.json" : injectedRoute ? "manipulator-route-interlock.json" : "manipulator-physics.json";
+  await writeFile(path.join(root,"output/manipulator-smoke",reportName),JSON.stringify({injectedRoute,injectedRuntime,naturalDrivingChecks,baseTrace,observations,final,reverse,failed,failedMission,stopped,afterStop},null,2));
   console.log("Physical pick-place, repeat, unreachable/missing object, and cancellation passed.");
   }
 } catch(error) {

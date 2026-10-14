@@ -7,7 +7,6 @@ import PlannerConstraintsSection from "./sections/PlannerConstraintsSection";
 import PlannerImportSection from "./sections/PlannerImportSection";
 import PlannerSetupSection from "./sections/PlannerSetupSection";
 import PlannerMissionStatus from "./sections/PlannerMissionStatus";
-import PlannerObjectTransferSection from "./sections/PlannerObjectTransferSection";
 
 
 export default function PlannerLeftSidebar({
@@ -30,8 +29,7 @@ export default function PlannerLeftSidebar({
   status,
   mission,
   onCancelMission,
-  onResumeMission,
-  onStartObjectTransfer,
+  editingLocked=false,onExportCsv,hasPoints=false,
   energyWarning,
   routeBlocked,
   algorithmFields,
@@ -85,7 +83,7 @@ export default function PlannerLeftSidebar({
   onRemoveSurfaceZone,
   onClearAllSurfaceZones,
 }) {
-  const tab = { visit: "route", limit: "objects", surface: "surfaces", charge: "energy" }[activePointKind] || "route";
+  const tab = { visit: "route", free_visit: "route", limit: "objects", surface: "surfaces", charge: "energy" }[activePointKind] || "route";
   const selectTab = (key) => {
     onActivePointKindChange({ route: "visit", objects: "limit", surfaces: "surface", energy: "charge" }[key]);
   };
@@ -117,12 +115,8 @@ export default function PlannerLeftSidebar({
         {[["route", "Маршрут"], ["objects", "Зоны"], ["surfaces", "Покрытия"], ["energy", "Энергия"]].map(([key, label]) => <button type="button" key={key} aria-pressed={tab === key} onClick={() => selectTab(key)}>{label}</button>)}
       </nav>
       <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-2 space-y-2">
-      {tab === "route" && <details className="planner-disclosure rounded-xl border border-orange-200 bg-white p-3">
-        <summary className="disclosure-trigger text-sm font-semibold">Перенос объекта</summary>
-        <div className="mt-3"><PlannerObjectTransferSection onStartTransfer={onStartObjectTransfer} /></div>
-      </details>}
-      {mission?.operationType === "object_transfer" && <PlannerMissionStatus mission={mission} onCancel={onCancelMission} onResume={onResumeMission} />}
       {tab === "route" && <PlannerSetupSection
+        editingLocked={editingLocked}
         kinds={["visit"]}
         showClear={false}
         activePointKind={activePointKind}
@@ -155,6 +149,7 @@ export default function PlannerLeftSidebar({
         selectedAlgorithmParams={selectedAlgorithmParams}
       />}
       {tab === "route" && <PlannerRoutePointsSection
+        editingLocked={editingLocked}
         showVisit
         showCharge={false}
         visitEntries={visitEntries || []}
@@ -275,7 +270,7 @@ export default function PlannerLeftSidebar({
         surfaceZones={surfaceZones}
       />
       </>}
-      {tab === "route" && <PlannerImportSection onImportFile={onImportFile} />}
+      {tab === "route" && <PlannerImportSection onImportFile={onImportFile} onExportCsv={onExportCsv} hasPoints={hasPoints} editingLocked={editingLocked} />}
       </div>
     </aside>
   );

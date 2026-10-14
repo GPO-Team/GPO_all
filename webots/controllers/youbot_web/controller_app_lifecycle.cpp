@@ -14,6 +14,7 @@
 #include "controller_motion_profile_reload_service.h"
 #include "controller_navigation_runtime.h"
 #include "controller_object_transfer_runtime.h"
+#include "controller_transfer_route.h"
 #include "controller_paths.h"
 #include "controller_route_zone_reload_service.h"
 #include "controller_runtime.h"
@@ -224,12 +225,13 @@ static void run_control_cycle(void) {
         controller_object_transfer_runtime_hold(&object_transfer_runtime,"transport_obstacle");
         return;
       }
-      const double speed=std::fmin(std::fmin(cargo.attached ? 0.06 : 0.12,active_linear_speed_limit),distance*0.6);
       webots_adapter.drive_config.acceleration_limit_rad_s2=4.0;
       webots_adapter.drive_config.deceleration_limit_rad_s2=8.0;
-      controller_webots_adapter_apply_velocity(&webots_adapter,speed*(std::cos(heading)*dx+std::sin(heading)*dy)/std::fmax(distance,1e-9),
-          speed*(-std::sin(heading)*dx+std::cos(heading)*dy)/std::fmax(distance,1e-9),
-          std::fmax(-0.1,std::fmin(0.1,-heading*0.6)));
+      const auto velocity=controller_transfer_route_velocity(dx,dy,heading,target.heading_rad,
+          controller_runtime.current_waypoint_index+1==controller_runtime.route.count,
+          std::fmin(cargo.attached ? 0.06 : 0.12,active_linear_speed_limit),
+          std::fmin(cargo.attached ? 0.10 : 0.30,active_angular_speed_limit));
+      controller_webots_adapter_apply_velocity(&webots_adapter,velocity.vx,velocity.vy,velocity.omega);
       set_status("transporting_object");
     }
   } else if (controller_object_transfer_runtime_allows_navigation(&object_transfer_runtime))

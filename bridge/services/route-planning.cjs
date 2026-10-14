@@ -13,7 +13,7 @@ const prepareRoute = async ({ seedRoute, scene }) => {
   const result = buildRouteWithEnergyStops({seedRoute:points, polygons:snapshot.polygons, surfaceZones:snapshot.surfaceZones,
     chargingStations:snapshot.chargingStations, batteryRangeMeters:snapshot.motion.batteryRange, energyOptions:options});
   if (!result.ok) throw Object.assign(new Error(result.error), {statusCode:422, reason:result.reason});
-  const route = validatePoints(sanitizeRouteForController(result.route));
+  const route = validatePoints(sanitizeRouteForController(result.route,points));
   if (route.length < 2 || routeCrossesAnyLimitPolygon(route, snapshot.polygons)) {
     throw Object.assign(new Error("Final route is invalid after controller normalization."), {statusCode:422});
   }

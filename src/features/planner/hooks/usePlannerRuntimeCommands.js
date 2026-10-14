@@ -23,6 +23,7 @@ export const usePlannerRuntimeCommands = ({
 }) => {
   const pendingSurvey = useRef(null);
   const pendingManipulation = useRef(null);
+  const pendingTransfer = useRef(null);
   const startPickPlace = async ({ objectDef, destination }) => {
     const payload = { type: "pick_place", objectDef, destination };
     const identity = JSON.stringify(payload);
@@ -143,15 +144,24 @@ export const usePlannerRuntimeCommands = ({
       scene,
       sceneRevision: await calculateSceneRevision(scene),
     };
+    const identity = JSON.stringify(payload);
+    if (pendingTransfer.current?.identity !== identity) {
+      pendingTransfer.current = { identity, command: { ...payload, requestId: crypto.randomUUID() } };
+    }
+    const command = pendingTransfer.current.command;
+    let rejection;
     setStatus("Сервис проверяет миссию переноса...");
-    return sendRouteChannelPayload(routeSocketRef, payload, {
+    const accepted = await sendRouteChannelPayload(routeSocketRef, command, {
       timeoutMs: 35000,
       onSent: acknowledgement => {
+        if (pendingTransfer.current?.command === command) pendingTransfer.current = null;
         setStatus(`Перенос demo-box запущен в точку (${destination.x.toFixed(2)}, ${destination.y.toFixed(2)}).`);
         onMissionSubmitted?.(acknowledgement);
       },
-      onError: error => setStatus(error.message),
+      onError: error => { rejection = error; setStatus(error.message); },
     });
+    if (!accepted) throw rejection || new Error("Bridge не подтвердил команду переноса коробки.");
+    return true;
   };
 
   return { addRandomObstacle, startMappingSurvey, startPickPlace, startObjectTransfer };

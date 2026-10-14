@@ -28,6 +28,16 @@ int main() {
   assert(controller_manipulator_forward(solved, &actual));
   assert(std::fabs(actual.x - tcp.x) < 1e-8);
   assert(std::fabs(actual.z - tcp.z) < 1e-8);
+  // Vertical grip on the floor; slight wrist tilt avoids its stop during lift.
+  const double parked[] = {0,1.57,-2.635,1.78,0};
+  for (double rise : {0.0,.06}) {
+    for (double roll : {0.0,-.56,1.4}) {
+      tcp = {.39,0,.075+.115+rise-.103,rise ? -2.95 : -3.141592653589793,roll};
+      assert(controller_manipulator_inverse(&tcp,parked,solved));
+      assert(controller_manipulator_forward(solved,&actual));
+      assert(std::fabs(actual.x-tcp.x)<1e-8 && std::fabs(actual.z-tcp.z)<1e-8);
+    }
+  }
   for (double yaw : {-2.7, -.8, 0.0, 1.6, 2.7}) {
     for (double shoulder : {-1.0, -.3, .5, 1.4}) {
       for (double elbow : {-2.5, -1.0, .8, 2.4}) {

@@ -35,9 +35,10 @@ export const usePlannerRouteOptimization = ({ algorithmKey, batteryRangeMeters, 
     setIsOptimizing(true);
     setStatus("Строим маршрут...");
     try {
-      const solveResult = await solveRouteWithNativeAlgorithm(plannerModel.visitPoints, algorithmKey, selectedAlgorithmParams, routeTaskKey, controller.signal, {
+      const solveResult = await solveRouteWithNativeAlgorithm(plannerModel.visitEntries?.map(entry=>entry.point)||plannerModel.visitPoints, algorithmKey, selectedAlgorithmParams, routeTaskKey, controller.signal, {
         scene:buildSceneSnapshot({plannerModel,batteryRangeMeters,energyOptions,preview:true}),
         anchor:getRouteAnchor(telemetry),
+        visitOrder:plannerModel.visitOrder,
       });
       if (controller.signal.aborted) return;
       const solvedRoute = solveResult.seedRoute;
@@ -47,7 +48,7 @@ export const usePlannerRouteOptimization = ({ algorithmKey, batteryRangeMeters, 
       setOptimizedRoute(routed.route);
       setRouteEnergyStats(buildRouteEnergyStats(routed));
       setEnergyWarning("");
-      setStatus(buildRouteOptimizationStatus({ adjustedVisitCount: plannerModel.adjustedVisits.length, algorithmLabel: getAlgorithmLabel(algorithmKey), blocked: routeCrossesAnyLimitPolygon(routed.route, plannerModel.previewPolygons), routed, taskLabel: getTaskLabel(routeTaskKey) }));
+      setStatus(buildRouteOptimizationStatus({ adjustedVisitCount: plannerModel.adjustedVisits.length, algorithmLabel: getAlgorithmLabel(algorithmKey), blocked: routeCrossesAnyLimitPolygon(routed.route, plannerModel.previewPolygons), routed, taskLabel: getTaskLabel(routeTaskKey) })+(solveResult.visitOrdering ? ` Нумерованные — по порядку; свободные — ${solveResult.visitOrdering.optimal ? "точный минимум по доступным путям" : "лучший найденный порядок без гарантии глобального минимума"}.` : ""));
     } catch (error) {
       if (controller.signal.aborted) return;
       setRouteSeed([]);

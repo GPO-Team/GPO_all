@@ -8,6 +8,7 @@ export const createCanvasProps = ({ state, runtime, derived, actions }) => ({
   pointPlacementRevision: state.interaction?.pointPlacementRevision,
   telemetry: runtime.telemetry,
   mapLayers: state.sidebar?.plannerUiState?.mapLayers,
+  editingLocked:actions.editingLocked,
   onCanvasClick: actions.addPointFromCanvas,
   onCanvasMouseDown: actions.handleCanvasMouseDown,
   onCanvasMouseMove: actions.handleCanvasMouseMove,
@@ -19,9 +20,11 @@ export const createLeftSidebarProps = ({ state, runtime, derived, actions }) => 
   const { algorithm = {}, energy = {}, interaction = {}, limits = {}, route = {}, surfaces = {} } = state;
   const plannerModel = derived.plannerModel || {};
   const viewModel = derived.viewModel || {};
+  const edit=callback=>(...args)=>{if(actions.isEditingLocked?.()){route.setStatus?.("Изменение параметров заблокировано до остановки миссии.");return;}callback?.(...args);};
 
   return {
     onImportFile: actions.handleImportFile,
+    onExportCsv:actions.exportGraphCsv,hasPoints:Boolean(route.points?.length),editingLocked:actions.editingLocked,
     visitEntries: plannerModel.visitEntries,
     chargeEntries: plannerModel.chargeEntries,
     plannedVisitEntries: plannerModel.plannedVisitEntries,
@@ -73,16 +76,16 @@ export const createLeftSidebarProps = ({ state, runtime, derived, actions }) => 
     adjustedVisitCount: plannerModel.adjustedVisits?.length,
     activeZoneName: plannerModel.activeZoneName,
     batteryRangeInput: energy.batteryRangeInput,
-    onBatteryRangeChange: energy.handleBatteryRangeChange,
-    onBatteryRangeBlur: energy.handleBatteryRangeBlur,
+    onBatteryRangeChange: edit(energy.handleBatteryRangeChange),
+    onBatteryRangeBlur: edit(energy.handleBatteryRangeBlur),
     cruiseSpeedMps: energy.cruiseSpeedMps,
     cruiseSpeedInput: energy.cruiseSpeedInput,
-    onCruiseSpeedChange: energy.handleCruiseSpeedChange,
-    onCruiseSpeedBlur: energy.handleCruiseSpeedBlur,
+    onCruiseSpeedChange: edit(energy.handleCruiseSpeedChange),
+    onCruiseSpeedBlur: edit(energy.handleCruiseSpeedBlur),
     payloadKg: energy.payloadKg,
     payloadInput: energy.payloadInput,
-    onPayloadChange: energy.handlePayloadChange,
-    onPayloadBlur: energy.handlePayloadBlur,
+    onPayloadChange: edit(energy.handlePayloadChange),
+    onPayloadBlur: edit(energy.handlePayloadBlur),
     routeEnergyStats: energy.routeEnergyStats,
     routeInfluenceRows: derived.routeInfluenceRows,
     routeTiming: runtime.routeTiming?.display,
@@ -132,6 +135,8 @@ export const createRightSidebarProps = ({ state, runtime, derived, actions }) =>
     mapExportPromptOpen: interaction.mapExportPromptOpen,
     onStartMappingSurvey: actions.startMappingSurvey,
     onStartPickPlace: actions.startPickPlace,
+    onStartObjectTransfer:actions.startObjectTransfer,onResumeMission:runtime.mission?.resume,
+    editingLocked:actions.editingLocked,
     mission: runtime.mission?.state,
     onCancelMission: runtime.mission?.cancel,
     onRequestMapExport: actions.requestMapExport,

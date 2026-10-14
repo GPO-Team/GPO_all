@@ -70,6 +70,7 @@ html {
 }
 /* Planner workspace: the map owns the available viewport, panels never own its controls. */
 .planner-workspace { height: 100dvh; }
+.planner-workspace [hidden] { display: none !important; }
 .workspace-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 52px; flex-shrink: 0; padding: 8px 12px; background: white; border-bottom: 1px solid #e2e8f0; z-index: 30; }
 .workspace-header button { padding: 7px 10px; border-radius: 8px; font-size: 12px; color: #475569; white-space: nowrap; }
 .workspace-header button:hover, .workspace-header button[aria-expanded="true"] { background: #eff6ff; color: #1d4ed8; }
@@ -125,6 +126,7 @@ html {
 .map-layer-switch::before { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: white; box-shadow: 0 1px 3px #0f172a30; transition: transform .15s; }
 .map-layer-switch:checked { border-color: #0284c7; background: #0284c7; }
 .map-layer-switch:checked::before { transform: translateX(16px); }
+.simulation-expanded { position: fixed !important; inset: 12px; z-index: 100; height: auto !important; box-shadow: 0 0 0 100vmax #0f172abf; display: flex; flex-direction: column; }
 .planner-disclosure > .disclosure-trigger { list-style: none; cursor: pointer; transition: background .15s, color .15s; }
 .planner-disclosure > .disclosure-trigger::-webkit-details-marker { display: none; }
 .planner-disclosure > .disclosure-trigger::before { content: "›"; display: inline-block; flex: none; margin-right: 6px; font-size: 20px; line-height: 1; color: #0369a1; transition: transform .15s; }

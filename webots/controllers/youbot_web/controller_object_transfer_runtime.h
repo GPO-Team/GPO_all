@@ -20,6 +20,7 @@ typedef struct {
   char boot_id[64];
   int arm_phase;
   double initial_object_z;
+  double grip_roll;
   double grip_offset[3];
   double stable_since;
   double last_object_pose[3];

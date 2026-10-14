@@ -86,6 +86,7 @@ void controller_object_transfer_service_step(ControllerObjectTransferService *se
       if(in->arm_reached && in->release_safe) {
         s->status=s->cancel_pending ? CONTROLLER_TRANSFER_CANCELLED : CONTROLLER_TRANSFER_COMPLETED;
         s->stage=CONTROLLER_TRANSFER_STAGE_NONE; s->progress=100;
+        s->error_code[0]=0;
       } else if(elapsed>kTimeout) fault(s,"placement_failed"); break;
     default: break;
   }

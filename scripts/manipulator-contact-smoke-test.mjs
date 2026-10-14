@@ -19,9 +19,16 @@ const destination = {
   y: Number(process.env.MANIPULATOR_SMOKE_DESTINATION_Y ?? (staticZone ? 0.9 : 0.6)),
 };
 const mode = process.env.MANIPULATOR_SMOKE_MODE || "fast";
+const startPose = process.env.MANIPULATOR_SMOKE_START_POSE
+  ? process.env.MANIPULATOR_SMOKE_START_POSE.split(",").map(Number) : null;
+assert.ok(!startPose || (startPose.length === 3 && startPose.every(Number.isFinite)), "Invalid start pose");
+const repeat = process.env.MANIPULATOR_SMOKE_REPEAT_DESTINATION
+  ? process.env.MANIPULATOR_SMOKE_REPEAT_DESTINATION.split(",").map(Number) : null;
+assert.ok(!repeat || (repeat.length === 2 && repeat.every(Number.isFinite)), "Invalid repeat destination");
 const cancelStage = process.env.MANIPULATOR_SMOKE_CANCEL_STAGE || "";
 const recover = process.env.MANIPULATOR_SMOKE_RECOVER === "1";
 assert.ok(!recover || !cancelStage, "Recovery scenario includes its own safe cancellation");
+assert.ok(!repeat || (!recover && !cancelStage), "Repeated transfers require a normal completion scenario");
 let recoveryPhase = 0;
 let recoveryEpoch = 0;
 assert.ok(["fast", "realtime"].includes(mode), "Unsupported Webots mode");
@@ -62,7 +69,7 @@ const report = async (ok, error) => {
     ok, error, mode, cancelStage, cancelled, staticZone, maxTransportWaypoints, maxJointMotion, maxObjectHeight: Number.isFinite(maxObjectHeight) ? maxObjectHeight : null,
     initialObjectPose: firstState?.objectTransfer?.objectPose,
     finalObjectPose: lastState?.objectTransfer?.objectPose,
-    destination, samples, lastState, logs: logs.slice(-12000),
+    destination, repeat, samples, lastState, logs: logs.slice(-12000),
   }, null, 2));
 };
 try {
@@ -103,63 +110,77 @@ try {
     firstState = lastState;
     return true;
   }, "controller boot and physical sensor telemetry");
-  const missionId = "physical-manipulator-smoke";
+  if (startPose) {
+    await writeFile(path.join(stateDirectory, "route.csv"),
+      `x,y,heading_deg\n# command approach-regression\n${startPose[0]},${startPose[1]},${startPose[2] * 180 / Math.PI}\n`);
+    await until(async () => {
+      lastState = await readState();
+      return lastState?.navigation?.missionId === "approach-regression" && lastState.navigation.finished;
+    }, "initial route before pickup");
+    firstState = lastState;
+    console.log(`Pickup start pose: ${JSON.stringify(firstState.pose)}`);
+  }
   const temporaryCommand = path.join(stateDirectory, "runtime_command.tmp");
-  await writeFile(temporaryCommand, `id ${Date.now()}\ntype transfer_object\nmission_id ${missionId}\nobject_id demo-box\ndestination_x ${destination.x}\ndestination_y ${destination.y}\n`);
-  await rename(temporaryCommand, path.join(stateDirectory, "runtime_command.txt"));
-  await until(async () => {
-    const state = await readState();
-    if (!state) return false;
-    lastState = state;
-    const transfer = state.objectTransfer;
-    if (transfer?.missionId !== missionId) return false;
-    const joints = transfer.manipulator?.jointPositions || [];
-    joints.forEach((joint, index) => {
-      maxJointMotion = Math.max(maxJointMotion, Math.abs(joint - firstState.objectTransfer.manipulator.jointPositions[index]));
-    });
-    maxObjectHeight = Math.max(maxObjectHeight, transfer.objectPose?.z ?? -Infinity);
-    if (transfer.stage === "transporting") {
-      maxTransportWaypoints = Math.max(maxTransportWaypoints, state.route?.waypoints?.length || 0);
-    }
-    if (samples.at(-1)?.stage !== transfer.stage || samples.length === 0) {
-      samples.push({ time: state.simulationTime, stage: transfer.stage, status: transfer.status,
-        joints, tcpPose: transfer.manipulator?.tcpPose, objectPose: transfer.objectPose,
-        gripEvidence: transfer.manipulator?.gripEvidence, releaseEvidence: transfer.manipulator?.releaseEvidence });
-      console.log(`${transfer.stage}: ${JSON.stringify(transfer.objectPose)}`);
-    }
-    if (cancelStage && !cancelled && transfer.stage === cancelStage && transfer.status === "running") {
-      await writeFile(temporaryCommand, `id ${Date.now()}\ntype cancel_mission\nmission_id ${missionId}\n`);
-      await rename(temporaryCommand, path.join(stateDirectory, "runtime_command.txt"));
-      cancelled = true;
-      console.log(`Cancellation requested during ${cancelStage}.`);
-    }
-    if (recover && recoveryPhase === 0 && transfer.stage === "transporting") {
-      // Keep the injected obstacle ahead of the load, outside its collision body.
-      await writeFile(temporaryCommand, `id ${Date.now()}\ntype spawn_obstacle\nx ${state.pose.x+0.70}\ny ${state.pose.y}\nsize_x 0.1\nsize_y 0.5\nheight 0.4\n`);
-      await rename(temporaryCommand,path.join(stateDirectory,"runtime_command.txt"));
-      recoveryPhase=1;
-    }
-    if (recover && transfer.status === "holding_for_recovery") {
-      assert.equal(transfer.attached,true,"Held fault lost resource ownership");
-      if (recoveryPhase === 1) {
-        recoveryEpoch=transfer.recoveryEpoch;
-        await writeFile(temporaryCommand,`id ${Date.now()}\ntype resume_transfer\nmission_id ${missionId}\n`);
-        await rename(temporaryCommand,path.join(stateDirectory,"runtime_command.txt"));
-        recoveryPhase=2;
-        console.log("Resume requested for physically held cargo.");
-      } else if(recoveryPhase === 2 && transfer.recoveryEpoch>recoveryEpoch) {
-        await writeFile(temporaryCommand,`id ${Date.now()}\ntype cancel_mission\nmission_id ${missionId}\n`);
-        await rename(temporaryCommand,path.join(stateDirectory,"runtime_command.txt"));
-        recoveryPhase=3;cancelled=true;
-        console.log("Repeated blocked recovery detected; safely lowering cargo.");
+  const runTransfer = async (target, missionId) => {
+    await writeFile(temporaryCommand, `id ${Date.now()}\ntype transfer_object\nmission_id ${missionId}\nobject_id demo-box\ndestination_x ${target.x}\ndestination_y ${target.y}\n`);
+    await rename(temporaryCommand, path.join(stateDirectory, "runtime_command.txt"));
+    await until(async () => {
+      const state = await readState();
+      if (!state) return false;
+      lastState = state;
+      const transfer = state.objectTransfer;
+      if (transfer?.missionId !== missionId) return false;
+      const joints = transfer.manipulator?.jointPositions || [];
+      joints.forEach((joint, index) => {
+        maxJointMotion = Math.max(maxJointMotion, Math.abs(joint - firstState.objectTransfer.manipulator.jointPositions[index]));
+      });
+      maxObjectHeight = Math.max(maxObjectHeight, transfer.objectPose?.z ?? -Infinity);
+      if (transfer.stage === "transporting") {
+        maxTransportWaypoints = Math.max(maxTransportWaypoints, state.route?.waypoints?.length || 0);
       }
-      return false;
-    }
-    if (["failed", "holding_for_recovery"].includes(transfer.status)) {
-      throw new Error(`Physical transfer stopped: ${JSON.stringify(transfer)}`);
-    }
-    return transfer.status === (cancelStage || recover ? "cancelled" : "completed");
-  }, "physical grasp, lift, transport and release");
+      if (samples.at(-1)?.stage !== transfer.stage || samples.length === 0) {
+        samples.push({ missionId, time: state.simulationTime, stage: transfer.stage, status: transfer.status, basePose: state.pose,
+          joints, tcpPose: transfer.manipulator?.tcpPose, objectPose: transfer.objectPose,
+          gripEvidence: transfer.manipulator?.gripEvidence, releaseEvidence: transfer.manipulator?.releaseEvidence });
+        console.log(`${transfer.stage}: ${JSON.stringify(transfer.objectPose)}`);
+      }
+      if (cancelStage && !cancelled && transfer.stage === cancelStage && transfer.status === "running") {
+        await writeFile(temporaryCommand, `id ${Date.now()}\ntype cancel_mission\nmission_id ${missionId}\n`);
+        await rename(temporaryCommand, path.join(stateDirectory, "runtime_command.txt"));
+        cancelled = true;
+        console.log(`Cancellation requested during ${cancelStage}.`);
+      }
+      if (recover && recoveryPhase === 0 && transfer.stage === "transporting") {
+        // Keep the injected obstacle ahead of the load, outside its collision body.
+        await writeFile(temporaryCommand, `id ${Date.now()}\ntype spawn_obstacle\nx ${state.pose.x+0.70}\ny ${state.pose.y}\nsize_x 0.1\nsize_y 0.5\nheight 0.4\n`);
+        await rename(temporaryCommand,path.join(stateDirectory,"runtime_command.txt"));
+        recoveryPhase=1;
+      }
+      if (recover && transfer.status === "holding_for_recovery") {
+        assert.equal(transfer.attached,true,"Held fault lost resource ownership");
+        if (recoveryPhase === 1) {
+          recoveryEpoch=transfer.recoveryEpoch;
+          await writeFile(temporaryCommand,`id ${Date.now()}\ntype resume_transfer\nmission_id ${missionId}\n`);
+          await rename(temporaryCommand,path.join(stateDirectory,"runtime_command.txt"));
+          recoveryPhase=2;
+          console.log("Resume requested for physically held cargo.");
+        } else if(recoveryPhase === 2 && transfer.recoveryEpoch>recoveryEpoch) {
+          await writeFile(temporaryCommand,`id ${Date.now()}\ntype cancel_mission\nmission_id ${missionId}\n`);
+          await rename(temporaryCommand,path.join(stateDirectory,"runtime_command.txt"));
+          recoveryPhase=3;cancelled=true;
+          console.log("Repeated blocked recovery detected; safely lowering cargo.");
+        }
+        return false;
+      }
+      if (["failed", "holding_for_recovery"].includes(transfer.status)) {
+        throw new Error(`Physical transfer stopped: ${JSON.stringify(transfer)}`);
+      }
+      return transfer.status === (cancelStage || recover ? "cancelled" : "completed");
+    }, "physical grasp, lift, transport and release");
+  };
+  await runTransfer(destination, "physical-manipulator-smoke");
+  const finalDestination = repeat ? { x: repeat[0], y: repeat[1] } : destination;
+  if (repeat) await runTransfer(finalDestination, "physical-manipulator-repeat");
   assert.ok(maxJointMotion > 0.2, `No meaningful measured arm motion: ${maxJointMotion}`);
   if (!cancelStage || cancelStage === "transporting") {
     assert.ok(maxObjectHeight > firstState.objectTransfer.objectPose.z + 0.04, `No measured physical lift: ${maxObjectHeight}`);
@@ -183,7 +204,7 @@ try {
     lastState = settled;
   } else {
     if (staticZone) assert.ok(maxTransportWaypoints > 1, "Static zone did not produce a transport detour");
-    assert.ok(Math.hypot(finalPose.x - destination.x, finalPose.y - destination.y) < 0.2, `Object missed destination: ${JSON.stringify(finalPose)}`);
+    assert.ok(Math.hypot(finalPose.x - finalDestination.x, finalPose.y - finalDestination.y) < 0.2, `Object missed destination: ${JSON.stringify(finalPose)}`);
   }
   await report(true);
   console.log(`Physical manipulation ${cancelStage || recover ? "cancelled safely" : "completed"}; arm motion ${maxJointMotion.toFixed(3)} rad; maximum object z ${maxObjectHeight.toFixed(3)} m.`);

@@ -132,10 +132,10 @@ int controller_runtime_command_load_next_file(
   }
   if (parsed.has_cancel_mission && !parsed.mission_id[0]) return 0;
   if (parsed.has_pick_place && (!parsed.mission_id[0] || !parsed.object_def[0] || parsed.target_fields != 7 ||
-      !isfinite(parsed.target_x) || !isfinite(parsed.target_y) || !isfinite(parsed.target_z) ||
+      !std::isfinite(parsed.target_x) || !std::isfinite(parsed.target_y) || !std::isfinite(parsed.target_z) ||
       parsed.target_z < 0.015 || parsed.target_z > 1.0)) return 0;
   if ((parsed.has_transfer_object || parsed.has_resume_transfer || parsed.has_recover_transfer) && !parsed.mission_id[0]) return 0;
-  if (parsed.has_transfer_object && (!parsed.object_id[0] || !isfinite(parsed.destination_x) || !isfinite(parsed.destination_y))) return 0;
+  if (parsed.has_transfer_object && (!parsed.object_id[0] || !std::isfinite(parsed.destination_x) || !std::isfinite(parsed.destination_y))) return 0;
   *command = parsed;
   return 1;
 }

@@ -1,13 +1,12 @@
 import { useState } from "react";
 import PlannerManipulatorSection from "./sections/PlannerManipulatorSection";
 import PlannerTelemetrySection from "./sections/PlannerTelemetrySection";
-import PlannerSimulationSection from "./sections/PlannerSimulationSection";
 import PlannerMapSection from "./sections/PlannerMapSection";
 import PlannerTaskAlgorithmSection from "./sections/PlannerTaskAlgorithmSection";
 import PlannerRouteControlsSection from "./sections/PlannerRouteControlsSection";
 
 export default function PlannerRightSidebar({
-  onStartPickPlace, mission, onCancelMission, onResumeMission,
+  onStartPickPlace,onStartObjectTransfer, mission, onCancelMission, onResumeMission,editingLocked=false,
   onCollapse, telemetry, telemetryWsUp, routeWsUp, solverApiUp,
   mappingSurveyMode, mappingSurveyModes, onMappingSurveyModeChange,
   mapExportPromptOpen, onStartMappingSurvey, onRequestMapExport,
@@ -35,9 +34,8 @@ export default function PlannerRightSidebar({
     </nav>
     <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-3">
       <div id="planner-right-telemetry" hidden={tab !== "telemetry"} className="space-y-3">
-        <PlannerManipulatorSection telemetry={telemetry} connected={telemetryWsUp} mission={mission} onStart={onStartPickPlace} onCancel={onCancelMission} onResume={onResumeMission} />
+        <PlannerManipulatorSection telemetry={telemetry} connected={telemetryWsUp} mission={mission} onStart={onStartPickPlace} onStartTransfer={onStartObjectTransfer} onCancel={onCancelMission} onResume={onResumeMission} editingLocked={editingLocked} />
       <PlannerTelemetrySection telemetry={telemetry} telemetryWsUp={telemetryWsUp} routeWsUp={routeWsUp} solverApiUp={solverApiUp} />
-        <PlannerSimulationSection />
       </div>
       <div id="planner-right-map" hidden={tab !== "map"} className="space-y-3">
         <PlannerMapSection telemetry={telemetry} mapLayers={mapLayers} onMapLayerChange={onMapLayerChange}
@@ -45,10 +43,10 @@ export default function PlannerRightSidebar({
           onMappingSurveyModeChange={onMappingSurveyModeChange} onStartMappingSurvey={onStartMappingSurvey}
           onRequestMapExport={onRequestMapExport} mapExportPromptOpen={mapExportPromptOpen}
           onExportMapVariant={onExportMapVariant} onCancelMapExport={onCancelMapExport} />
-        <PlannerTaskAlgorithmSection routeTaskKey={routeTaskKey} onRouteTaskChange={onRouteTaskChange}
+        <fieldset disabled={editingLocked}><PlannerTaskAlgorithmSection routeTaskKey={routeTaskKey} onRouteTaskChange={onRouteTaskChange}
           algorithmKey={algorithmKey} onAlgorithmChange={onAlgorithmChange} />
         <PlannerRouteControlsSection showActions={false} algorithmFields={algorithmFields || []}
-          selectedAlgorithmParams={selectedAlgorithmParams || {}} onAlgorithmParamChange={onAlgorithmParamChange} />
+          selectedAlgorithmParams={selectedAlgorithmParams || {}} onAlgorithmParamChange={onAlgorithmParamChange} /></fieldset>
       </div>
     </div>
     {status && <p role="status" className="shrink-0 border-t border-sky-100 bg-white px-3 py-2 text-xs text-slate-700">{status}</p>}

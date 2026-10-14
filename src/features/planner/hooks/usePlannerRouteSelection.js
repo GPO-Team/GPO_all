@@ -15,8 +15,10 @@ export const usePlannerRouteSelection = ({
   setRouteSeed,
   setRouteTaskKey,
   setStatus,
+  isEditingLocked=()=>false,
 }) => {
   const clearRouteState = useCallback(({ dropSolvedRoute = true } = {}) => {
+    if(isEditingLocked())return;
     setExpandedPoint(null);
     setHoveredPointIndex(null);
     if (!dropSolvedRoute) return;
@@ -25,7 +27,7 @@ export const usePlannerRouteSelection = ({
     setEnergyWarning("");
     setRouteEnergyStats(createEmptyRouteEnergyStats());
     resetRouteTiming();
-  }, [resetRouteTiming, setEnergyWarning, setExpandedPoint, setHoveredPointIndex, setOptimizedRoute, setRouteEnergyStats, setRouteSeed]);
+  }, [isEditingLocked,resetRouteTiming, setEnergyWarning, setExpandedPoint, setHoveredPointIndex, setOptimizedRoute, setRouteEnergyStats, setRouteSeed]);
 
   const updateAlgorithmParam = useCallback((field, rawValue) => {
     const parsed = field.integer ? parseInt(rawValue, 10) : parseFloat(rawValue);

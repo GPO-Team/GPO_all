@@ -33,7 +33,13 @@ export const usePlannerPointEditor = ({
   setSurfaceZones,
   mapLayers,
   setMapLayerVisible,
+  isEditingLocked = () => false,
 }) => {
+  const blocked = () => {
+    if (!isEditingLocked()) return false;
+    setStatus("Маршрут выполняется или ожидает подтверждения. Чтобы изменить точки, остановите миссию и дождитесь остановки робота.");
+    return true;
+  };
   const dragStateRef = useRef({
     pointIndex: null,
     moved: false,
@@ -41,17 +47,19 @@ export const usePlannerPointEditor = ({
   });
 
   const movePoint = (pointIndex, nextPoint) => {
+    if (blocked()) return false;
     if (!isInsideMap(nextPoint)) return false;
     const currentPoint = points[pointIndex];
     if (!currentPoint) return false;
 
     setPoints((previous) => movePlannerPoint(previous, pointIndex, nextPoint));
-    if (currentPoint.kind === "visit") clearRouteState();
+    if (["visit","free_visit"].includes(currentPoint.kind)) clearRouteState();
     else clearRouteState({ dropSolvedRoute: false });
     return true;
   };
 
   const handleCanvasMouseDown = (event) => {
+    if (blocked()) return;
     if (!canvasRef.current) return;
     const canvasPoint = getCanvasEventPosition(canvasRef.current, event);
     const pointIndex = findPointIndexAtCanvasPosition(
@@ -71,6 +79,7 @@ export const usePlannerPointEditor = ({
   };
 
   const handleCanvasMouseMove = (event) => {
+    if (isEditingLocked()) return;
     if (!canvasRef.current) return;
     const { pointIndex } = dragStateRef.current;
     if (pointIndex === null) return;
@@ -94,6 +103,7 @@ export const usePlannerPointEditor = ({
   };
 
   const addPointFromCanvas = (event) => {
+    if (blocked()) return;
     if (!canvasRef.current) return;
     if (dragStateRef.current.preventClick) {
       dragStateRef.current.preventClick = false;
@@ -107,7 +117,7 @@ export const usePlannerPointEditor = ({
       return;
     }
     // Reveal the edited layer so newly added points never disappear.
-    const layerKey = { visit: "visits", charge: "charges", limit: "zones", surface: "surfaces" }[activePointKind];
+    const layerKey = { visit: "visits", free_visit: "visits", charge: "charges", limit: "zones", surface: "surfaces" }[activePointKind];
     if (mapLayers?.[layerKey] === false) setMapLayerVisible?.(layerKey, true);
     if (activePointKind === "limit" && activeZone?.closed) {
       setStatus(
@@ -149,10 +159,10 @@ export const usePlannerPointEditor = ({
         DEFAULT_POINT_TASK
       )
     );
-    if (activePointKind === "visit") clearRouteState();
+    if (["visit","free_visit"].includes(activePointKind)) clearRouteState();
     else clearRouteState({ dropSolvedRoute: false });
     setStatus(
-      activePointKind === "visit"
+      activePointKind === "free_visit" ? "Добавлена свободная точка без номера. Порядок выберет планировщик." : activePointKind === "visit"
         ? "Добавлена точка посещения."
         : activePointKind === "charge"
           ? "Добавлена станция зарядки."
@@ -161,6 +171,7 @@ export const usePlannerPointEditor = ({
   };
 
   const clearPoints = (kind = null) => {
+    if (blocked()) return;
     if (kind === "limit") resetZones();
     setPoints((previous) => removePlannerPointsByKind(previous, kind));
     if (kind === "visit") clearRouteState();
@@ -181,13 +192,15 @@ export const usePlannerPointEditor = ({
   };
 
   const deletePoint = (pointIndex) => {
+    if (blocked()) return;
     const targetPoint = points[pointIndex];
     setPoints((previous) => removePlannerPoint(previous, pointIndex));
-    if (targetPoint?.kind === "visit") clearRouteState();
+    if (["visit","free_visit"].includes(targetPoint?.kind)) clearRouteState();
     else clearRouteState({ dropSolvedRoute: false });
   };
 
   const updatePointTask = (pointIndex, task) => {
+    if (blocked()) return;
     setPoints((previous) => updatePlannerPointTask(previous, pointIndex, task));
     clearRouteState();
   };

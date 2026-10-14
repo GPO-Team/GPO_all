@@ -19,7 +19,9 @@ export const useDashboardPlannerState = () => {
   const [status, setStatus] = useState("");
   const [energyWarning, setEnergyWarning] = useState("");
   const [isOptimizing, setIsOptimizing] = useState(false);
-  const [routeTaskKey, setRouteTaskKey] = useState("tsp");
+  const [isSubmitting,setIsSubmitting]=useState(false);
+  const editingLockRef=useRef(false);
+  const [routeTaskKey, setRouteTaskKey] = useState("hamiltonian_chain");
   const [algorithmKey, setAlgorithmKey] = useState("ga_tabu");
   const [algorithmParams, setAlgorithmParams] = useState(createDashboardAlgorithmParams);
   const [expandedPoint, setExpandedPoint] = useState(null);
@@ -59,6 +61,7 @@ export const useDashboardPlannerState = () => {
     route: {
       points, setPoints, routeSeed, setRouteSeed, optimizedRoute, setOptimizedRoute,
       status, setStatus, energyWarning, setEnergyWarning, isOptimizing, setIsOptimizing,
+      isSubmitting,setIsSubmitting,editingLockRef,
     },
     algorithm: {
       routeTaskKey, setRouteTaskKey, algorithmKey, setAlgorithmKey,

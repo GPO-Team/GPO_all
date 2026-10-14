@@ -29,6 +29,12 @@ export const parsePlannerTableRows = (rows) => {
   const yCol = findColumn(["y", "у", "ycoord", "y coordinate", "координата y"], 1);
   const kindCol = findColumn(["kind", "type", "тип", "роль"], -1);
   const taskCol = findColumn(["task", "operation", "операция", "задача"], -1);
+  const zoneIdCol=findColumn(["zone_id","zoneid"],-1);
+  const zoneNameCol=findColumn(["zone_name","zonename"],-1);
+  const zoneClosedCol=findColumn(["zone_closed","closed"],-1);
+  const zones=new Map();
+  const surfaces=new Map();
+  const surfaceKeyCol=findColumn(["surface_key","surfacekey"],-1);
 
   const points = dataRows
     .map((row) => {
@@ -38,33 +44,40 @@ export const parsePlannerTableRows = (rows) => {
 
       const kindText = kindCol >= 0 ? normalizeHeader(row?.[kindCol]) : "";
       const kind =
-        kindText.includes("charge") || kindText.includes("зар")
+        kindText === "surface" || kindText.includes("покрыт") ? "surface" : kindText === "free_visit" || kindText.includes("свобод") ? "free_visit" : kindText.includes("charge") || kindText.includes("зар")
           ? "charge"
           : kindText.includes("limit") ||
               kindText.includes("zone") ||
               kindText.includes("зон")
             ? "limit"
             : "visit";
+      const zoneId=zoneIdCol>=0 && row[zoneIdCol] ? String(row[zoneIdCol]) : INITIAL_ZONE.id;
+      if(kind==="surface"){
+        if(!surfaces.has(zoneId))surfaces.set(zoneId,{id:zoneId,name:zoneNameCol>=0?String(row[zoneNameCol]):"Покрытие",closed:zoneClosedCol>=0?["true","1"].includes(normalizeHeader(row[zoneClosedCol])):false,surfaceKey:surfaceKeyCol>=0?String(row[surfaceKeyCol]):"neutral",points:[]});
+        surfaces.get(zoneId).points.push({x,y});return null;
+      }
+      if(kind==="limit")zones.set(zoneId,{id:zoneId,name:zoneNameCol>=0 && row[zoneNameCol] ? String(row[zoneNameCol]) : INITIAL_ZONE.name,closed:zoneClosedCol>=0 ? ["true","1"].includes(normalizeHeader(row[zoneClosedCol])) : false});
       return {
         x,
         y,
         kind,
-        zoneId: kind === "limit" ? INITIAL_ZONE.id : null,
+        zoneId: kind === "limit" ? zoneId : null,
         task:
-          kind === "visit" && taskCol >= 0
+          ["visit","free_visit"].includes(kind) && taskCol >= 0
             ? String(row?.[taskCol] || DEFAULT_POINT_TASK)
             : null,
       };
     })
     .filter(Boolean);
 
-  if (!points.length) {
+  if (!points.length && !surfaces.size) {
     throw new Error("В файле не найдено валидных координат.");
   }
 
   return {
     points,
-    limitZones: points.some((point) => point.kind === "limit") ? [INITIAL_ZONE] : [],
+    limitZones: [...zones.values()],
+    ...(surfaces.size?{surfaceZones:[...surfaces.values()]}:{}),
   };
 };
 

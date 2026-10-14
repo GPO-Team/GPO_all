@@ -18,7 +18,9 @@ it("activates point placement directly from each menu section and preserves tran
   const root = createRoot(container);
   try {
     await act(async () => root.render(<Harness />));
-    expect(container.textContent).toContain("Перенос объекта");
+    expect(container.textContent).not.toContain("Перенос объекта");
+    expect(container.textContent).toContain("Без номера · короткий путь");
+    expect(container.textContent).toContain("Сохранить граф в CSV");
     expect(container.textContent).not.toContain("Добавить на карту");
     for (const [label, kind] of [["Зоны", "limit"], ["Покрытия", "surface"], ["Энергия", "charge"], ["Маршрут", "visit"]]) {
       const button = [...container.querySelectorAll("nav button")].find((item) => item.textContent === label);

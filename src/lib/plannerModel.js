@@ -88,18 +88,20 @@ export const buildPlannerModel = ({
   optimizedRoute,
   activeLimitZoneId,
   surfaceZones = DEFAULT_SURFACE_ZONES,
+  preserveVisitLocations=false,
 }) => {
   const visitEntries = [];
   const chargeEntries = [];
   const zoneEntries = buildZoneEntries(limitZones);
   const zoneLookup = new Map(zoneEntries.map((zone) => [zone.id, zone]));
+  let numberedCount=0;
 
   points.forEach((point, index) => {
-    if (point.kind === "visit") {
+    if (["visit","free_visit"].includes(point.kind)) {
       visitEntries.push({
         point,
         index,
-        order: visitEntries.length + 1,
+        order: point.kind === "visit" ? ++numberedCount : null,
       });
       return;
     }
@@ -125,7 +127,7 @@ export const buildPlannerModel = ({
   const polygons = buildPolygons(zoneEntries);
   const previewPolygons = buildPreviewPolygons(zoneEntries);
   const plannedVisitEntries = visitEntries.map((entry) => {
-    const projection = projectPointOutsidePolygons(entry.point, previewPolygons);
+    const projection = preserveVisitLocations ? {point:entry.point,adjusted:false} : projectPointOutsidePolygons(entry.point, previewPolygons);
     return {
       ...entry,
       plannedPoint: projection.point,
@@ -145,6 +147,7 @@ export const buildPlannerModel = ({
     plannedVisitEntries,
     plannedVisitEntryMap: new Map(plannedVisitEntries.map((entry) => [entry.index, entry])),
     visitPoints: plannedVisitEntries.map((entry) => entry.plannedPoint),
+    visitOrder: visitEntries.map(entry=>entry.point.kind === "free_visit" ? "free" : "ordered"),
     chargePoints: chargeEntries.map((entry) => ({ x: entry.point.x, y: entry.point.y })),
     visitsInsideLimit: plannedVisitEntries.filter((entry) =>
       pointInAnyPolygon(entry.point, previewPolygons)

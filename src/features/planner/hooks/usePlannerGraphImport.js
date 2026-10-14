@@ -32,8 +32,10 @@ export const usePlannerGraphImport = ({
   setRouteTaskKey,
   setStatus,
   setSurfaceZones,
+  isEditingLocked=()=>false,
 }) => {
   const applyImportedGraph = (rawGraph, sourceName = "graph.json") => {
+    if(isEditingLocked())throw new Error("Нельзя заменить граф во время выполнения миссии. Остановите робота и дождитесь подтверждения.");
     const imported = normalizeImportedGraph(rawGraph);
     const importedZones = imported.limitZones.length ? imported.limitZones : [INITIAL_ZONE];
     setPoints(imported.points);

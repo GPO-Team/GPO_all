@@ -20,4 +20,4 @@ export const normalizeMapLayers = (raw) => Object.fromEntries(
 );
 
 export const isPointLayerVisible = (point, layers) =>
-  layers?.[{ visit: "visits", charge: "charges", limit: "zones" }[point.kind]] !== false;
+  layers?.[{ visit: "visits", free_visit: "visits", charge: "charges", limit: "zones" }[point.kind]] !== false;

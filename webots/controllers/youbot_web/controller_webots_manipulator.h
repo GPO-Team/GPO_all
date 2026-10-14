@@ -2,6 +2,7 @@
 #define CONTROLLER_WEBOTS_MANIPULATOR_H
 #include "controller_manipulator.h"
 #include "controller_types.h"
+#include <webots/supervisor.h>
 typedef enum {DELIVERY_IDLE, DELIVERY_FETCH, DELIVERY_PICK, DELIVERY_DRIVE, DELIVERY_PLACE, DELIVERY_TERMINAL} ControllerDeliveryPhase;
 
 typedef struct {
@@ -14,6 +15,14 @@ typedef struct {
   int mobile;
   double destination_world[3];
   double delivery_yaw;
+  double pickup_yaw;
+  double placement_yaw;
+  double delivery_clearance;
+  int departing;
+  WbNodeRef departure_node;
+  double departure_min_separation;
+  double departure_yaw;
+  double departure_target[2];
   double delivery_elapsed;
   double drive_timeout;
   int delivery_waypoint;
