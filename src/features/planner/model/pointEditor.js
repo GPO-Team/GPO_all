@@ -2,9 +2,11 @@ export const findPointIndexAtCanvasPosition = (
   points,
   canvasPoint,
   toCanvas,
-  hitRadius
+  hitRadius,
+  isVisible = () => true
 ) => {
   for (let index = points.length - 1; index >= 0; index -= 1) {
+    if (!isVisible(points[index])) continue;
     const rendered = toCanvas(points[index]);
     if (
       Math.hypot(rendered.x - canvasPoint.x, rendered.y - canvasPoint.y) <=

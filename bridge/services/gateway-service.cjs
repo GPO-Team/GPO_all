@@ -29,7 +29,8 @@ const createGatewayService = ({repository, adapter}) => {
         return record.result;
       }
       const active=await repository.get("gateway-active");
-      if (active && !["completed","failed","cancelled"].includes(active.status) && (operation === "update" || (operation === "submit" && active.commandId !== requestId))) {
+      const sameMissionControl=operation==="update" && ["recover_transfer","resume_transfer"].includes(payload?.type) && payload.missionId===active?.commandId;
+      if (active && !["completed","failed","cancelled"].includes(active.status) && (!sameMissionControl && (operation === "update" || (operation === "submit" && active.commandId !== requestId)))) {
         const feedback=await feedbackFor(active.commandId);
         if (!feedback || !["completed","failed","cancelled"].includes(feedback.status)) throw serviceError(409,"robot_busy","Robot has an active command.");
       }

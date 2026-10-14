@@ -246,4 +246,3 @@ export const getDefaultAlgorithmParams = (key) => ({
   ...(ALGORITHMS[key]?.defaults || ALGORITHMS.ga_tabu.defaults),
 });
 
-

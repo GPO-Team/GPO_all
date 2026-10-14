@@ -24,4 +24,12 @@ describe("route service", () => {
       route: [{ x: 0, y: 0 }],
     });
   });
+
+  it("submits an object transfer through the mission service", async () => {
+    const missionService={submit:vi.fn(async()=>({missionId:"transfer-1",operationType:"object_transfer",status:"persisted",command:{type:"transfer_object"}}))};
+    const service=createRouteService({missionService});
+    const result=await service.handle({type:"transfer_object",objectId:"demo-box",destination:{x:1,y:2}},{requestId:"transfer-1"});
+    expect(result).toMatchObject({handled:true,missionId:"transfer-1",operationType:"object_transfer",status:"persisted"});
+    expect(missionService.submit).toHaveBeenCalledOnce();
+  });
 });

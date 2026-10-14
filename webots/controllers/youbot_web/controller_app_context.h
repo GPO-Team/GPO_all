@@ -8,6 +8,7 @@
 #include "controller_mapping_runtime.h"
 #include "controller_mapping_survey_safety_service.h"
 #include "controller_motion_profile_reload_service.h"
+#include "controller_object_transfer_runtime.h"
 #include "controller_paths.h"
 #include "controller_perception_runtime.h"
 #include "controller_route_zone_reload_service.h"
@@ -41,6 +42,7 @@ typedef struct {
   ControllerApplicationState application_state;
   ControllerWebotsMotionState motion_state;
   ControllerMotionProfileReloadService motion_profile_reload_service;
+  ControllerObjectTransferRuntime object_transfer_runtime;
   ControllerRuntimeCommandReloadService runtime_command_reload_service;
   ControllerInputOrchestration input_orchestration;
   ControllerPaths paths;

@@ -17,7 +17,7 @@
 ### to be used with GNU make
 ###
 ### Platforms: Windows, macOS, Linux
-### Languages: C, C++
+### Language: C++
 ###
 ### Authors: Olivier Michel, Yvan Bourquin, Fabien Rohrer
 ###          Edmund Ronald, Sergei Poskriakov
@@ -33,17 +33,13 @@
 ###
 ### Here is a description of the variables you may set in your local Makefile:
 ###
-### ---- C Sources ----
-### if your program uses several C source files:
-### C_SOURCES = my_plugin.c my_clever_algo.c my_graphics.c
-###
 ### ---- C++ Sources ----
 ### if your program uses several C++ source files:
 ### CXX_SOURCES = my_plugin.cc my_clever_algo.cpp my_graphics.c++
 ###
 ### ---- Compilation options ----
 ### if special compilation flags are necessary:
-### CFLAGS = -Wno-unused-result
+### CXXFLAGS = -Wno-unused-result
 ###
 ### ---- Linked libraries ----
 ### if your program needs additional libraries:
@@ -59,13 +55,15 @@
 ### USE_C_API = true
 ###
 ### ---- Debug mode ----
-### if you want to display the gcc command line for compilation and link, as
+### if you want to display the compiler command line for compilation and link, as
 ### well as the rm command details used for cleaning:
 ### VERBOSE = 1
 ###
 ###-----------------------------------------------------------------------------
 
-C_SOURCES := $(strip $(file <controller_sources.txt))
+CXX_SOURCES := $(strip $(file <controller_sources.txt))
+CXXFLAGS += -std=c++20
+USE_C_API = true
 
 # Some Windows Webots distributions keep GCC runtime DLLs in bin/cpp.
 # Expose that bundled directory to build subprocesses without changing the

@@ -67,6 +67,24 @@ describe("shared service contracts", () => {
     expect(unwrapRouteCommand(payload)).toBeNull();
   });
 
+  it("keeps an object transfer payload inside the route command transport envelope", () => {
+    const payload = {
+      type: "transfer_object",
+      objectId: "demo-box",
+      destination: { x: 4, y: -2 },
+      scene: { polygons: [], surfaceZones: [], chargingStations: [], motion: {} },
+      sceneRevision: "revision-1",
+    };
+    const command = createRouteCommand({
+      source: "frontend",
+      requestId: "transfer-1",
+      timestamp: "2026-01-01T00:00:02.000Z",
+      payload,
+    });
+
+    expect(unwrapRouteCommand(command)).toEqual(payload);
+  });
+
   it("keeps a telemetry state inside a versioned event", () => {
     const state = { type: "telemetry", pose: { x: 1, y: 2, z: 0, yaw: 0.5 } };
     const event = createTelemetryEvent({

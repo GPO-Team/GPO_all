@@ -26,8 +26,11 @@ describe("PlannerSetupSection", () => {
         zoneCount={4}
       />
     );
-    expect(html.indexOf("Легенда и обзор")).toBeLessThan(html.indexOf("Режим добавления точки"));
-    expect(html.indexOf("Режим добавления точки")).toBeLessThan(html.indexOf("Задача маршрута"));
-    expect(html).toContain("Активная зона:");
+    expect(html).not.toContain("Добавить на карту");
+    expect(html).toContain("Нажмите на карту, чтобы поставить точку.");
+    expect(html).not.toContain("Задача маршрута");
+    expect(html).toContain("Справка: Обозначения карты");
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).not.toContain("Красные точки — посещения");
   });
 });

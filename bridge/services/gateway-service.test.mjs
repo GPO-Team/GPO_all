@@ -36,4 +36,12 @@ describe("gateway delivery journal", () => {
     expect(adapter.cancel).toHaveBeenCalledTimes(2);
     expect(adapter.cancel).toHaveBeenLastCalledWith({...payload,redeliver:true});
   });
+  it("allows recovery controls only for the active transfer mission", async () => {
+    const {service,adapter}=setup();
+    await service.execute("submit","transfer-1",{type:"transfer_object",commandId:"transfer-1"});
+    await service.execute("update","resume-1",{type:"resume_transfer",missionId:"transfer-1"});
+    expect(adapter.update).toHaveBeenCalledWith(expect.objectContaining({missionId:"transfer-1"}));
+    await expect(service.execute("update","resume-other",{type:"resume_transfer",missionId:"other"}))
+      .rejects.toMatchObject({statusCode:409});
+  });
 });

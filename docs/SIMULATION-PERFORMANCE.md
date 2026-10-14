@@ -19,6 +19,20 @@ WSLg, `/dev/dxg` или GPU-драйверов. Интерфейс: http://127.0
 
 ## GPU на Windows / Docker Desktop / WSL2
 
+Обычный запуск автоматически выбирает этот режим, если Docker видит WSLg GPU:
+
+```powershell
+npm run start:container
+```
+
+Для явной диагностики GPU можно потребовать его без отката:
+
+```powershell
+npm run start:container -- --gpu
+```
+
+Ручной эквивалент:
+
 ```powershell
 docker compose -p gpo-full -f compose.yaml -f compose.simulator.yaml -f compose.simulator.gpu-wslg.yaml up --build -d --wait --wait-timeout 180
 ```

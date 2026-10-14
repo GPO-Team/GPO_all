@@ -1,170 +1,113 @@
-const zonePanelCardCls =
-  "rounded-[18px] bg-white/97 backdrop-blur border border-sky-100 shadow-[0_12px_30px_rgba(14,165,233,0.10)] p-4";
-const selectCls =
-  "w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 shadow-sm transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100";
+const cardCls = "rounded-[18px] border border-sky-100 bg-white p-3";
+const formatNumber = (value, unit = "", digits = 2) =>
+  Number.isFinite(value) ? `${value.toFixed(digits)}${unit ? ` ${unit}` : ""}` : "—";
+const navigationLabels = {
+  idle: "Ожидание", tracking_path: "Следование маршруту", completed: "Маршрут завершён",
+  finished: "Маршрут завершён", stopped: "Остановлен", cancelled: "Отменён",
+  avoiding: "Объезд препятствия", charging: "Зарядка", blocked: "Путь заблокирован",
+  aligning_final_heading: "Выравнивание курса у цели", turning_to_path: "Поворот к маршруту",
+  turning_lidar_priority: "Поворот по данным лидара", tracking_lidar_priority: "Движение по данным лидара",
+  tracking_planned_zone_bypass: "Обход запретной зоны",
+  waiting_for_route: "Ожидание маршрута", route_reloaded: "Маршрут обновлён",
+  mission_cancelled: "Миссия отменена", blocked_by_dynamic_zone: "Путь перекрыт запретной зоной",
+  mapping_survey_started: "Обследование карты", survey_route_generated: "Маршрут обследования готов",
+  mapping_survey_circle_scan_started: "Круговое сканирование карты",
+  mapping_survey_resumed_route: "Возврат к маршруту обследования",
+  mapping_survey_rejoined_route: "Продолжение обследования",
+  mapping_survey_skipped_looped_obstacle: "Обход сложного препятствия",
+  reacquired_free_space: "Свободный путь найден", runtime_obstacle_spawned: "Препятствие добавлено",
+  error: "Ошибка движения",
+};
 
-export default function PlannerTelemetrySection({
-  mapExportPromptOpen,
-  mappingSurveyMode,
-  mappingSurveyModes,
-  onCancelMapExport,
-  onExportMapVariant,
-  onMappingSurveyModeChange,
-  onRequestMapExport,
-  onStartMappingSurvey,
-  routeWsUp,
-  solverApiUp,
-  telemetry,
-  telemetryWsUp,
-}) {
+function Reading({ label, children }) {
+  return <div className="flex items-start justify-between gap-3 border-b border-slate-100 py-1.5 last:border-0">
+    <span className="text-slate-500">{label}</span>
+    <span className="min-w-0 break-words text-right font-medium text-slate-800">{children}</span>
+  </div>;
+}
+
+export default function PlannerTelemetrySection({ telemetry, telemetryWsUp, routeWsUp, solverApiUp }) {
   const camera = telemetry.perception?.camera;
-  const cameraFrame = camera?.frameDataUrl;
-  const lidarCellCount = telemetry.obstacleMap?.cells?.length || 0;
-  const cameraObstacleCellCount = telemetry.cameraMap?.cells?.length || 0;
-  const cameraFreeCellCount = telemetry.cameraMap?.freeCells?.length || 0;
-  const cameraCellCount = cameraObstacleCellCount + cameraFreeCellCount;
+  const lidar = telemetry.perception?.lidar;
+  const navigation = telemetry.navigation || {};
+  const motion = telemetry.motionProfile || {};
+  const cameraCellCount = (telemetry.cameraMap?.cells?.length || 0) + (telemetry.cameraMap?.freeCells?.length || 0);
+  const hasPose = Number.isFinite(telemetry.simulationTime);
+  const navigationStatus = navigation.finished ? "Маршрут завершён"
+    : navigationLabels[navigation.status] || navigation.status || "Нет данных";
 
-  return (
-    <div className={zonePanelCardCls}>
-      <h3 className="text-sm font-semibold mb-2">Телеметрия</h3>
-      <div className="grid grid-cols-2 gap-2 text-sm">
-        <div>x: {telemetry.x.toFixed(2)}</div>
-        <div>y: {telemetry.y.toFixed(2)}</div>
-        <div>z: {telemetry.z.toFixed(2)}</div>
-        <div>yaw: {telemetry.yaw.toFixed(2)}</div>
-        <div>lidar: {telemetry.perception?.lidar?.enabled ? "on" : "off"}</div>
-        <div>camera: {camera?.enabled ? (camera.mode === "virtual_lidar" ? "virtual" : "on") : "off"}</div>
-        <div>hits: {telemetry.obstacleTrace?.length || 0}</div>
-        <div>cells: {telemetry.obstacleMap?.cellCount || lidarCellCount}</div>
-        <div>cam cells: {telemetry.cameraMap?.cellCount || cameraCellCount}</div>
-        <div>cam occ: {telemetry.cameraMap?.obstacleCellCount || cameraObstacleCellCount}</div>
-        <div>cam free: {telemetry.cameraMap?.freeCellCount || cameraFreeCellCount}</div>
+  return <section className={cardCls}>
+    <h3 className="mb-2 text-sm font-semibold">Телеметрия робота</h3>
+    {!telemetryWsUp && <p role="status" className="mb-2 text-xs text-amber-700">Нет соединения с телеметрией. Показаны последние полученные данные.</p>}
+    <details open className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <summary className="cursor-pointer text-sm font-semibold text-slate-700">Показания датчиков</summary>
+      <div className="mt-3 space-y-3 text-xs tabular-nums">
         <div>
-          cam dist:{" "}
-          {camera?.obstacleVisible && Number.isFinite(camera?.obstacleRange)
-            ? `${camera.obstacleRange.toFixed(2)} m`
-            : "-"}
+          <h4 className="mb-1 font-semibold text-sky-800">Положение робота</h4>
+          <Reading label="X">{hasPose ? formatNumber(telemetry.x, "м") : "—"}</Reading>
+          <Reading label="Y">{hasPose ? formatNumber(telemetry.y, "м") : "—"}</Reading>
+          <Reading label="Z">{hasPose ? formatNumber(telemetry.z, "м") : "—"}</Reading>
+          <Reading label="Курс (yaw)">{hasPose ? formatNumber(telemetry.yaw, "рад") : "—"}</Reading>
+          <Reading label="Время симуляции">{formatNumber(telemetry.simulationTime, "с", 1)}</Reading>
         </div>
-        <div>cam det: {camera?.detectionCount || 0}</div>
-        <div>cell: {(telemetry.obstacleMap?.cellSize || 0.06).toFixed(2)} м</div>
-      </div>
-      <div className="mt-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-800">
-        Время объезда вне маршрута:{" "}
-        <span className="font-semibold">
-          {Math.round(telemetry.navigation?.avoidanceTimeSec || 0)} сек
-        </span>
-      </div>
-      <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-950 shadow-inner">
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-3 py-2 text-xs text-slate-200">
-          <span className="font-semibold">Камера робота</span>
-          <span>
-            {camera?.obstacleVisible
-              ? `объект ${Math.round((camera.obstacleScore || 0) * 100)}%`
-              : `${camera?.width || 0}x${camera?.height || 0}`}
-          </span>
+        <div>
+          <h4 className="mb-1 font-semibold text-sky-800">Навигация</h4>
+          <Reading label="Состояние">{navigationStatus}</Reading>
+          <Reading label="Индекс маршрутной точки">{navigation.status && Number.isFinite(navigation.currentWaypointIndex) ? navigation.currentWaypointIndex : "—"}</Reading>
+          <Reading label="Расстояние до цели">{formatNumber(navigation.distanceToTarget, "м")}</Reading>
+          <Reading label="Цель X / Y">{navigation.target ? `${formatNumber(navigation.target.x)} / ${formatNumber(navigation.target.y)} м` : "—"}</Reading>
+          <Reading label="Курс цели">{formatNumber(navigation.target?.headingDeg, "°")}</Reading>
+          <Reading label="Объезд препятствия">{typeof navigation.avoidanceActive === "boolean" ? navigation.avoidanceActive ? "Активен" : "Не активен" : "—"}</Reading>
+          <Reading label="Вне маршрута">{typeof navigation.offRouteActive === "boolean" ? navigation.offRouteActive ? "Да" : "Нет" : "—"}</Reading>
+          <Reading label="Время объезда вне маршрута">{formatNumber(navigation.avoidanceTimeSec, "с", 1)}</Reading>
+          {navigation.error && <p role="alert" className="mt-2 text-rose-700">{navigation.error}</p>}
         </div>
-        <div className="aspect-video bg-slate-900">
-          {cameraFrame ? (
-            <img src={cameraFrame} alt="Кадр с камеры робота" className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full items-center justify-center text-xs text-slate-400">Нет кадра</div>
-          )}
+        <div>
+          <h4 className="mb-1 font-semibold text-sky-800">Профиль движения контроллера</h4>
+          <Reading label="Заданная скорость">{formatNumber(motion.cruiseSpeedMps, "м/с")}</Reading>
+          <Reading label="Масса груза">{formatNumber(motion.payloadKg, "кг")}</Reading>
+          <Reading label="Запас хода">{formatNumber(motion.batteryRange, "энерго-ед.", 1)}</Reading>
+          <Reading label="Коэффициент скорости по батарее">{formatNumber(motion.batterySpeedFactor)}</Reading>
+          <Reading label="Лимит линейной скорости">{formatNumber(motion.runtimeLinearLimitMps, "м/с")}</Reading>
+          <Reading label="Лимит угловой скорости">{formatNumber(motion.runtimeAngularLimitRad, "рад/с")}</Reading>
+        </div>
+        <div>
+          <h4 className="mb-1 font-semibold text-sky-800">Лидар</h4>
+          <Reading label="Состояние лидара">{lidar ? lidar.enabled ? "Включён" : "Выключен" : "Нет данных"}</Reading>
+          <Reading label="Дальность">{formatNumber(lidar?.maxRange, "м")}</Reading>
+          <Reading label="Спереди">{formatNumber(lidar?.frontMinRange, "м")}</Reading>
+          <Reading label="Слева">{formatNumber(lidar?.leftMinRange, "м")}</Reading>
+          <Reading label="Справа">{formatNumber(lidar?.rightMinRange, "м")}</Reading>
+          <Reading label="Попаданий за скан">{lidar?.lastHitCount ?? "—"}</Reading>
+          <Reading label="Точек препятствий">{telemetry.obstacleTrace?.length || 0}</Reading>
+          <Reading label="Ячеек карты лидара">{telemetry.obstacleMap?.cellCount || telemetry.obstacleMap?.cells?.length || 0}</Reading>
+          <Reading label="Размер ячейки">{formatNumber(telemetry.obstacleMap?.cellSize, "м")}</Reading>
+        </div>
+        <div>
+          <h4 className="mb-1 font-semibold text-violet-800">Камера</h4>
+          <Reading label="Состояние камеры">{camera ? camera.enabled ? camera.mode === "virtual_lidar" ? "Виртуальная" : "Включена" : "Выключена" : "Нет данных"}</Reading>
+          <Reading label="Обнаружений">{camera?.detectionCount ?? "—"}</Reading>
+          <Reading label="Расстояние до объекта">{camera?.obstacleVisible ? formatNumber(camera.obstacleRange, "м") : "—"}</Reading>
+          <Reading label="Ячеек карты камеры">{telemetry.cameraMap?.cellCount || cameraCellCount}</Reading>
+          <Reading label="Занятых ячеек">{telemetry.cameraMap?.obstacleCellCount || telemetry.cameraMap?.cells?.length || 0}</Reading>
+          <Reading label="Свободных ячеек">{telemetry.cameraMap?.freeCellCount || telemetry.cameraMap?.freeCells?.length || 0}</Reading>
         </div>
       </div>
-      <div className="mt-3 rounded-xl border border-cyan-200 bg-cyan-50/70 p-3">
-        <div className="text-xs font-semibold uppercase tracking-[0.12em] text-cyan-800">
-          Карта препятствий
-        </div>
-        <div className="mt-1 text-xs text-cyan-900">
-          Лидарная карта собирается для навигации и экспорта PNG.
-          Камерная карта добавляется отдельным фиолетовым слоем по визуальным попаданиям камеры.
-        </div>
-        <label className="mt-3 block">
-          <div className="mb-1 text-xs font-medium text-cyan-900">Режим обследования</div>
-          <select
-            className={selectCls}
-            data-testid="mapping-survey-mode"
-            value={mappingSurveyMode}
-            onChange={(event) => onMappingSurveyModeChange(event.target.value)}
-          >
-            {mappingSurveyModes.map((mode) => (
-              <option key={mode.key} value={mode.key}>
-                {mode.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          onClick={onStartMappingSurvey}
-          className="mt-3 w-full rounded-xl bg-emerald-700 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-800"
-        >
-          {mappingSurveyMode === "double" ? "Двойной объезд" : "Обследование карты"}
-        </button>
-        <button
-          onClick={onRequestMapExport}
-          disabled={!lidarCellCount && !cameraCellCount}
-          className={`mt-3 w-full rounded-xl px-3 py-2 text-xs font-semibold shadow-sm transition ${
-            lidarCellCount || cameraCellCount
-              ? "bg-cyan-700 text-white hover:bg-cyan-800"
-              : "cursor-not-allowed bg-cyan-100 text-cyan-400"
-          }`}
-        >
-          Сохранить карту в PNG
-        </button>
-        {mapExportPromptOpen && (
-          <div className="mt-3 rounded-xl border border-cyan-300 bg-white p-3 text-xs text-slate-700 shadow-sm">
-            <div className="font-semibold text-slate-900">Какую карту сохранить?</div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <button
-                onClick={() => onExportMapVariant?.("lidar")}
-                disabled={!lidarCellCount}
-                className={`rounded-lg px-3 py-2 font-semibold ${
-                  lidarCellCount
-                    ? "border border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100"
-                    : "cursor-not-allowed border border-stone-200 bg-stone-100 text-stone-400"
-                }`}
-              >
-                Лидар
-              </button>
-              <button
-                onClick={() => onExportMapVariant?.("camera")}
-                disabled={!cameraCellCount}
-                className={`rounded-lg px-3 py-2 font-semibold ${
-                  cameraCellCount
-                    ? "border border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100"
-                    : "cursor-not-allowed border border-stone-200 bg-stone-100 text-stone-400"
-                }`}
-              >
-                Камера
-              </button>
-            </div>
-            <button
-              onClick={onCancelMapExport}
-              className="mt-2 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 font-semibold text-stone-600 hover:bg-stone-100"
-            >
-              Отмена
-            </button>
-          </div>
-        )}
+    </details>
+    <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-950">
+      <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2 text-xs text-slate-200">
+        <span className="font-semibold">Камера робота</span>
+        <span>{camera?.obstacleVisible ? `объект ${Math.round((camera.obstacleScore || 0) * 100)}%` : `${camera?.width || 320}×${camera?.height || 180}`}</span>
       </div>
-      <div className="mt-3 text-xs text-stone-600">
-        WS Telemetry:{" "}
-        <span className={telemetryWsUp ? "text-emerald-700" : "text-red-600"}>
-          {telemetryWsUp ? "connected" : "disconnected"}
-        </span>
-      </div>
-      <div className="text-xs text-stone-600">
-        WS Route:{" "}
-        <span className={routeWsUp ? "text-emerald-700" : "text-red-600"}>
-          {routeWsUp ? "connected" : "disconnected"}
-        </span>
-      </div>
-      <div className="text-xs text-stone-600">
-        Native Solver:{" "}
-        <span className={solverApiUp ? "text-emerald-700" : "text-red-600"}>
-          {solverApiUp ? "connected" : "disconnected"}
-        </span>
+      <div className="aspect-video bg-slate-900">
+        {camera?.frameDataUrl ? <img src={camera.frameDataUrl} alt="Кадр с камеры робота" className="h-full w-full object-contain" />
+          : <div className="flex h-full items-center justify-center text-xs text-slate-400">Ожидание изображения из симуляции</div>}
       </div>
     </div>
-  );
+    <div className="mt-3 space-y-1 text-xs text-slate-600">
+      {[["Телеметрия", telemetryWsUp], ["Канал маршрута", routeWsUp], ["Решатель маршрута", solverApiUp]].map(([label, connected]) =>
+        <div key={label} className="flex justify-between gap-2"><span>{label}</span><span className={connected ? "text-emerald-700" : "text-rose-600"}>{connected ? "Подключено" : "Нет соединения"}</span></div>
+      )}
+    </div>
+  </section>;
 }

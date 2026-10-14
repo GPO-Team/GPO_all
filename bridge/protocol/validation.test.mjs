@@ -8,9 +8,13 @@ const {
   validatePoints,
   validatePolygons,
   validateSurfaceZones,
+  validateTransferCommand,
 } = validation;
 
 describe("bridge protocol validation", () => {
+  it("exports object transfer validation", () => {
+    expect(typeof validateTransferCommand).toBe("function");
+  });
   it("keeps legacy algorithm aliases compatible", () => {
     expect(resolveAlgorithmKey("genetik")).toBe("ga_tabu");
     expect(resolveAlgorithmKey("annealing")).toBe("otshig");

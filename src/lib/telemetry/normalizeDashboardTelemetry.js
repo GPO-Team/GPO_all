@@ -1,3 +1,4 @@
+import { normalizeMotionProfile } from "./telemetryMotion";
 import coordinateContract from "../../../shared/coordinate-contract.json";
 import { unwrapTelemetryEvent } from "../../../shared/contracts/index.js";
 import { INITIAL_TELEMETRY } from "./dashboardTelemetryState";
@@ -39,6 +40,8 @@ export const normalizeTelemetry = (raw, prev = INITIAL_TELEMETRY) => {
   if (x === null || y === null) return null;
   return {
     simulationTime,
+    objectTransfer: raw.objectTransfer ?? prev.objectTransfer ?? null,
+    motionProfile: normalizeMotionProfile(raw.motionProfile,prev.motionProfile),
     x,
     y,
     z,

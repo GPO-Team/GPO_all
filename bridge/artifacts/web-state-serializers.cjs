@@ -46,6 +46,16 @@ const createRuntimeCommandText = (payload) => {
     const target = command.destination;
     return `id ${commandId}\ntype pick_place\nmission_id ${validateMissionId(payload.missionId)}\nobject_def ${command.objectDef}\ntarget_x ${target.x}\ntarget_y ${target.y}\ntarget_z ${target.z}\n`;
   }
+  if (["transfer_object", "recover_transfer", "resume_transfer"].includes(payload?.type)) {
+    const {validateMissionId}=require("../protocol/mission-contract.cjs");
+    const missionId=validateMissionId(payload.missionId || payload.commandId);
+    const objectId=payload.objectId || "demo-box";
+    if(objectId!=="demo-box")throw new Error("Only demo-box is supported.");
+    const x=normalizeNumber(payload.destination?.x,0);
+    const y=normalizeNumber(payload.destination?.y,0);
+    const revision=String(payload.sceneRevision || "").trim();
+    return `id ${commandId}\ntype ${payload.type}\nmission_id ${missionId}\nobject_id ${objectId}\ndestination_x ${x}\ndestination_y ${y}\nscene_revision ${revision}\n`;
+  }
   if (payload?.type === "cancel_mission") {
     const {validateMissionId}=require("../protocol/mission-contract.cjs");
     return `id ${commandId}\ntype cancel_mission\nmission_id ${validateMissionId(payload.missionId)}\n`;

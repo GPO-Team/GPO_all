@@ -1,7 +1,7 @@
 // Real Webots physics test. Starts an isolated world and independent services.
 import {spawn} from "node:child_process";
 import {createServer} from "node:net";
-import {mkdtemp,mkdir,copyFile,readFile,writeFile,rm} from "node:fs/promises";
+import {mkdtemp,mkdir,cp,copyFile,readFile,writeFile,rm} from "node:fs/promises";
 import {once} from "node:events";
 import os from "node:os";
 import path from "node:path";
@@ -26,6 +26,7 @@ try {
   await mkdir(path.join(directory,"controllers","youbot_web"),{recursive:true});
   await mkdir(stateDir,{recursive:true});
   await copyFile(path.join(root,"webots/worlds/youbot_only.wbt"),path.join(directory,"worlds/test.wbt"));
+  await cp(path.join(root,"webots/protos"),path.join(directory,"protos"),{recursive:true});
   await copyFile(path.join(root,"webots/controllers/youbot_web/youbot_web.exe"),path.join(directory,"controllers/youbot_web/youbot_web.exe"));
   for(const name of ["gateway","route","planning","telemetry"])launch(process.execPath,[`bridge/processes/run-${name}-service.cjs`]);
   for(const port of [missionPort,planningPort,telemetryPort])await until(async()=>{try{return (await fetch(`http://127.0.0.1:${port}/ready`)).ok;}catch{return false;}},`service ${port}`,15000);

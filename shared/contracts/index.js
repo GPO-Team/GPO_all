@@ -47,7 +47,9 @@ export const createRouteCommand = ({ source, requestId, timestamp, payload }) =>
 export const unwrapRouteCommand = (envelope) => {
   const validation = validateContractEnvelope(envelope);
   if (!validation.valid || envelope.type !== "route.command") return null;
-  return envelope.payload?.type === "route" ? envelope.payload : null;
+  return ["route", "transfer_object"].includes(envelope.payload?.type)
+    ? envelope.payload
+    : null;
 };
 
 export const createTelemetryEvent = ({ source, requestId, timestamp, payload }) =>

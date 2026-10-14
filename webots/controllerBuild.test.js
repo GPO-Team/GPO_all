@@ -4,17 +4,17 @@ import packageJson from "../package.json";
 
 const controllerDirectory = "webots/controllers/youbot_web";
 const runtimeSource = [
-  "controller_app_lifecycle.c",
-  "controller_camera_runtime.c",
-  "controller_lidar_runtime.c",
-  "controller_survey_runtime.c",
-  "controller_navigation_runtime.c",
-  "controller_input_runtime.c",
+  "controller_app_lifecycle.cpp",
+  "controller_camera_runtime.cpp",
+  "controller_lidar_runtime.cpp",
+  "controller_survey_runtime.cpp",
+  "controller_navigation_runtime.cpp",
+  "controller_input_runtime.cpp",
 ].map((file) => readFileSync(`${controllerDirectory}/${file}`, "utf8")).join("\n");
 
 describe("Webots controller build configuration", () => {
   it("keeps the executable entry point thin and registers focused runtimes", () => {
-    const entryPath = `${controllerDirectory}/youbot_web.c`;
+    const entryPath = `${controllerDirectory}/youbot_web.cpp`;
     const entry = readFileSync(entryPath, "utf8");
     const entryLines = entry.split(/\r?\n/u).filter((line) => line.trim()).length;
     const runtimeModules = [
@@ -32,7 +32,7 @@ describe("Webots controller build configuration", () => {
     expect(entry).toContain('#include "controller_app_lifecycle.h"');
     for (const module of runtimeModules) {
       expect(existsSync(`${controllerDirectory}/${module}.h`)).toBe(true);
-      expect(existsSync(`${controllerDirectory}/${module}.c`)).toBe(true);
+      expect(existsSync(`${controllerDirectory}/${module}.cpp`)).toBe(true);
     }
     expect(entry).not.toMatch(/static\s+(?:void|int|double)\s+(?!main\b)/u);
   });
@@ -49,10 +49,13 @@ describe("Webots controller build configuration", () => {
       .filter(Boolean)
       .sort();
     const productionSources = readdirSync(controllerDirectory)
-      .filter((file) => file.endsWith(".c") && !file.endsWith("_test.c"))
+      .filter((file) => file.endsWith(".cpp") && !file.endsWith("_test.cpp"))
       .sort();
+    const legacyCSources = readdirSync(controllerDirectory)
+      .filter((file) => file.endsWith(".c"));
 
     expect(manifestSources).toEqual(productionSources);
+    expect(legacyCSources).toEqual([]);
     for (const buildFile of ["Makefile", "build_youbot_web.bat", "run_controller_tests.bat"]) {
       const buildSource = readFileSync(`${controllerDirectory}/${buildFile}`, "utf8");
       expect(buildSource, `${buildFile} must consume controller_sources.txt`).toContain(
@@ -64,7 +67,8 @@ describe("Webots controller build configuration", () => {
   it("loads the canonical source manifest from the Webots Makefile", () => {
     const makefile = readFileSync(`${controllerDirectory}/Makefile`, "utf8");
 
-    expect(makefile).toContain("C_SOURCES := $(strip $(file <controller_sources.txt))");
+    expect(makefile).toContain("CXX_SOURCES := $(strip $(file <controller_sources.txt))");
+    expect(makefile).toContain("CXXFLAGS += -std=c++20");
   });
 
   it("loads the canonical source manifest from both Windows commands", () => {
@@ -73,7 +77,9 @@ describe("Webots controller build configuration", () => {
 
     expect(windowsBuild).toContain('in ("controller_sources.txt")');
     expect(testRunner).toContain('in ("%CONTROLLER_DIR%controller_sources.txt")');
-    expect(testRunner).toContain('if /I not "%%S"=="youbot_web.c"');
+    expect(testRunner).toContain('if /I not "%%S"=="youbot_web.cpp"');
+    expect(windowsBuild).toContain("/std:c++20");
+    expect(testRunner).toContain("/std:c++20");
   });
 
   it("uses strict void signatures for lifecycle callbacks", () => {
@@ -129,10 +135,10 @@ describe("Webots controller build configuration", () => {
     const manifest = readFileSync(`${controllerDirectory}/controller_sources.txt`, "utf8");
 
     for (const source of [
-      "controller_webots_devices.c",
-      "controller_webots_pose.c",
-      "controller_webots_sensors.c",
-      "controller_webots_simulation.c",
+      "controller_webots_devices.cpp",
+      "controller_webots_pose.cpp",
+      "controller_webots_sensors.cpp",
+      "controller_webots_simulation.cpp",
     ]) {
       expect(manifest, `${source} is missing from the canonical manifest`).toContain(source);
     }
@@ -179,10 +185,10 @@ describe("Webots controller build configuration", () => {
   it("delegates limit-zone rendering to the Simulation Adapter", () => {
     const source = runtimeSource;
     const reloadService = readFileSync(
-      `${controllerDirectory}/controller_route_zone_reload_service.c`,
+      `${controllerDirectory}/controller_route_zone_reload_service.cpp`,
       "utf8",
     );
-    const adapter = readFileSync(`${controllerDirectory}/controller_webots_zone_sync.c`, "utf8");
+    const adapter = readFileSync(`${controllerDirectory}/controller_webots_zone_sync.cpp`, "utf8");
 
     expect(source).toContain("controller_route_zone_reload_service_reload_limit(");
     expect(reloadService).toContain("controller_webots_zone_sync_limit_zones(");
@@ -194,10 +200,10 @@ describe("Webots controller build configuration", () => {
   it("delegates limit-zone node synchronization to the Simulation Adapter", () => {
     const source = runtimeSource;
     const reloadService = readFileSync(
-      `${controllerDirectory}/controller_route_zone_reload_service.c`,
+      `${controllerDirectory}/controller_route_zone_reload_service.cpp`,
       "utf8",
     );
-    const adapter = readFileSync(`${controllerDirectory}/controller_webots_zone_sync.c`, "utf8");
+    const adapter = readFileSync(`${controllerDirectory}/controller_webots_zone_sync.cpp`, "utf8");
 
     expect(source).toContain("controller_route_zone_reload_service_reload_limit(");
     expect(reloadService).toContain("controller_webots_zone_sync_limit_zones(");
@@ -208,10 +214,10 @@ describe("Webots controller build configuration", () => {
   it("delegates surface-zone presentation to the Simulation Adapter", () => {
     const source = runtimeSource;
     const reloadService = readFileSync(
-      `${controllerDirectory}/controller_route_zone_reload_service.c`,
+      `${controllerDirectory}/controller_route_zone_reload_service.cpp`,
       "utf8",
     );
-    const adapter = readFileSync(`${controllerDirectory}/controller_webots_zone_sync.c`, "utf8");
+    const adapter = readFileSync(`${controllerDirectory}/controller_webots_zone_sync.cpp`, "utf8");
 
     expect(source).toContain("controller_route_zone_reload_service_reload_surface(");
     expect(reloadService).toContain("controller_webots_zone_sync_surface_zones(");
@@ -222,7 +228,7 @@ describe("Webots controller build configuration", () => {
 
   it("delegates runtime-obstacle presentation to the Simulation Adapter", () => {
     const source = runtimeSource;
-    const adapter = readFileSync(`${controllerDirectory}/controller_webots_zone_sync.c`, "utf8");
+    const adapter = readFileSync(`${controllerDirectory}/controller_webots_zone_sync.cpp`, "utf8");
 
     expect(source).toContain("controller_webots_zone_sync_spawn_obstacle(");
     expect(adapter).toContain("controller_webots_simulation_spawn_runtime_obstacle(");
@@ -233,10 +239,11 @@ describe("Webots controller build configuration", () => {
 
   it("delegates camera-to-LiDAR range matching to Camera Fusion", () => {
     const source = runtimeSource;
-    const adapter = readFileSync(`${controllerDirectory}/controller_webots_camera_range.c`, "utf8");
+    const adapter = readFileSync(`${controllerDirectory}/controller_webots_camera_range.cpp`, "utf8");
 
     expect(source).toContain("controller_webots_camera_range_from_lidar(");
-    expect(adapter).toContain("controller_camera_fusion_estimate_range(");
+    expect(source).toContain("controller_webots_camera_confirmed_range_from_lidar(");
+    expect(adapter).toContain("controller_camera_fusion_confirmed_range(");
     expect(source).not.toContain("double best_angle_error = CAMERA_RANGE_SEARCH_WINDOW_RAD");
   });
 
@@ -256,7 +263,7 @@ describe("Webots controller build configuration", () => {
 
   it("delegates camera-observation decisions to Camera", () => {
     const source = runtimeSource;
-    const adapter = readFileSync(`${controllerDirectory}/controller_webots_camera_perception.c`, "utf8");
+    const adapter = readFileSync(`${controllerDirectory}/controller_webots_camera_perception.cpp`, "utf8");
 
     expect(source).toContain("controller_webots_camera_perception_analyze(");
     expect(adapter).toContain("controller_camera_observation_hint(");

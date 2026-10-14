@@ -25,6 +25,7 @@ typedef struct {
   double camera_map_cell_size;
   const Waypoint *route_waypoints;
   int route_waypoint_count;
+  const ControllerObjectTransferState *object_transfer;
 } ControllerTelemetryServiceSnapshotInput;
 
 int controller_telemetry_service_collect_trace(

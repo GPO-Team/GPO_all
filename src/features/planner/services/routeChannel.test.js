@@ -37,4 +37,14 @@ describe("route acknowledgements", () => {
     vi.stubGlobal("WebSocket", Socket);
     expect(await sendRouteChannelPayload({current:new Socket()}, {}, {timeoutMs:5})).toBe(false);
   });
+  it("explains how to recover when a previous mission blocks submission", async () => {
+    vi.stubGlobal("WebSocket", Socket);
+    const socket = new Socket(), onSent = vi.fn(), onError = vi.fn();
+    const completion = sendRouteChannelPayload({current: socket}, {}, {onSent, onError});
+    const {requestId} = JSON.parse(socket.send.mock.calls[0][0]);
+    socket.message({type: "route.ack", requestId, ok: false, code: "mission_active", error: "Mission old is active."});
+    expect(await completion).toBe(false);
+    expect(onError.mock.calls[0][0].message).toContain("Остановить маршрут");
+    expect(onSent).not.toHaveBeenCalled();
+  });
 });

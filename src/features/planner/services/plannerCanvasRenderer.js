@@ -83,7 +83,7 @@ const drawSurfaceZones = (ctx, surfaceZones = DEFAULT_SURFACE_ZONES) => {
 };
 
 export const drawPlannerBackground = (ctx, surfaceZones = DEFAULT_SURFACE_ZONES, options = {}) => {
-  const { annotate = true } = options;
+  const { annotate = true, border = true, grid = true } = options;
   const gradient = ctx.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   gradient.addColorStop(0, "#fafafa");
   gradient.addColorStop(1, "#e5e7eb");
@@ -93,31 +93,33 @@ export const drawPlannerBackground = (ctx, surfaceZones = DEFAULT_SURFACE_ZONES,
   ctx.fillRect(DRAWING_LEFT, DRAWING_TOP, DRAWING_WIDTH, DRAWING_HEIGHT);
   ctx.strokeStyle = "#0f172a";
   ctx.lineWidth = 2;
-  ctx.strokeRect(DRAWING_LEFT, DRAWING_TOP, DRAWING_WIDTH, DRAWING_HEIGHT);
+  if (border) ctx.strokeRect(DRAWING_LEFT, DRAWING_TOP, DRAWING_WIDTH, DRAWING_HEIGHT);
   drawSurfaceZones(ctx, surfaceZones);
-  ctx.strokeStyle = "rgba(148, 163, 184, 0.18)";
-  ctx.lineWidth = 1;
-  for (let x = -HALF_WIDTH; x <= HALF_WIDTH; x += 1) {
-    const from = worldToCanvas(x, -HALF_HEIGHT);
-    const to = worldToCanvas(x, HALF_HEIGHT);
-    ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
-  }
-  for (let y = -HALF_HEIGHT; y <= HALF_HEIGHT; y += 1) {
-    const from = worldToCanvas(-HALF_WIDTH, y);
-    const to = worldToCanvas(HALF_WIDTH, y);
-    ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
-  }
-  ctx.strokeStyle = "rgba(100, 116, 139, 0.28)";
-  ctx.lineWidth = 1.5;
-  for (let x = -HALF_WIDTH; x <= HALF_WIDTH; x += 4) {
-    const from = worldToCanvas(x, -HALF_HEIGHT);
-    const to = worldToCanvas(x, HALF_HEIGHT);
-    ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
-  }
-  for (let y = -HALF_HEIGHT; y <= HALF_HEIGHT; y += 4) {
-    const from = worldToCanvas(-HALF_WIDTH, y);
-    const to = worldToCanvas(HALF_WIDTH, y);
-    ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+  if (grid) {
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.18)";
+    ctx.lineWidth = 1;
+    for (let x = -HALF_WIDTH; x <= HALF_WIDTH; x += 1) {
+      const from = worldToCanvas(x, -HALF_HEIGHT);
+      const to = worldToCanvas(x, HALF_HEIGHT);
+      ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+    }
+    for (let y = -HALF_HEIGHT; y <= HALF_HEIGHT; y += 1) {
+      const from = worldToCanvas(-HALF_WIDTH, y);
+      const to = worldToCanvas(HALF_WIDTH, y);
+      ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(100, 116, 139, 0.28)";
+    ctx.lineWidth = 1.5;
+    for (let x = -HALF_WIDTH; x <= HALF_WIDTH; x += 4) {
+      const from = worldToCanvas(x, -HALF_HEIGHT);
+      const to = worldToCanvas(x, HALF_HEIGHT);
+      ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+    }
+    for (let y = -HALF_HEIGHT; y <= HALF_HEIGHT; y += 4) {
+      const from = worldToCanvas(-HALF_WIDTH, y);
+      const to = worldToCanvas(HALF_WIDTH, y);
+      ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+    }
   }
   if (!annotate) return;
   const verticalAxisTop = worldToCanvas(0, HALF_HEIGHT);
@@ -138,5 +140,4 @@ export const drawPlannerBackground = (ctx, surfaceZones = DEFAULT_SURFACE_ZONES,
   ctx.textBaseline = "alphabetic";
   ctx.fillText("Y", verticalAxisTop.x + 8, verticalAxisTop.y + 18);
   ctx.fillText("X", horizontalAxisRight.x - 18, horizontalAxisRight.y - 8);
-  ctx.fillText("Routing grid with surface map", DRAWING_LEFT + 14, DRAWING_TOP - 14);
 };

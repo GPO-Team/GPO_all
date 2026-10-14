@@ -18,6 +18,9 @@ typedef struct {
   double drive_timeout;
   int delivery_waypoint;
   int room_zone_index;
+  double trajectory_origin[5], trajectory_target[5];
+  double trajectory_started, trajectory_duration;
+  int trajectory_initialized;
 } ControllerWebotsManipulator;
 
 void controller_webots_manipulator_start(const RuntimeCommand *command);

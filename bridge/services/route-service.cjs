@@ -1,8 +1,8 @@
 const createRouteService = ({ artifactStore, missionService, adapter }) => {
   const handle = async (payload, context) => {
-    if (["route", "start_mapping_survey", "pick_place"].includes(payload?.type) && missionService) {
+    if (["route", "start_mapping_survey", "pick_place", "transfer_object"].includes(payload?.type) && missionService) {
       const mission = await missionService.submit(payload, context);
-      return {handled:true,missionId:mission.missionId,status:mission.status,route:mission.command.route,planning:mission.command.planning,sceneRevision:mission.command.sceneRevision};
+      return {handled:true,missionId:mission.missionId,operationType:mission.operationType,status:mission.status,route:mission.command.route,planning:mission.command.planning,sceneRevision:mission.command.sceneRevision};
     }
     if (payload?.type === "start_mapping_survey") return {handled:false};
     if (missionService) return {handled:await missionService.update(payload,context)};

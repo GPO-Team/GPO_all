@@ -65,6 +65,8 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
   });
 
   const editors = useDashboardPlannerEditors({
+    mapLayers: state.sidebar?.plannerUiState?.mapLayers,
+    setMapLayerVisible: state.sidebar?.setMapLayerVisible,
     activeLimitZoneId: limits.activeLimitZoneId,
     activePointKind: interaction.activePointKind,
     activeSurfaceProfileKey: surfaces.activeSurfaceProfileKey,
@@ -91,7 +93,6 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
   });
 
   const runtimeActions = useDashboardPlannerRuntimeActions({
-    onMissionSubmitted: runtime.mission?.track,
     batteryRangeMeters: energy.batteryRangeMeters,
     mappingSurveyMode: mapping.mappingSurveyMode,
     optimizedRoute: route.optimizedRoute,
@@ -102,6 +103,7 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
     setMapExportPromptOpen: interaction.setMapExportPromptOpen,
     setStatus: route.setStatus,
     telemetry: runtime.telemetry,
+    onMissionSubmitted: runtime.mission?.track,
   });
 
   return { ...routeLifecycle, ...routeSelection, ...editors, ...runtimeActions };

@@ -22,6 +22,7 @@
 #define application_state controller_app.application_state
 #define motion_state controller_app.motion_state
 #define motion_profile_reload_service controller_app.motion_profile_reload_service
+#define object_transfer_runtime controller_app.object_transfer_runtime
 #define runtime_command_reload_service controller_app.runtime_command_reload_service
 #define input_orchestration controller_app.input_orchestration
 #define controller_paths controller_app.paths

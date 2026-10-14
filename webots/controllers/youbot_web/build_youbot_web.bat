@@ -41,7 +41,7 @@ for /f "usebackq delims=" %%S in ("controller_sources.txt") do (
   if not "%%S"=="" set "SOURCE_ARGS=!SOURCE_ARGS! %%S"
 )
 
-cl /nologo /std:c11 /O2 /I"%WEBOTS_HOME%\include\controller\c" ^
+cl /nologo /std:c++20 /EHsc /O2 /I"%WEBOTS_HOME%\include\controller\c" ^
   !SOURCE_ARGS! ^
   /Fe:"youbot_web.exe" ^
   /Fo"build\obj\\" ^

@@ -13,6 +13,8 @@ typedef struct {
   double fingers[2];
   double object[3];
   int object_valid;
+  int contacts_required;
+  double contacts[2];
 } ControllerManipulatorSample;
 
 typedef struct {

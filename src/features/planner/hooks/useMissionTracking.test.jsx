@@ -8,6 +8,7 @@ vi.mock("../services/missionClient", () => ({
   getMission:vi.fn(),
   listMissions:vi.fn(async () => []),
   cancelMission:vi.fn(),
+  resumeMission:vi.fn(),
 }));
 let root;
 it("keeps the tracked mission when cancellation returns another mission", async () => {
@@ -84,4 +85,24 @@ it("discovers a new active mission after the displayed mission becomes terminal"
   missionClient.listMissions.mockResolvedValue([{missionId:"second",status:"persisted"}]);
   await act(async () => vi.advanceTimersByTimeAsync(1000));
   expect(exposed.mission.state).toMatchObject({missionId:"second",status:"persisted"});
+});
+
+it("resumes a held transfer and keeps recovery errors visible while polling", async () => {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  vi.useFakeTimers();
+  const fetchMission=vi.fn(async () => ({missionId:"held",operationType:"object_transfer",status:"holding_for_recovery",stage:"placing"}));
+  missionClient.resumeMission.mockRejectedValueOnce(new Error("Resume rejected"));
+  const exposed={};
+  function Harness() {const mission=useMissionTracking({fetchMission}); React.useEffect(()=>{exposed.mission=mission;});return null;}
+  root=createRoot(document.createElement("div"));
+  await act(async()=>root.render(<Harness/>));
+  await act(async()=>exposed.mission.track({missionId:"held"}));
+  expect(typeof exposed.mission.resume).toBe("function");
+  await act(async()=>exposed.mission.resume());
+  expect(missionClient.resumeMission).toHaveBeenCalledWith("held");
+  await act(async()=>vi.advanceTimersByTimeAsync(1000));
+  expect(exposed.mission.state).toMatchObject({status:"holding_for_recovery",actionError:"Resume rejected"});
+  missionClient.resumeMission.mockResolvedValue({missionId:"held",status:"holding_for_recovery",resumeDelivered:true});
+  await act(async()=>exposed.mission.resume());
+  expect(exposed.mission.state).toMatchObject({status:"holding_for_recovery",resumeDelivered:true,actionError:null});
 });

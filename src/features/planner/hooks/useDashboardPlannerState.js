@@ -25,6 +25,11 @@ export const useDashboardPlannerState = () => {
   const [expandedPoint, setExpandedPoint] = useState(null);
   const [hoveredPointIndex, setHoveredPointIndex] = useState(null);
   const [activePointKind, setActivePointKind] = useState("visit");
+  const [pointPlacementRevision, setPointPlacementRevision] = useState(0);
+  const activatePointPlacement = (kind) => {
+    setActivePointKind(kind);
+    setPointPlacementRevision((previous) => previous + 1);
+  };
   const [mapExportPromptOpen, setMapExportPromptOpen] = useState(false);
   const [surfaceZones, setSurfaceZones] = useState(createInitialSurfaceZones);
   const [activeSurfaceZoneId, setActiveSurfaceZoneId] = useState(
@@ -41,7 +46,7 @@ export const useDashboardPlannerState = () => {
   const [nextZoneNumber, setNextZoneNumber] = useState(2);
   const [routeEnergyStats, setRouteEnergyStats] = useState(createEmptyRouteEnergyStats);
   const [mappingSurveyMode, setMappingSurveyMode] = useState(MAPPING_SURVEY_MODES[0].key);
-  const { plannerUiState, setSidebarCollapsed } = usePlannerSidebarState();
+  const { plannerUiState, setSidebarCollapsed, setMapLayerVisible } = usePlannerSidebarState();
   const energySettings = usePlannerEnergySettings({
     setEnergyWarning,
     setExpandedPoint,
@@ -62,6 +67,7 @@ export const useDashboardPlannerState = () => {
     interaction: {
       expandedPoint, setExpandedPoint, hoveredPointIndex, setHoveredPointIndex,
       activePointKind, setActivePointKind, mapExportPromptOpen, setMapExportPromptOpen,
+      pointPlacementRevision, activatePointPlacement,
     },
     surfaces: {
       surfaceZones, setSurfaceZones, activeSurfaceZoneId, setActiveSurfaceZoneId,
@@ -74,6 +80,6 @@ export const useDashboardPlannerState = () => {
     },
     energy: { routeEnergyStats, setRouteEnergyStats, ...energySettings },
     mapping: { mappingSurveyMode, setMappingSurveyMode },
-    sidebar: { plannerUiState, setSidebarCollapsed },
+    sidebar: { plannerUiState, setSidebarCollapsed, setMapLayerVisible },
   };
 };

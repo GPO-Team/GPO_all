@@ -29,7 +29,10 @@ export const sendRouteChannelPayload = (routeSocketRef, payload, { onSent, onErr
       let response;
       try { response = JSON.parse(event.data); } catch { return; }
       if (response.type !== "route.ack" || response.requestId !== requestId) return;
-      finish(response.ok ? null : new Error(response.error || "Bridge отклонил команду."), response);
+      const message = response.code === "mission_active"
+        ? "Предыдущая миссия ещё активна. Нажмите «Остановить маршрут», дождитесь подтверждения остановки и отправьте маршрут снова."
+        : response.error || "Bridge отклонил команду.";
+      finish(response.ok ? null : new Error(message), response);
     };
     const fail = () => finish(new Error("Соединение прервано до подтверждения команды."));
     const timer = setTimeout(() => finish(new Error("Bridge не подтвердил сохранение команды.")), timeoutMs);

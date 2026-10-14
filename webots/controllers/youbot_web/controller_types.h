@@ -87,7 +87,14 @@ typedef struct {
   char object_def[64];
   double target_x, target_y, target_z;
   int target_fields;
+  int has_transfer_object;
+  int has_recover_transfer;
+  int has_resume_transfer;
   char mission_id[64];
+  char object_id[32];
+  char scene_revision[96];
+  double destination_x;
+  double destination_y;
   int has_field_bounds;
   int clear_map;
   MappingSurveyMode survey_mode;

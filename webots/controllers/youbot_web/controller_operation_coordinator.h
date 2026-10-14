@@ -1,0 +1,8 @@
+#ifndef CONTROLLER_OPERATION_COORDINATOR_H
+#define CONTROLLER_OPERATION_COORDINATOR_H
+typedef enum { CONTROLLER_OPERATION_IDLE=0, CONTROLLER_OPERATION_ROUTE=1, CONTROLLER_OPERATION_OBJECT_TRANSFER=2 } ControllerOperationOwner;
+typedef struct { ControllerOperationOwner owner; } ControllerOperationCoordinator;
+void controller_operation_coordinator_init(ControllerOperationCoordinator *coordinator);
+int controller_operation_coordinator_acquire(ControllerOperationCoordinator *coordinator, ControllerOperationOwner owner);
+int controller_operation_coordinator_release(ControllerOperationCoordinator *coordinator, ControllerOperationOwner owner);
+#endif

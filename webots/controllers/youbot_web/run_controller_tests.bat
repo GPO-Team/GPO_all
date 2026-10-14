@@ -34,21 +34,39 @@ set "OUTPUT_DIR=%CONTROLLER_DIR%build\tests"
 if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
 
 set "SOURCES="
+set "OBJECT_LIST=%OUTPUT_DIR%\controller-objects.rsp"
+type nul >"%OBJECT_LIST%"
 for /f "usebackq delims=" %%S in ("%CONTROLLER_DIR%controller_sources.txt") do (
-  if /I not "%%S"=="youbot_web.c" set "SOURCES=!SOURCES! %%S"
+  if /I not "%%S"=="youbot_web.cpp" (
+    set "SOURCES=!SOURCES! %%S"
+    echo "%OUTPUT_DIR%\%%~nS.obj">>"%OBJECT_LIST%"
+  )
 )
 set /a PASSED=0
-set "TEST_PATTERN=controller_*_test.c"
+set "TEST_PATTERN=controller_*_test.cpp"
 if defined CONTROLLER_TEST_FILTER set "TEST_PATTERN=%CONTROLLER_TEST_FILTER%"
 
 pushd "%CONTROLLER_DIR%"
+set "PRODUCTION_BUILD_LOG=%OUTPUT_DIR%\controller-production-build.log"
+cl /nologo /std:c++20 /EHsc /O2 /I"%WEBOTS_INCLUDE%" /c !SOURCES! /Fo:"%OUTPUT_DIR%\\" >"!PRODUCTION_BUILD_LOG!" 2>&1
+if errorlevel 1 (
+  type "!PRODUCTION_BUILD_LOG!"
+  echo [webots-test] production compile failed
+  goto :test_failed
+)
+del /q "!PRODUCTION_BUILD_LOG!"
+
 for %%F in (!TEST_PATTERN!) do (
   echo [webots-test] %%F
-  cl /nologo /std:c11 /O2 /I"%WEBOTS_INCLUDE%" "%%F" !SOURCES! /Fe:"%OUTPUT_DIR%\%%~nF.exe" /Fo:"%OUTPUT_DIR%\\" /link /LIBPATH:"%WEBOTS_LIBRARY%" Controller.lib >nul
+  set "TEST_BUILD_LOG=%OUTPUT_DIR%\%%~nF-build.log"
+  cl /nologo /std:c++20 /EHsc /O2 /I"%WEBOTS_INCLUDE%" /c "%%F" /Fo:"%OUTPUT_DIR%\%%~nF.obj" >"!TEST_BUILD_LOG!" 2>&1
+  if not errorlevel 1 cl /nologo /Fe:"%OUTPUT_DIR%\%%~nF.exe" "%OUTPUT_DIR%\%%~nF.obj" @"%OBJECT_LIST%" /link /LIBPATH:"%WEBOTS_LIBRARY%" Controller.lib >>"!TEST_BUILD_LOG!" 2>&1
   if errorlevel 1 (
+    type "!TEST_BUILD_LOG!"
     echo [webots-test] compile failed: %%F
     goto :test_failed
   )
+  del /q "!TEST_BUILD_LOG!"
   "%OUTPUT_DIR%\%%~nF.exe"
   set "TEST_EXIT=!ERRORLEVEL!"
   if not "!TEST_EXIT!"=="0" (

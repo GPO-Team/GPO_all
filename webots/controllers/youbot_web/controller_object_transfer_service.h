@@ -1,0 +1,9 @@
+#ifndef CONTROLLER_OBJECT_TRANSFER_SERVICE_H
+#define CONTROLLER_OBJECT_TRANSFER_SERVICE_H
+#include "controller_object_transfer_types.h"
+typedef struct {ControllerObjectTransferState state;} ControllerObjectTransferService;
+void controller_object_transfer_service_init(ControllerObjectTransferService *service);
+int controller_object_transfer_service_start(ControllerObjectTransferService *service,const char *mission_id,const char *object_id,double destination_x,double destination_y,double now);
+void controller_object_transfer_service_step(ControllerObjectTransferService *service,const ControllerObjectTransferInput *input,double now,ControllerObjectTransferOutput *output);
+int controller_object_transfer_service_resume(ControllerObjectTransferService *service,double now);
+#endif

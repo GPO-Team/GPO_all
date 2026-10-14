@@ -1,7 +1,7 @@
 // Real Webots physics test. Starts an isolated world and independent services.
 import {spawn} from "node:child_process";
 import {createServer} from "node:net";
-import {mkdtemp,mkdir,copyFile,readFile,writeFile,rm} from "node:fs/promises";
+import {mkdtemp,mkdir,cp,copyFile,readFile,writeFile,rm} from "node:fs/promises";
 import {once} from "node:events";
 import os from "node:os";
 import path from "node:path";
@@ -14,6 +14,7 @@ const obstacle=process.argv.includes("--obstacle");
 const blocked=process.argv.includes("--blocked");
 const destination={x:mobile ? (obstacle ? 4 : nearObject ? 1 : 2) : 0.4,y:mobile ? 1 : 0.1,z:0.04};
 const directory=await mkdtemp(path.join(os.tmpdir(),"gpo-manipulator-"));
+await cp(path.join(root,"webots/protos"),path.join(directory,"protos"),{recursive:true});
 const children=[];
 let socket;
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));

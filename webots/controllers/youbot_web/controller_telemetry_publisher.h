@@ -32,6 +32,7 @@ typedef struct {
   double camera_map_cell_size;
   double trace_ttl_seconds;
   double trace_min_confidence;
+  const ControllerObjectTransferState *object_transfer;
 } ControllerTelemetryPublisherInput;
 
 typedef struct {

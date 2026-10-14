@@ -1,19 +1,25 @@
 # Полный запуск в Docker
 
-Требуется Docker Desktop с Linux Engine (Windows: WSL2) или Docker Engine с Compose v2.24.4+. Node.js, Visual Studio и Webots на хосте для этого режима не нужны.
+Требуются Docker Desktop с Linux Engine (Windows: WSL2) или Docker Engine с
+Compose v2.24.4+, а также Node.js для launcher-скрипта. Visual Studio и Webots
+на хосте для этого режима не нужны. Если Node.js ставить нельзя, ниже остаются
+ручные команды Docker Compose.
 
 Из корня репозитория:
 
 ```sh
-docker compose -p gpo-full -f compose.yaml -f compose.simulator.yaml up --build -d --wait --wait-timeout 180
+npm install
+npm run start:container
 ```
 
 Откройте http://127.0.0.1:8080/dashboard. В правой панели нажмите «Показать симуляцию». Ниже в телеметрии отдельно отображается камера робота. Панель сцены подключается при открытии и освобождает соединение при закрытии; после обрыва пытается подключиться снова. Это просмотр текущего ракурса, управление маршрутами выполняется существующими кнопками планировщика.
 
 Работают шесть контейнеров: frontend, planning, route, telemetry, gateway, simulator. Одноразовый init-secret создаёт токен в Docker volume и успешно завершается — статус Exited (0) для него нормален. Внутренний адрес gateway — `http://gateway:9004`; секрет не передаётся браузеру. Никакие процессы проекта на Windows не запускаются.
 
-Webots R2025a по умолчанию работает через Xvfb на CPU. Для аппаратного OpenGL
-на Windows/WSLg добавьте `-f compose.simulator.gpu-wslg.yaml` к команде запуска.
+Launcher проверяет доступ Docker к `/dev/dxg`, X11-сокету WSLg и графическим
+библиотекам. Если они доступны, Webots использует аппаратный OpenGL; иначе
+запускается переносимый режим Xvfb/Mesa на CPU. Принудительный выбор:
+`npm run start:container -- --cpu` или `npm run start:container -- --gpu`.
 В открытой панели симуляции есть кнопки «Обычная» и «Максимальная» скорость.
 [Настройка CPU/GPU, ограничения и замеры](SIMULATION-PERFORMANCE.md).
 

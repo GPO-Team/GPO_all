@@ -1,3 +1,5 @@
+import { buildSceneSnapshot } from "../model/sceneSnapshot";
+import { calculateSceneRevision } from "../model/sceneRevision";
 import { useRef } from "react";
 import { HALF_HEIGHT, HALF_WIDTH } from "../../../lib/zonePlanner";
 import { pickRandomObstacleCenter, randomBetween } from "../model/randomObstacle";
@@ -108,5 +110,49 @@ export const usePlannerRuntimeCommands = ({
     });
   };
 
-  return { addRandomObstacle, startMappingSurvey, startPickPlace };
+  const startObjectTransfer = async destination => {
+    const snapshot = buildSceneSnapshot({
+      plannerModel,
+      batteryRangeMeters,
+      energyOptions: { speedMps: 0.22, payloadKg },
+    });
+    // Keep the same normalized key order used by the bridge before hashing.
+    const scene = {
+      polygons: snapshot.polygons.map((zone, index) => ({
+        id: String(zone.id || `zone-${index + 1}`).trim(),
+        name: String(zone.name || `Zone ${index + 1}`).trim(),
+        points: zone.points.map(point => ({ x: Number(point.x), y: Number(point.y) })),
+      })),
+      surfaceZones: snapshot.surfaceZones.map((zone, index) => ({
+        id: String(zone.id || `surface-zone-${index + 1}`).trim(),
+        name: String(zone.name || `Surface ${index + 1}`).trim(),
+        surfaceKey: ["neutral", "rough", "slippery"].includes(zone.surfaceKey) ? zone.surfaceKey : "neutral",
+        points: zone.points.map(point => ({ x: Number(point.x), y: Number(point.y) })),
+      })),
+      chargingStations: snapshot.chargingStations.map(point => ({ x: Number(point.x), y: Number(point.y) })),
+      motion: {
+        cruiseSpeedMps: Number(snapshot.motion.cruiseSpeedMps),
+        payloadKg: Number(snapshot.motion.payloadKg),
+        batteryRange: Number(snapshot.motion.batteryRange),
+      },
+    };
+    const payload = {
+      type: "transfer_object",
+      objectId: "demo-box",
+      destination,
+      scene,
+      sceneRevision: await calculateSceneRevision(scene),
+    };
+    setStatus("Сервис проверяет миссию переноса...");
+    return sendRouteChannelPayload(routeSocketRef, payload, {
+      timeoutMs: 35000,
+      onSent: acknowledgement => {
+        setStatus(`Перенос demo-box запущен в точку (${destination.x.toFixed(2)}, ${destination.y.toFixed(2)}).`);
+        onMissionSubmitted?.(acknowledgement);
+      },
+      onError: error => setStatus(error.message),
+    });
+  };
+
+  return { addRandomObstacle, startMappingSurvey, startPickPlace, startObjectTransfer };
 };

@@ -1,39 +1,40 @@
 # Webots Integration
 
 `GPO-main` теперь содержит рабочий контур для `KUKA youBot` в `Webots`.
+Контроллер и его модульные тесты собираются как C++20; прежних C-исходников в этом контуре нет.
 
 ## Что используется
 
 - Мир: `webots/worlds/youbot_only.wbt`
-- Контроллер: `webots/controllers/youbot_web/youbot_web.c`
-- Платформенный ввод-вывод: `controller_io.c/.h`
-- Mecanum-кинематика и slew limits колёс: `controller_drive.c/.h`
+- Контроллер: `webots/controllers/youbot_web/youbot_web.cpp`
+- Платформенный ввод-вывод: `controller_io.cpp/.h`
+- Mecanum-кинематика и slew limits колёс: `controller_drive.cpp/.h`
 - Чистая математика лидара, контекста препятствий и уверенности трассы:
-  `controller_lidar_math.c/.h`
-- Локальное уклонение: lidar-классификация — `controller_avoidance_detection.c/.h`,
-  выбор стороны и команда движения — `controller_avoidance_command.c/.h`, состояние,
-  progress/stuck и detour-геометрия — `controller_avoidance_state.c/.h`.
+  `controller_lidar_math.cpp/.h`
+- Локальное уклонение: lidar-классификация — `controller_avoidance_detection.cpp/.h`,
+  выбор стороны и команда движения — `controller_avoidance_command.cpp/.h`, состояние,
+  progress/stuck и detour-геометрия — `controller_avoidance_state.cpp/.h`.
 - Чистый анализ RGB-кадра, camera obstacle observation и геометрия точек карты:
-  `controller_camera.c/.h`
+  `controller_camera.cpp/.h`
 - Хранение и объединение camera obstacle/free-space ячеек:
-  `controller_camera_map.c/.h`
+  `controller_camera_map.cpp/.h`
 - Чистые растровые примитивы виртуальной камеры:
-  `controller_camera_render.c/.h`
+  `controller_camera_render.cpp/.h`
 - Чистые геометрические примитивы Mapping Survey:
-  `controller_survey_geometry.c/.h`
+  `controller_survey_geometry.cpp/.h`
 - Состояние и повторяющиеся переходы Mapping Survey:
-  `controller_survey_state.c/.h`
+  `controller_survey_state.cpp/.h`
 - Расписание периодических lifecycle-задач:
-  `controller_lifecycle.c/.h`
+  `controller_lifecycle.cpp/.h`
 - Тестируемый порядок выполнения одного controller step:
-  `controller_step.c/.h`
-- Математика навигации: `controller_math.c/.h`
-- Загрузка и расчёт профиля движения: `controller_motion_profile.c/.h`
-- Загрузка маршрута: `controller_route.c/.h`
-- Чтение runtime-команд: `controller_runtime_command.c/.h`
-- Сериализация телеметрии: `controller_telemetry.c/.h`
-- Общие структуры и enum-типы контроллера: `controller_types.c/.h`
-- Парсинг ограничивающих зон и покрытий: `controller_zones.c/.h`
+  `controller_step.cpp/.h`
+- Математика навигации: `controller_math.cpp/.h`
+- Загрузка и расчёт профиля движения: `controller_motion_profile.cpp/.h`
+- Загрузка маршрута: `controller_route.cpp/.h`
+- Чтение runtime-команд: `controller_runtime_command.cpp/.h`
+- Сериализация телеметрии: `controller_telemetry.cpp/.h`
+- Общие структуры и enum-типы контроллера: `controller_types.cpp/.h`
+- Парсинг ограничивающих зон и покрытий: `controller_zones.cpp/.h`
 - Сборка контроллера: `webots/controllers/youbot_web/build_youbot_web.bat`
 - Runtime state хранится в корневом каталоге `web_state/`.
 
@@ -131,7 +132,7 @@ Supervisor читает координаты и геометрию мира, д�
 
 ```powershell
 npm run webots:build
-npm run test:manipulator
+npm run test:manipulator:def
 ```
 
 Проверяются физический перенос и возврат, отказ для недостижимой цели и отсутствующего

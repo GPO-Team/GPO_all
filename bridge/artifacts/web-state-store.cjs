@@ -31,6 +31,7 @@ const createWebStateStore = ({ coordinateContract, stateDir }) => {
     surfaceZonesTxt: path.join(stateDir, "surface_zones.txt"),
     motionProfile: path.join(stateDir, "motion_profile.txt"),
     runtimeCommand: path.join(stateDir, "runtime_command.txt"),
+    sceneRevision: path.join(stateDir, "scene_revision.txt"),
   };
   const routeCsvHeader = coordinateContract.routeCsv.header.join(",");
   let ensureStateDirPromise = null;
@@ -151,6 +152,15 @@ const createWebStateStore = ({ coordinateContract, stateDir }) => {
     await atomicWrite(paths.runtimeCommand, previous + (previous && !previous.endsWith("\n") ? "\n" : "") + commandText);
   };
 
+  const writeTransfer = async payload => {
+    await ensureStateDir();
+    await writeLimitZones({zones:payload.scene?.polygons || []});
+    await writeSurfaceZones({zones:payload.scene?.surfaceZones || []});
+    await writeMotionProfile(payload.scene?.motion);
+    await atomicWrite(paths.sceneRevision, `${payload.sceneRevision}\n`);
+    await writeRuntimeCommand({...payload,missionId:payload.missionId || payload.commandId});
+  };
+
   return {
     ensureStateDir,
     paths,
@@ -159,6 +169,7 @@ const createWebStateStore = ({ coordinateContract, stateDir }) => {
     writeRoute: serialize(writeRoute),
     writeRuntimeCommand: serialize(writeRuntimeCommand),
     writeSurfaceZones: serialize(writeSurfaceZones),
+    writeTransfer: serialize(writeTransfer),
   };
 };
 
