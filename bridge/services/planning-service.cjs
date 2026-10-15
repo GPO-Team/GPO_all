@@ -66,8 +66,13 @@ const createPlanningService = ({ nativeSolver, maxConcurrentRuns = 2 }) => {
         const { explainBlockedPoint, explainRouteFailure } =
           await import("../../shared/planning/routeDiagnostics.js");
         const polygons = scene?.polygons || [];
-        for (const point of points) {
-          const problem = explainBlockedPoint(point, polygons);
+        let numberedVisit = 0;
+        let freeVisit = 0;
+        for (const [index, point] of points.entries()) {
+          const label = visitOrder[index] === "ordered"
+            ? `Точка V${++numberedVisit}`
+            : `Свободная точка ${++freeVisit}`;
+          const problem = explainBlockedPoint(point, polygons, label);
           if (problem)
             throw Object.assign(new Error(problem), { statusCode: 422 });
         }

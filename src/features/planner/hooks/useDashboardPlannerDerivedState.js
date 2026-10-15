@@ -13,7 +13,6 @@ export const useDashboardPlannerDerivedState = (state, runtime) => {
     optimizedRoute: route.optimizedRoute,
     activeLimitZoneId: limits.activeLimitZoneId,
     surfaceZones: surfaces.surfaceZones,
-    preserveVisitLocations:true,
   });
   const viewModel = createDashboardPlannerViewModel({
     algorithmKey: algorithm.algorithmKey,

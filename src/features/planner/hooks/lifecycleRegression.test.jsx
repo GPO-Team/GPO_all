@@ -24,6 +24,33 @@ const routeProps = () => ({
 });
 
 describe("planner lifecycle regressions", () => {
+  it("sends projected safe visit coordinates to the planning service", async () => {
+    const props = routeProps();
+    props.plannerModel.visitEntries = [
+      { point: { x: 0, y: 0 } },
+      { point: { x: 3, y: 0 } },
+    ];
+    props.plannerModel.visitPoints = [
+      { x: 1.45, y: 0 },
+      { x: 3, y: 0 },
+    ];
+    solveRouteWithNativeAlgorithm.mockResolvedValue({
+      seedRoute: props.plannerModel.visitPoints,
+      planning: { ok: true, route: props.plannerModel.visitPoints },
+    });
+    let optimize;
+    function Harness() {
+      const action = usePlannerRouteOptimization(props);
+      React.useEffect(() => { optimize = action; });
+      return null;
+    }
+
+    await act(async () => root.render(<Harness />));
+    await act(async () => optimize());
+
+    expect(solveRouteWithNativeAlgorithm.mock.calls[0][0]).toEqual(props.plannerModel.visitPoints);
+  });
+
   it("submits the numbered seed unchanged for server safety validation", async () => {
     const seed = [{ x: 4, y: 3 }, { x: -3, y: 2 }, { x: 2, y: 1 }];
     const props = { ...routeProps(), driveMode: "ordered", optimizedRoute: seed,

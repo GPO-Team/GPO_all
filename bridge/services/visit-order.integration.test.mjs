@@ -13,7 +13,7 @@ it("explains the exact forbidden target and zone rather than a generic planning 
   const nativeSolver={run:vi.fn(async()=>({route:[{x:0,y:0},{x:3,y:0}],order:[0,1],length:3,closed:false}))};
   const scene=scenes.normalizeScene({polygons:[{id:"shelf",name:"Стеллаж А",points:[{x:2,y:-1},{x:4,y:-1},{x:4,y:1},{x:2,y:1}]}]});
   const service=services.createPlanningService({nativeSolver});
-  await expect(service.solve({points:[{x:3,y:0},{x:5,y:0}],visitOrder:["ordered","free"],anchor:{x:0,y:0},scene,task:"hamiltonian_chain"})).rejects.toThrow(/Стеллаж А/);
+  await expect(service.solve({points:[{x:3,y:0},{x:5,y:0}],visitOrder:["ordered","free"],anchor:{x:0,y:0},scene,task:"hamiltonian_chain"})).rejects.toThrow(/Точка V1.*Стеллаж А/);
 });
 it("rejects an invalid visit policy instead of silently dropping constraints",async()=>{
   const service=services.createPlanningService({nativeSolver:{run:vi.fn()}});

@@ -36,9 +36,9 @@ export const usePlannerRouteOptimization = ({ driveMode = "optimized", algorithm
     setIsOptimizing(true);
     setStatus("Строим маршрут...");
     try {
-      // The editor numbering follows visitPoints. Use the shared safety/energy
-      // planner directly so this mode never sorts or rotates the visit order.
-      const visitPoints = plannerModel.visitEntries?.map((entry) => entry.point) || plannerModel.visitPoints;
+      // visitPoints already contains safety projections for targets inside or
+      // too close to forbidden zones. Keep those coordinates for every mode.
+      const visitPoints = plannerModel.visitPoints;
       const solveResult = driveMode === "ordered" ? {
         seedRoute: visitPoints.map(({ x, y }) => ({ x, y })),
         planning: buildRouteWithEnergyStops({

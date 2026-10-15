@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { renderPlannerSensorLayers } from "./plannerCanvasSensorRenderer";
 
 describe("planner canvas sensor renderer", () => {
-  it("renders camera free space and obstacles as thin turquoise and violet dots", () => {
+  it("renders accumulated lidar surfaces and camera obstacles as small turquoise and violet dots", () => {
     const fillStyles = [];
     const ctx = {
       arc: vi.fn(),
@@ -20,7 +20,7 @@ describe("planner canvas sensor renderer", () => {
       obstacleMap: { cellSize: 0.1, cells: [{ x: 0, y: 0, confidence: 1 }] },
       cameraMap: {
         cellSize: 0.1,
-        freeCells: [{ x: 1, y: 1, confidence: 1 }],
+        freeCells: [{ x: 1, y: 1, confidence: 1 }, { x: 1.5, y: 1.5, confidence: 1 }],
         cells: [{ x: 2, y: 2, confidence: 1 }],
       },
     });

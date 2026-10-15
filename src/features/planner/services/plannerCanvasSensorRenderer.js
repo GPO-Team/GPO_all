@@ -1,9 +1,9 @@
 import { worldToCanvas } from "../../../lib/zonePlanner";
 
-export const renderPlannerSensorLayers = (ctx, { cameraMap }) => {
-  const cameraFreeCells = Array.isArray(cameraMap?.freeCells) ? cameraMap.freeCells : [];
+export const renderPlannerSensorLayers = (ctx, { obstacleMap, cameraMap }) => {
+  const lidarCells = Array.isArray(obstacleMap?.cells) ? obstacleMap.cells : [];
   const cameraObstacleCells = Array.isArray(cameraMap?.cells) ? cameraMap.cells : [];
-  if (!cameraFreeCells.length && !cameraObstacleCells.length) return;
+  if (!lidarCells.length && !cameraObstacleCells.length) return;
 
   const renderDots = (cells, rgb, radius, confidenceScale) => cells.forEach((cell) => {
     if (!Number.isFinite(cell?.x) || !Number.isFinite(cell?.y)) return;
@@ -16,6 +16,6 @@ export const renderPlannerSensorLayers = (ctx, { cameraMap }) => {
     ctx.fill();
   });
 
-  renderDots(cameraFreeCells, "45, 212, 191", 1.25, 10);
+  renderDots(lidarCells, "45, 212, 191", 1.25, 10);
   renderDots(cameraObstacleCells, "168, 85, 247", 1.6, 8);
 };

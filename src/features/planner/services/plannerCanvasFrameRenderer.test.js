@@ -21,6 +21,7 @@ describe("planner canvas frame renderer", () => {
       visitEntries: [], chargeEntries: [], plannedVisitEntryMap: new Map(),
       zoneEntries: [], surfaceZones: [], optimizedRoute: [],
       obstacleTrace: [{ x: 1, y: 2 }],
+      obstacleMap: { cells: [{ x: 1.5, y: 2.5 }] },
       cameraMap: { cells: [{ x: 2, y: 3 }], freeCells: [{ x: 3, y: 4 }] },
       mapLayers: { lidar: true, lidarTrace: false, camera: false, route: false, robot: false, axes: false, grid: false },
     };
