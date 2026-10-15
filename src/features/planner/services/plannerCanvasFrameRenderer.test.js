@@ -16,7 +16,7 @@ const createContext = () => ({
 });
 
 describe("planner canvas frame renderer", () => {
-  it("shows the lidar map and current trace independently", () => {
+  it("shows the sensor dots and current lidar trace independently", () => {
     const state = {
       visitEntries: [], chargeEntries: [], plannedVisitEntryMap: new Map(),
       zoneEntries: [], surfaceZones: [], optimizedRoute: [],
@@ -26,8 +26,8 @@ describe("planner canvas frame renderer", () => {
     };
     const ctx = createContext();
     renderPlannerCanvasFrame(ctx, state, { x: 0, y: 0, yaw: 0 });
-    expect(ctx.arc).toHaveBeenCalledOnce();
-    expect(ctx.fillRect).toHaveBeenCalledTimes(3);
+    expect(ctx.arc).toHaveBeenCalledTimes(2);
+    expect(ctx.fillRect).toHaveBeenCalledTimes(2);
     ctx.arc.mockClear();
     ctx.fillRect.mockClear();
     state.mapLayers = { ...state.mapLayers, lidar: false, lidarTrace: true, camera: true, route: true };
