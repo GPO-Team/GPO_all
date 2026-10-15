@@ -59,12 +59,18 @@ int controller_telemetry_write_snapshot(
         controller_webots_manipulator_stage(manipulator), safe_text(manipulator->state.error),
         safe_command_id(manipulator->mission_id), safe_command_id(manipulator->object_def),
         json_bool(controller_webots_manipulator_active(manipulator)));
+    fprintf(file, "    \"loadHeld\": %s,\n",json_bool(manipulator->state.load_held));
+    fprintf(file, "    \"cancelPending\": %s,\n",json_bool(manipulator->state.cancel_pending));
     fprintf(file, "    \"objectPosition\": {\"x\": %.6f, \"y\": %.6f, \"z\": %.6f}, \"fingers\": [%.6f, %.6f], \"joints\": [",
         manipulator->object_world[0], manipulator->object_world[1], manipulator->object_world[2],
         isfinite(manipulator->sample.fingers[0]) ? manipulator->sample.fingers[0] : 0,
         isfinite(manipulator->sample.fingers[1]) ? manipulator->sample.fingers[1] : 0);
     for (int i = 0; i < 5; ++i) fprintf(file, "%s%.6f", i ? ", " : "", isfinite(manipulator->sample.joints[i]) ? manipulator->sample.joints[i] : 0);
-    fprintf(file, "]},\n");
+    fprintf(file, "], \"jointTargets\": [");
+    for(int i=0;i<5;++i) fprintf(file,"%s%.6f",i ? ", " : "",isfinite(manipulator->state.targets[i]) ? manipulator->state.targets[i] : 0);
+    fprintf(file, "], \"fingerTargets\": [%.6f, %.6f], \"releaseEvidence\": %s},\n",
+        controller_manipulator_finger_target(&manipulator->state,0),controller_manipulator_finger_target(&manipulator->state,1),
+        json_bool(manipulator->sample.release_safe));
   }
   fprintf(file, "  \"simulationTime\": %.6f,\n", snapshot->simulation_time);
   fprintf(file, "  \"pose\": {\n    \"x\": %.6f,\n    \"y\": %.6f,\n    \"z\": %.6f,\n    \"yaw\": %.6f\n  },\n",

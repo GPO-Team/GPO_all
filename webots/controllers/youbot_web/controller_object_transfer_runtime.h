@@ -29,6 +29,8 @@ typedef struct {
   int cancel_recovery_attempted;
   int have_joint_measurement;
   double last_grip_seen;
+  double linear_speed_limit,angular_speed_limit;
+  double progress_pose[3];
 } ControllerObjectTransferRuntime;
 
 void controller_object_transfer_runtime_init(
@@ -47,5 +49,7 @@ void controller_object_transfer_runtime_step(
     double heading);
 int controller_object_transfer_runtime_allows_navigation(const ControllerObjectTransferRuntime *runtime);
 void controller_object_transfer_runtime_hold(ControllerObjectTransferRuntime *runtime,const char *reason);
+void controller_object_transfer_runtime_set_speed_limits(ControllerObjectTransferRuntime *runtime,
+    double linear_speed_limit, double angular_speed_limit);
 
 #endif

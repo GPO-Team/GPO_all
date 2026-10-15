@@ -27,6 +27,8 @@ typedef struct {
   double drive_timeout;
   int delivery_waypoint;
   int room_zone_index;
+  double support_z,cargo_radius;
+  double support_stable_since;
   double trajectory_origin[5], trajectory_target[5];
   double trajectory_started, trajectory_duration;
   int trajectory_initialized;

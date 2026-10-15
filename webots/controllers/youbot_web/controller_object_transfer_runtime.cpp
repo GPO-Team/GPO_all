@@ -50,6 +50,14 @@ void waypoint(ControllerObjectTransferRuntime *r,double x,double y,int pickup) {
       r->service.state.attached ? 0.50 : 0.36,pickup,&n->route)) {
     fail(r,"navigation_unreachable"); return;
   }
+  const double *rotation=wb_supervisor_node_get_orientation(wb_supervisor_node_get_self());
+  if(!rotation) {fail(r,"sensor_invalid");return;}
+  const double heading=std::atan2(rotation[3],rotation[0]);
+  r->service.state.navigation_timeout=controller_transfer_route_timeout(&n->route,base[0],base[1],heading,
+      std::fmin(r->linear_speed_limit,r->service.state.attached ? .06 : .12),
+      std::fmin(r->angular_speed_limit,r->service.state.attached ? .10 : .30));
+  if(r->service.state.navigation_timeout<=0) {fail(r,"sensor_invalid");return;}
+  r->progress_pose[0]=base[0];r->progress_pose[1]=base[1];r->progress_pose[2]=heading;
   std::snprintf(n->route.command_id,sizeof(n->route.command_id),"%s",r->service.state.mission_id);
   n->current_waypoint_index=0; n->route_finished=0; n->mapping_survey.route_active=0;
   n->cancelled_mission_id[0]=0;
@@ -118,6 +126,7 @@ void controller_object_transfer_runtime_init(ControllerObjectTransferRuntime *r,
     ControllerRuntime *n,ControllerWebotsDevices *d) {
   if(!r) return; std::memset(r,0,sizeof(*r)); r->navigation=n; r->devices=d;
   controller_object_transfer_service_init(&r->service);
+  r->linear_speed_limit=.12;r->angular_speed_limit=.30;
   controller_manipulator_service_init(&r->manipulator);
   r->available=controller_webots_object_adapter_init(&r->object,"DEMO_BOX");
   r->tcp_node=wb_supervisor_node_get_from_def("TCP");
@@ -171,6 +180,9 @@ int controller_object_transfer_runtime_allows_navigation(const ControllerObjectT
 }
 void controller_object_transfer_runtime_hold(ControllerObjectTransferRuntime *r,const char *reason) {
   if(r && reason) fail(r,reason);
+}
+void controller_object_transfer_runtime_set_speed_limits(ControllerObjectTransferRuntime *r,double linear,double angular) {
+  if(r) {r->linear_speed_limit=linear;r->angular_speed_limit=angular;}
 }
 void controller_object_transfer_runtime_step(ControllerObjectTransferRuntime *r,
     double now,double rx,double ry,double heading) {
@@ -260,6 +272,9 @@ void controller_object_transfer_runtime_step(ControllerObjectTransferRuntime *r,
     arm_reached=arm_reached && s.finger_positions[0]>0.023 && s.finger_positions[1]>0.023;
   ControllerObjectTransferInput input={};
   input.navigation_reached=r->navigation->route_finished;
+  input.navigation_progress=std::hypot(rx-r->progress_pose[0],ry-r->progress_pose[1])>.005 ||
+      std::fabs(std::remainder(heading-r->progress_pose[2],2*3.14159265358979323846))>.005;
+  if(input.navigation_progress) {r->progress_pose[0]=rx;r->progress_pose[1]=ry;r->progress_pose[2]=heading;}
   input.base_aligned=input.navigation_reached;
   input.arm_reached=arm_reached;
   input.grasp_valid=s.grip_evidence;

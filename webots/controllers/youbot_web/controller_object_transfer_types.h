@@ -8,7 +8,9 @@ typedef struct {char mission_id[64];char object_id[32];double destination_x;doub
   int sensors_valid; int grip_evidence; int release_evidence; int cancel_pending;
   char controller_boot_id[64];
   unsigned int recovery_epoch;
+  double navigation_timeout;
+  double navigation_last_progress_at;
 } ControllerObjectTransferState;
-typedef struct {int navigation_reached;int base_aligned;int arm_reached;int grasp_valid;int attached;int release_safe;int cancel_requested;int can_lower;} ControllerObjectTransferInput;
+typedef struct {int navigation_reached;int base_aligned;int arm_reached;int grasp_valid;int attached;int release_safe;int cancel_requested;int can_lower;int navigation_progress;} ControllerObjectTransferInput;
 typedef struct {int stop_base;int request_navigation;int request_arm_pose;int close_gripper;int attach_object;int detach_object;} ControllerObjectTransferOutput;
 #endif

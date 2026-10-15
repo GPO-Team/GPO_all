@@ -17,4 +17,6 @@ int controller_transfer_route_plan_dock(const ZoneData *zones,
 typedef struct { double vx, vy, omega; } ControllerTransferVelocity;
 ControllerTransferVelocity controller_transfer_route_velocity(double dx, double dy,
     double heading, double final_heading, int final_waypoint, double speed_limit, double angular_limit);
+double controller_transfer_route_timeout(const RouteData *route, double start_x, double start_y,
+    double heading, double speed_limit, double angular_limit);
 #endif

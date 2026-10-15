@@ -15,6 +15,7 @@ typedef struct {
   int object_valid;
   int contacts_required;
   double contacts[2];
+  int release_safe;
 } ControllerManipulatorSample;
 
 typedef struct {
@@ -29,6 +30,8 @@ typedef struct {
   int hold_fingers;
   double held_fingers[2];
   const char *error;
+  int load_held;
+  int cancel_pending;
 } ControllerManipulator;
 
 // Positions are relative to the robot origin (ENU). Dimensions: Webots R2025a Youbot.proto.
@@ -39,6 +42,12 @@ int controller_manipulator_active(const ControllerManipulator *arm);
 double controller_manipulator_finger_target(const ControllerManipulator *arm, int finger);
 void controller_manipulator_step(ControllerManipulator *arm, const ControllerManipulatorSample *sample, double dt);
 void controller_manipulator_cancel(ControllerManipulator *arm, const ControllerManipulatorSample *sample);
+int controller_manipulator_recover(ControllerManipulator *arm,
+    const ControllerManipulatorSample *sample, const double destination[3], int cancel_pending);
+typedef int (*ControllerManipulatorClearanceCheck)(void *context,const double point[3],double radius);
+// Sample the swept links and tool in the robot frame; the callback checks external geometry.
+int controller_manipulator_motion_clear(const double from[5],const double to[5],double tool_radius,
+    ControllerManipulatorClearanceCheck check,void *context);
 const char *controller_manipulator_stage_name(ControllerManipulatorStage stage);
 
 #endif

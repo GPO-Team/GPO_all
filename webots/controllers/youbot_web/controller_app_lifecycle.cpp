@@ -175,6 +175,7 @@ static void handle_transfer_command(const RuntimeCommand *command) {
     reload_surface_zones_input(NULL);
     controller_motion_profile_reload_service_run(&motion_profile_reload_service,0,1);
   }
+  controller_object_transfer_runtime_set_speed_limits(&object_transfer_runtime,active_linear_speed_limit,active_angular_speed_limit);
   controller_object_transfer_runtime_command(
       &object_transfer_runtime, command, wb_robot_get_time());
 }

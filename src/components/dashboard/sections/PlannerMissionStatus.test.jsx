@@ -2,6 +2,11 @@ import React from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {expect,it} from "vitest";
 import PlannerMissionStatus from "./PlannerMissionStatus";
+it("offers safe unloading for a held pick mission without treating it as navigation", () => {
+ const html=renderToStaticMarkup(<PlannerMissionStatus mission={{missionId:"pick-held",operationType:"pick_place",status:"holding_for_recovery",attached:true}} onCancel={()=>{}}/>);
+ expect(html).toContain("Перенос объекта");
+ expect(html).toContain("Безопасно выгрузить");
+});
 it("renders recovery, errors, and measured manipulator diagnostics", () => {
  const html=renderToStaticMarkup(<PlannerMissionStatus mission={{missionId:"held",operationType:"object_transfer",status:"holding_for_recovery",errorCode:"unsafe_release",actionError:"Resume rejected",manipulator:{jointPositions:[0.1,0.2,0.3,0.4,0.5],sensorValidity:false,tcpPose:{x:1,y:2,z:3},gripEvidence:true}}} onResume={()=>{}} onCancel={()=>{}}/>);
  expect(html).toContain("Удержание");

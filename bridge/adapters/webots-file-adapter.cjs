@@ -62,10 +62,12 @@ const createWebotsFileAdapter = ({artifactStore, stateDir}) => ({
       if(state.objectTransfer?.missionId === missionId) return {...state.objectTransfer,missionId,observedAt:new Date(stat.mtimeMs).toISOString()};
       if (state.navigation?.missionId !== missionId) return null;
       const navigation = state.navigation || {};
-      const status = navigation.status === "mission_cancelled" ? "cancelled" : navigation.status === "route_failed" ? "failed" : navigation.finished === true ? "completed" : navigation.status === "route_loaded" ? "accepted" : "running";
       const arm = state.manipulator?.missionId === missionId ? state.manipulator : null;
+      const held = arm?.loadHeld === true && arm.stage === "holding_for_recovery";
+      const status = held ? "holding_for_recovery" : arm?.cancelPending === true && arm.active === true ? "cancelling" : navigation.status === "mission_cancelled" ? "cancelled" : navigation.status === "route_failed" ? "failed" : navigation.finished === true ? "completed" : navigation.status === "route_loaded" ? "accepted" : "running";
       const reason = typeof arm?.error === "string" && arm.error ? arm.error : navigation.error;
       return {missionId,status,observedAt:new Date(stat.mtimeMs).toISOString(),
+        ...(arm ? {stage:arm.stage,attached:arm.loadHeld === true,errorCode:held ? reason || "unsafe_release" : null} : {}),
         ...(status === "failed" && typeof reason === "string" && reason ? {error:reason.slice(0,128)} : {})};
     } catch (error) {
       if (error.code === "ENOENT" || error instanceof SyntaxError) return null;

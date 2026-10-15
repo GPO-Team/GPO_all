@@ -7,6 +7,8 @@ constexpr double kTimeout = 30.0;
 void enter(ControllerObjectTransferState *s, ControllerObjectTransferStage stage, double now) {
   static const int progress[] = {0,5,15,25,35,45,60,78,88,95};
   s->stage = stage; s->stage_started_at = now; s->progress = progress[stage];
+  if(stage==CONTROLLER_TRANSFER_APPROACHING_OBJECT || stage==CONTROLLER_TRANSFER_TRANSPORTING)
+    s->navigation_last_progress_at=now;
 }
 void fault(ControllerObjectTransferState *s, const char *code) {
   if(s->attached && s->status!=CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY) ++s->recovery_epoch;
@@ -21,12 +23,14 @@ int controller_object_transfer_service_start(ControllerObjectTransferService *se
     const char *id, const char *object, double x, double y, double now) {
   if (!service || !id || !object || !std::isfinite(x) || !std::isfinite(y) ||
       service->state.status == CONTROLLER_TRANSFER_RUNNING ||
-      service->state.status == CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY || service->state.attached) return 0;
+      service->state.status == CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY || service->state.attached ||
+      (service->state.mission_id[0] && std::strcmp(service->state.mission_id,id)==0)) return 0;
   controller_object_transfer_service_init(service);
   auto *s = &service->state;
   std::snprintf(s->mission_id,sizeof(s->mission_id),"%s",id);
   std::snprintf(s->object_id,sizeof(s->object_id),"%s",object);
   s->destination_x=x; s->destination_y=y; s->status=CONTROLLER_TRANSFER_RUNNING;
+  s->navigation_timeout=180;
   enter(s,CONTROLLER_TRANSFER_APPROACHING_OBJECT,now); return 1;
 }
 void controller_object_transfer_service_step(ControllerObjectTransferService *service,
@@ -46,11 +50,13 @@ void controller_object_transfer_service_step(ControllerObjectTransferService *se
     } else { s->status=CONTROLLER_TRANSFER_CANCELLED; s->stage=CONTROLLER_TRANSFER_STAGE_NONE; return; }
   }
   const double elapsed=now-s->stage_started_at;
+  if(in->navigation_progress) s->navigation_last_progress_at=now;
   switch(s->stage) {
     case CONTROLLER_TRANSFER_APPROACHING_OBJECT:
       out->request_navigation=1;
       if(in->navigation_reached) enter(s,CONTROLLER_TRANSFER_ALIGNING,now);
-      else if(elapsed>180.0) fault(s,"navigation_failed"); break;
+      else if(now-s->navigation_last_progress_at>60) fault(s,"navigation_stalled");
+      else if(elapsed>s->navigation_timeout) fault(s,"navigation_failed"); break;
     case CONTROLLER_TRANSFER_ALIGNING:
       if(in->base_aligned) enter(s,CONTROLLER_TRANSFER_LOWERING_ARM,now);
       else if(elapsed>kTimeout && s->alignment_retries++==0) s->stage_started_at=now;
@@ -72,7 +78,8 @@ void controller_object_transfer_service_step(ControllerObjectTransferService *se
       out->request_navigation=1;
       if(!in->attached) fault(s,"grip_lost");
       else if(in->navigation_reached) enter(s,CONTROLLER_TRANSFER_PLACING,now);
-      else if(elapsed>180.0) fault(s,"navigation_failed"); break;
+      else if(now-s->navigation_last_progress_at>60) fault(s,"navigation_stalled");
+      else if(elapsed>s->navigation_timeout) fault(s,"navigation_failed"); break;
     case CONTROLLER_TRANSFER_PLACING:
       out->request_arm_pose=1;
       if(in->arm_reached && in->release_safe) enter(s,CONTROLLER_TRANSFER_RELEASING,now);

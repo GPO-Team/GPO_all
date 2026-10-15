@@ -50,6 +50,8 @@ int main() {
   assert(service.state.status == CONTROLLER_TRANSFER_COMPLETED);
   assert(service.state.stage == CONTROLLER_TRANSFER_STAGE_NONE);
   assert(service.state.progress == 100);
+  // A late retry must not repeat an already completed physical operation.
+  assert(!controller_object_transfer_service_start(&service, "transfer-1", "demo-box", 4.0, -2.0, now));
 
   controller_object_transfer_service_init(&service);
   assert(controller_object_transfer_service_start(&service, "transfer-2", "demo-box", 1.0, 1.0, 0.0));
