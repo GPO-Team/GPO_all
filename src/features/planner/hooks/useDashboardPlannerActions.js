@@ -154,7 +154,7 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
   const guarded = Object.fromEntries(
     Object.entries(operations).map(([name, operation]) => [
       name,
-      (...args) => {
+      typeof operation !== "function" ? operation : (...args) => {
         if (
           isEditingLocked() &&
           ![

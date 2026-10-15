@@ -22,6 +22,8 @@ describe("assembled planner actions", () => {
     }
     renderToString(<Harness />);
     const [actions] = captured;
+    expect(actions.runtimeObstacles).toEqual([]);
+    expect(actions.activeRuntimeObstacleId).toBeNull();
     await expect(actions.optimizeRoute()).resolves.toBeUndefined();
     expect(() => actions.sendRoute()).not.toThrow();
     expect(status).toHaveBeenCalledWith("Сначала постройте маршрут.");
