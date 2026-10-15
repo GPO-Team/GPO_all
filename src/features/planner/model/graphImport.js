@@ -31,7 +31,7 @@ export const deriveNextZoneNumber = (zones) => {
 
 export const buildImportedGraphStatus = (points, sourceName) => {
   const count = (kind) => points.filter((point) => point.kind === kind).length;
-  return `Граф импортирован из ${sourceName}: точек посещения ${count("visit")}, зарядок ${count("charge")}, точек зон ${count("limit")}.`;
+  return `Граф импортирован из ${sourceName}: точек посещения ${count("visit") + count("free_visit")}, зарядок ${count("charge")}, точек зон ${count("limit")}.`;
 };
 
 export const normalizeImportedGraph = (rawGraph) => {
@@ -65,7 +65,7 @@ export const normalizeImportedGraph = (rawGraph) => {
         return {
           x: point.x,
           y: point.y,
-          kind: "visit",
+          kind: point.kind === "free_visit" ? "free_visit" : "visit",
           zoneId: null,
           task: point.task || DEFAULT_POINT_TASK,
         };

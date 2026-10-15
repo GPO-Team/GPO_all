@@ -18,6 +18,7 @@ export const useDashboardPlannerEditors = (input) => {
     setStatus: input.setStatus, setSurfaceZones: input.setSurfaceZones, surfaceZones: input.surfaceZones,
   });
   const points = usePlannerPointEditor({
+    isEditingLocked:input.isEditingLocked,
     activeLimitZoneId: input.activeLimitZoneId, activePointKind: input.activePointKind,
     activeSurfaceProfileKey: input.activeSurfaceProfileKey, activeSurfaceZone: input.activeSurfaceZone,
     activeZone: input.plannerModel.activeZone, activeZoneName: input.plannerModel.activeZoneName,

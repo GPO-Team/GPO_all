@@ -34,6 +34,7 @@ export default function PlannerLeftSidebar({
   onCancelMission,
   onResumeMission,
   onStartObjectTransfer,
+  editingLocked=false,onExportCsv,hasPoints=false,
   energyWarning,
   routeBlocked,
   algorithmFields,
@@ -91,7 +92,7 @@ export default function PlannerLeftSidebar({
   onRemoveSurfaceZone,
   onClearAllSurfaceZones,
 }) {
-  const tab = { visit: "route", limit: "objects", surface: "surfaces", charge: "energy" }[activePointKind] || "route";
+  const tab = { visit: "route", free_visit: "route", limit: "objects", surface: "surfaces", charge: "energy" }[activePointKind] || "route";
   const selectTab = (key) => {
     onActivePointKindChange({ route: "visit", objects: "limit", surfaces: "surface", energy: "charge" }[key]);
   };
@@ -125,6 +126,7 @@ export default function PlannerLeftSidebar({
       <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-2 space-y-2">
       {mission?.operationType === "object_transfer" && <PlannerMissionStatus mission={mission} onCancel={onCancelMission} onResume={onResumeMission} />}
       {tab === "route" && <PlannerSetupSection
+        editingLocked={editingLocked}
         kinds={["visit"]}
         activePointKind={activePointKind}
         activeZoneName={activeZoneName}
@@ -156,6 +158,7 @@ export default function PlannerLeftSidebar({
         selectedAlgorithmParams={selectedAlgorithmParams}
       />}
       {tab === "route" && <PlannerRoutePointsSection
+        editingLocked={editingLocked}
         showVisit
         showCharge={false}
         visitEntries={visitEntries || []}
@@ -282,7 +285,7 @@ export default function PlannerLeftSidebar({
         <summary className="disclosure-trigger text-sm font-semibold">Перенос объекта</summary>
         <div className="mt-3"><PlannerObjectTransferSection onStartTransfer={onStartObjectTransfer} /></div>
       </details>}
-      {tab === "route" && <PlannerImportSection onImportFile={onImportFile} />}
+      {tab === "route" && <PlannerImportSection onImportFile={onImportFile} onExportCsv={onExportCsv} hasPoints={hasPoints} editingLocked={editingLocked} />}
       </div>
     </aside>
   );

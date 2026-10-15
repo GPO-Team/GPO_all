@@ -10,6 +10,32 @@ int main() {
   assert(controller_transfer_route_plan(&zones, -3, 0, 3, 0, .4, &route));
   assert(route.count == 1 && route.waypoints[0].x == 3);
   assert(route.waypoints[0].has_heading && route.waypoints[0].heading_rad == 0);
+  // Pickup after navigation: approach from the current side, never through cargo.
+  assert(controller_transfer_route_plan_dock(&zones,3,-1,1.4,0,.36,1,&route));
+  const auto dock=route.waypoints[route.count-1];
+  assert(dock.x>1.4 && dock.z<0);
+  assert(std::fabs(std::hypot(dock.x-1.4,dock.z)-.39)<1e-9);
+  assert(std::fabs(std::atan2(-dock.z,1.4-dock.x)-dock.heading_rad)<1e-9);
+  const ControllerTransferObstacle cargo={1.4,0,.38};
+  assert(controller_transfer_route_plan(&zones,3,0,1,0,.36,&route,0,&cargo));
+  assert(route.count>1); // Fixed dock on the far side requires a detour.
+  double ax=3, ay=0;
+  for(int i=0;i<route.count;++i) {
+    const auto &p=route.waypoints[i];
+    const double dx=p.x-ax, dy=p.z-ay;
+    const double t=std::fmax(0.0,std::fmin(1.0,((cargo.x-ax)*dx+(cargo.y-ay)*dy)/(dx*dx+dy*dy)));
+    assert(std::hypot(ax+t*dx-cargo.x,ay+t*dy-cargo.y)>=cargo.radius);
+    ax=p.x; ay=p.z;
+  }
+  auto velocity=controller_transfer_route_velocity(1,1,0,0,1,.12,.30);
+  assert(velocity.vx==0 && velocity.vy==0 && velocity.omega>0);
+  // At the dock, correct centimetre drift without changing the final heading.
+  velocity=controller_transfer_route_velocity(.02,.01,0,0,1,.12,.30);
+  assert(velocity.vx>0 && velocity.vy>0 && std::fabs(velocity.omega)<1e-9);
+  velocity=controller_transfer_route_velocity(1,1,3.141592653589793/4,0,1,.12,.30);
+  assert(velocity.vx>0 && velocity.vy==0 && std::fabs(velocity.omega)<1e-9);
+  velocity=controller_transfer_route_velocity(.001,.001,0,1.0,1,.12,.30);
+  assert(velocity.vx==0 && velocity.vy==0 && velocity.omega>0);
   zones.count = 1;
   auto &box = zones.zones[0];
   box.point_count = 4;

@@ -99,6 +99,10 @@ int main() {
   assert(controller_object_transfer_service_resume(&service,3.0));
   assert(service.state.stage==CONTROLLER_TRANSFER_RETURNING_ARM);
   assert(service.state.cancel_pending);
+  input = ready_input();
+  controller_object_transfer_service_step(&service,&input,3.1,&output);
+  assert(service.state.status==CONTROLLER_TRANSFER_CANCELLED);
+  assert(service.state.error_code[0]==0);
   service.state.status=CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY;
   assert(!controller_object_transfer_service_start(&service,"replacement","demo-box",1.0,0.0,4.0));
   return 0;

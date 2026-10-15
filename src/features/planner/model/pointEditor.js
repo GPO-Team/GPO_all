@@ -35,12 +35,12 @@ export const appendPlannerPoint = (
     ...point,
     kind,
     zoneId: kind === "limit" ? activeLimitZoneId : null,
-    task: kind === "visit" ? defaultPointTask : null,
+    task: ["visit","free_visit"].includes(kind) ? defaultPointTask : null,
   },
 ];
 
 export const removePlannerPointsByKind = (points, kind) =>
-  kind ? points.filter((point) => point.kind !== kind) : [];
+  kind ? points.filter((point) => kind === "visit" ? !["visit","free_visit"].includes(point.kind) : point.kind !== kind) : [];
 
 export const removePlannerPoint = (points, pointIndex) =>
   points.filter((_, index) => index !== pointIndex);

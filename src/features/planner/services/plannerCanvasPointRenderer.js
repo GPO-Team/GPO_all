@@ -27,6 +27,7 @@ export const renderPlannerPointLayer = (ctx, state) => {
   });
 
   state.visitEntries.forEach((entry) => {
+    const numbered=entry.point.kind !== "free_visit";
     const plannedEntry = state.plannedVisitEntryMap.get(entry.index);
     const point = worldToCanvas(entry.point.x, entry.point.y);
     const hovered = state.hoveredPointIndex === entry.index;
@@ -51,7 +52,7 @@ export const renderPlannerPointLayer = (ctx, state) => {
       ctx.font = `700 ${11 / markerScale}px 'Segoe UI', sans-serif`;
       ctx.textAlign = "left";
       ctx.textBaseline = "bottom";
-      ctx.fillText(`V${entry.order} -> S${entry.order}`, projected.x + 12 / markerScale, projected.y - 8 / markerScale);
+      ctx.fillText(numbered ? `V${entry.order} -> S${entry.order}` : "Свободная точка", projected.x + 12 / markerScale, projected.y - 8 / markerScale);
       if (hovered) {
         ctx.strokeStyle = "rgba(245, 158, 11, 0.9)";
         ctx.lineWidth = 3 / markerScale;
@@ -70,9 +71,9 @@ export const renderPlannerPointLayer = (ctx, state) => {
       ctx.font = `700 ${11 / markerScale}px 'Segoe UI', sans-serif`;
       ctx.textAlign = "left";
       ctx.textBaseline = "bottom";
-      ctx.fillText(`V${entry.order}`, point.x + 14 / markerScale, point.y - 12 / markerScale);
+      ctx.fillText(numbered ? `V${entry.order}` : "Свободная точка", point.x + 14 / markerScale, point.y - 12 / markerScale);
     }
-    ctx.fillStyle = POINT_KIND_META.visit.color;
+    ctx.fillStyle = POINT_KIND_META[numbered ? "visit" : "free_visit"].color;
     ctx.beginPath();
     ctx.arc(point.x, point.y, 13 / markerScale, 0, Math.PI * 2);
     ctx.fill();
@@ -81,9 +82,9 @@ export const renderPlannerPointLayer = (ctx, state) => {
     ctx.textBaseline = "middle";
     ctx.lineWidth = 3 / markerScale;
     ctx.strokeStyle = "rgba(0, 0, 0, 0.45)";
-    ctx.strokeText(String(entry.order), point.x, point.y);
+    if(numbered)ctx.strokeText(String(entry.order), point.x, point.y);
     ctx.fillStyle = "#fff";
-    ctx.fillText(String(entry.order), point.x, point.y);
+    if(numbered)ctx.fillText(String(entry.order), point.x, point.y);
   });
 
 };

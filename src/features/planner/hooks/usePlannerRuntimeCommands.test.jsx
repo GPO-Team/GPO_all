@@ -54,3 +54,40 @@ it("tracks exact spawn sizes and independent acknowledgements and failures", asy
     expect(actions.activeRuntimeObstacleId).toBeNull();
   } finally { await act(async () => root.unmount()); }
 });
+
+it("shows a large-box rejection and safely retries the same mission", async () => {
+  vi.clearAllMocks();
+  const root = createRoot(document.createElement("div"));
+  const track = vi.fn();
+  const captured = [];
+  function Harness() {
+    const actions = usePlannerRuntimeCommands({
+      plannerModel: {}, batteryRangeMeters: 100, payloadKg: 0,
+      routeSocketRef: { current: null }, setStatus: vi.fn(), onMissionSubmitted: track,
+    });
+    captured.push(actions);
+    return null;
+  }
+  try {
+    await act(async () => root.render(<Harness />));
+    const [actions] = captured;
+    sendRouteChannelPayload.mockImplementationOnce(async (_socket, _command, callbacks) => {
+      callbacks.onError(new Error("Путь к коробке перекрыт."));
+      return false;
+    });
+    await expect(actions.startObjectTransfer({ x: 2, y: 0.6 })).rejects.toThrow("Путь к коробке перекрыт.");
+    sendRouteChannelPayload.mockImplementation(async (_socket, command, callbacks) => {
+      callbacks.onSent({ missionId: command.requestId, status: "persisted" });
+      return true;
+    });
+    await actions.startObjectTransfer({ x: 2, y: 0.6 });
+    const first = sendRouteChannelPayload.mock.calls[0][1];
+    expect(first.requestId).toBeTruthy();
+    expect(sendRouteChannelPayload.mock.calls[1][1]).toEqual(first);
+    expect(track).toHaveBeenCalledWith({ missionId: first.requestId, status: "persisted" });
+    await actions.startObjectTransfer({ x: 2, y: 0.6 });
+    expect(sendRouteChannelPayload.mock.calls[2][1].requestId).not.toBe(first.requestId);
+  } finally {
+    await act(async () => root.unmount());
+  }
+});

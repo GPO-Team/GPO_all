@@ -38,19 +38,21 @@ export const usePlannerRouteOptimization = ({ driveMode = "optimized", algorithm
     try {
       // The editor numbering follows visitPoints. Use the shared safety/energy
       // planner directly so this mode never sorts or rotates the visit order.
+      const visitPoints = plannerModel.visitEntries?.map((entry) => entry.point) || plannerModel.visitPoints;
       const solveResult = driveMode === "ordered" ? {
-        seedRoute: plannerModel.visitPoints.map(({ x, y }) => ({ x, y })),
+        seedRoute: visitPoints.map(({ x, y }) => ({ x, y })),
         planning: buildRouteWithEnergyStops({
-          seedRoute: plannerModel.visitPoints,
+          seedRoute: visitPoints,
           polygons: plannerModel.previewPolygons,
           surfaceZones: plannerModel.surfaceZones,
           chargingStations: plannerModel.chargePoints,
           batteryRangeMeters,
           energyOptions,
         }),
-      } : await solveRouteWithNativeAlgorithm(plannerModel.visitPoints, algorithmKey, selectedAlgorithmParams, routeTaskKey, controller.signal, {
+      } : await solveRouteWithNativeAlgorithm(visitPoints, algorithmKey, selectedAlgorithmParams, routeTaskKey, controller.signal, {
         scene:buildSceneSnapshot({plannerModel,batteryRangeMeters,energyOptions,preview:true}),
         anchor:getRouteAnchor(telemetry),
+        visitOrder:plannerModel.visitOrder,
       });
       if (controller.signal.aborted) return;
       const solvedRoute = solveResult.seedRoute;
@@ -60,7 +62,8 @@ export const usePlannerRouteOptimization = ({ driveMode = "optimized", algorithm
       setOptimizedRoute(routed.route);
       setRouteEnergyStats(buildRouteEnergyStats(routed));
       setEnergyWarning("");
-      setStatus(buildRouteOptimizationStatus({ adjustedVisitCount: plannerModel.adjustedVisits.length, algorithmLabel: driveMode === "ordered" ? "1 → 2 → 3" : getAlgorithmLabel(algorithmKey), blocked: routeCrossesAnyLimitPolygon(routed.route, plannerModel.previewPolygons), routed, taskLabel: driveMode === "ordered" ? "По номерам точек" : getTaskLabel(routeTaskKey) }));
+      const status = buildRouteOptimizationStatus({ adjustedVisitCount: plannerModel.adjustedVisits.length, algorithmLabel: driveMode === "ordered" ? "1 → 2 → 3" : getAlgorithmLabel(algorithmKey), blocked: routeCrossesAnyLimitPolygon(routed.route, plannerModel.previewPolygons), routed, taskLabel: driveMode === "ordered" ? "По номерам точек" : getTaskLabel(routeTaskKey) });
+      setStatus(status+(solveResult.visitOrdering ? ` Нумерованные — по порядку; свободные — ${solveResult.visitOrdering.optimal ? "точный минимум по доступным путям" : "лучший найденный порядок без гарантии глобального минимума"}.` : ""));
     } catch (error) {
       if (controller.signal.aborted) return;
       setRouteSeed([]);

@@ -38,6 +38,7 @@ describe("graph import model", () => {
       buildImportedGraphStatus(
         [
           { kind: "visit" },
+          { kind: "free_visit" },
           { kind: "charge" },
           { kind: "limit" },
           { kind: "limit" },
@@ -45,7 +46,7 @@ describe("graph import model", () => {
         "route.csv"
       )
     ).toBe(
-      "Граф импортирован из route.csv: точек посещения 1, зарядок 1, точек зон 2."
+      "Граф импортирован из route.csv: точек посещения 2, зарядок 1, точек зон 2."
     );
   });
 });

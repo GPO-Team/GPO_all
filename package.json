@@ -26,6 +26,7 @@
     "test:simulation": "node scripts/simulation-smoke-test.mjs",
     "test:manipulator": "node scripts/manipulator-smoke-test.mjs",
     "test:delivery": "node scripts/manipulator-smoke-test.mjs --mobile --near-object --inject-route",
+    "test:delivery:after-demo": "node scripts/manipulator-smoke-test.mjs --after-demo",
     "test:route-after-delivery": "node scripts/manipulator-smoke-test.mjs --route-after-delivery",
     "test:manipulator:contacts": "node scripts/manipulator-contact-smoke-test.mjs",
     "test:manipulator:def": "node scripts/manipulator-smoke-test.mjs",

@@ -19,7 +19,7 @@ void controller_manipulator_forward(const double q[5], double p[3]) {
 
 int controller_manipulator_inverse(const double p[3], double q[5]) {
   if (!p || !q) return 0;
-  for (int i = 0; i < 3; ++i) if (!isfinite(p[i])) return 0;
+  for (int i = 0; i < 3; ++i) if (!std::isfinite(p[i])) return 0;
   const double dx = p[0] - 0.156, dy = p[1];
   const double r = hypot(dx, dy) - 0.033;
   const double z = p[2] - 0.147 + ARM_TOOL_LENGTH;
@@ -30,7 +30,7 @@ int controller_manipulator_inverse(const double p[3], double q[5]) {
   q[1] = atan2(-r, z) - atan2(0.135 * sin(q[2]), 0.155 + 0.135 * cos(q[2]));
   q[3] = -ARM_PI - q[1] - q[2];
   q[4] = 0;
-  for (int i = 0; i < 5; ++i) if (!isfinite(q[i]) || q[i] < lower[i] || q[i] > upper[i]) return 0;
+  for (int i = 0; i < 5; ++i) if (!std::isfinite(q[i]) || q[i] < lower[i] || q[i] > upper[i]) return 0;
   return 1;
 }
 
@@ -90,7 +90,7 @@ int controller_manipulator_start(ControllerManipulator *arm, const double source
 
 static int joints_ready(const ControllerManipulator *arm, const ControllerManipulatorSample *sample) {
   for (int i = 0; i < 5; ++i) {
-    if (!isfinite(sample->joints[i]) || fabs(sample->joints[i] - arm->targets[i]) > 0.015) return 0;
+    if (!std::isfinite(sample->joints[i]) || fabs(sample->joints[i] - arm->targets[i]) > 0.015) return 0;
   }
   return 1;
 }
@@ -101,13 +101,13 @@ static double distance(const double a[3], const double b[3]) {
 
 static void freeze_at_sample(ControllerManipulator *arm, const ControllerManipulatorSample *sample) {
   for (int i = 0; i < 5; ++i) {
-    if (isfinite(sample->joints[i])) arm->targets[i] = fmax(lower[i], fmin(upper[i], sample->joints[i]));
+    if (std::isfinite(sample->joints[i])) arm->targets[i] = fmax(lower[i], fmin(upper[i], sample->joints[i]));
     else arm->halt_motion = 1;
   }
   for (int i = 0; i < 2; ++i) {
-    arm->held_fingers[i] = isfinite(sample->fingers[i]) ? fmax(0, fmin(0.025, sample->fingers[i]))
+    arm->held_fingers[i] = std::isfinite(sample->fingers[i]) ? fmax(0, fmin(0.025, sample->fingers[i]))
         : controller_manipulator_finger_target(arm, i);
-    if (!isfinite(sample->fingers[i])) arm->halt_motion = 1;
+    if (!std::isfinite(sample->fingers[i])) arm->halt_motion = 1;
   }
   arm->hold_fingers = 1;
 }
@@ -122,7 +122,7 @@ static void fail(ControllerManipulator *arm, const ControllerManipulatorSample *
 void controller_manipulator_cancel(ControllerManipulator *arm, const ControllerManipulatorSample *sample) {
   if (!controller_manipulator_active(arm) || !sample) return;
   freeze_at_sample(arm, sample);
-  if (isfinite(sample->fingers[0]) && isfinite(sample->fingers[1])) {
+  if (std::isfinite(sample->fingers[0]) && std::isfinite(sample->fingers[1])) {
     arm->finger_target = fmax(0, fmin(0.025, fmin(sample->fingers[0], sample->fingers[1])));
   }
   if (arm->halt_motion) arm->error = "invalid_sensor";
@@ -130,12 +130,12 @@ void controller_manipulator_cancel(ControllerManipulator *arm, const ControllerM
 }
 
 void controller_manipulator_step(ControllerManipulator *arm, const ControllerManipulatorSample *sample, double dt) {
-  if (!controller_manipulator_active(arm) || !sample || !isfinite(dt) || dt <= 0) return;
+  if (!controller_manipulator_active(arm) || !sample || !std::isfinite(dt) || dt <= 0) return;
   if (!sample->object_valid) { fail(arm, sample, "object_missing"); return; }
-  for (int i = 0; i < 3; ++i) if (!isfinite(sample->object[i])) { fail(arm, sample, "invalid_sensor"); return; }
-  for (int i = 0; i < 5; ++i) if (!isfinite(sample->joints[i])) { fail(arm, sample, "invalid_sensor"); return; }
-  for (int i = 0; i < 2; ++i) if (!isfinite(sample->fingers[i])) { fail(arm, sample, "invalid_sensor"); return; }
-  if (sample->contacts_required && (!isfinite(sample->contacts[0]) || !isfinite(sample->contacts[1]))) {
+  for (int i = 0; i < 3; ++i) if (!std::isfinite(sample->object[i])) { fail(arm, sample, "invalid_sensor"); return; }
+  for (int i = 0; i < 5; ++i) if (!std::isfinite(sample->joints[i])) { fail(arm, sample, "invalid_sensor"); return; }
+  for (int i = 0; i < 2; ++i) if (!std::isfinite(sample->fingers[i])) { fail(arm, sample, "invalid_sensor"); return; }
+  if (sample->contacts_required && (!std::isfinite(sample->contacts[0]) || !std::isfinite(sample->contacts[1]))) {
     fail(arm, sample, "invalid_sensor"); return;
   }
   arm->elapsed += dt;

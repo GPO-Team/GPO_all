@@ -10,7 +10,6 @@ namespace {
 constexpr double kHandleOffset=0.115;
 constexpr double kHandleCenterOffset=0.10;
 constexpr double kGripDistance=0.40;
-constexpr double kDestinationGripDistance=0.40;
 constexpr double kOpen=0.0115;
 constexpr double kPlatformOffset=-0.09;
 constexpr double kPlatformCargoHeight=0.1235;
@@ -40,11 +39,32 @@ void fail(ControllerObjectTransferRuntime *r,const char *error) {
       s.attached ? 0.0 : (s.finger_positions[0]+s.finger_positions[1])*0.5);
   controller_webots_devices_reset_wheels(r->devices);
 }
-void waypoint(ControllerObjectTransferRuntime *r,double x,double y) {
+void waypoint(ControllerObjectTransferRuntime *r,double x,double y,int pickup) {
   auto *n=r->navigation;
   const double *base=wb_supervisor_node_get_position(wb_supervisor_node_get_self());
-  if(!controller_transfer_route_plan(&n->limit_zones,base[0],base[1],x,y,
-      (r->service.state.attached || r->service.state.on_platform) ? 0.50 : 0.36,&n->route)) {
+  ZoneData zones=n->limit_zones;
+  // The other box remains a physical obstacle during DEMO_BOX delivery.
+  // Otherwise the approach from the origin can push PICK_BOX onto its side.
+  WbNodeRef small=wb_supervisor_node_get_from_def("PICK_BOX");
+  if(small) {
+    const double *p=wb_supervisor_node_get_position(small);
+    const double *rotation=wb_supervisor_node_get_orientation(small);
+    WbFieldRef bounding=wb_supervisor_node_get_field(small,"boundingObject");
+    WbNodeRef shape=bounding ? wb_supervisor_field_get_sf_node(bounding) : nullptr;
+    if(shape && p && rotation && std::strcmp(wb_supervisor_node_get_base_type_name(shape),"Box")==0) {
+      const double *size=wb_supervisor_field_get_sf_vec3f(wb_supervisor_node_get_field(shape,"size"));
+      if(size) {
+        if(zones.count>=MAX_ZONES){fail(r,"navigation_unreachable");return;}
+        const double hx=.5*(std::fabs(rotation[0])*size[0]+std::fabs(rotation[1])*size[1]+std::fabs(rotation[2])*size[2]);
+        const double hy=.5*(std::fabs(rotation[3])*size[0]+std::fabs(rotation[4])*size[1]+std::fabs(rotation[5])*size[2]);
+        auto &zone=zones.zones[zones.count++];zone.point_count=4;
+        zone.points[0]={p[0]-hx,p[1]-hy};zone.points[1]={p[0]+hx,p[1]-hy};
+        zone.points[2]={p[0]+hx,p[1]+hy};zone.points[3]={p[0]-hx,p[1]+hy};
+      }
+    }
+  }
+  if(!controller_transfer_route_plan_dock(&zones,base[0],base[1],x,y,
+      (r->service.state.attached || r->service.state.on_platform) ? 0.50 : 0.36,pickup,&n->route)) {
     fail(r,"navigation_unreachable"); return;
   }
   std::snprintf(n->route.command_id,sizeof(n->route.command_id),"%s",r->service.state.mission_id);
@@ -55,9 +75,13 @@ void waypoint(ControllerObjectTransferRuntime *r,double x,double y) {
 int arm_target_pitch(ControllerObjectTransferRuntime *r,double wx,double wy,double wz,
     double pitch,double opening,double now,double rx,double ry,double heading) {
   const double *base=wb_supervisor_node_get_position(wb_supervisor_node_get_self());
-  const double dx=wx-rx,dy=wy-ry;
-  ControllerManipulatorTcp tcp={std::cos(heading)*dx+std::sin(heading)*dy,
-      -std::sin(heading)*dx+std::cos(heading)*dy,wz-base[2],pitch,0.0};
+  const double *orientation=wb_supervisor_node_get_orientation(wb_supervisor_node_get_self());
+  if(!base || !orientation) { fail(r,"sensor_invalid"); return 0; }
+  (void)rx; (void)ry; (void)heading;
+  const double delta[]={wx-base[0],wy-base[1],wz-base[2]};
+  double local[3]={};
+  for(int i=0;i<3;++i) for(int j=0;j<3;++j) local[i]+=orientation[j*3+i]*delta[j];
+  ControllerManipulatorTcp tcp={local[0],local[1],local[2],pitch,r->grip_roll};
   ControllerManipulatorTarget target={}; target.finger_opening=opening;
   if(!controller_manipulator_inverse(&tcp,r->service.state.joint_positions,target.joints)) {
     fail(r,"target_unreachable"); return 0;
@@ -128,7 +152,7 @@ void configure(ControllerObjectTransferRuntime *r,double now,double rx,double ry
     case CONTROLLER_TRANSFER_RETURNING_ARM_FOR_TRANSPORT:
       platform_target(r,rx,ry,heading,0.06,kOpen,now); break;
     case CONTROLLER_TRANSFER_TRANSPORTING:
-      waypoint(r,s.destination_x-kDestinationGripDistance,s.destination_y); break;
+      waypoint(r,s.destination_x,s.destination_y,0); break;
     case CONTROLLER_TRANSFER_PICKING_FROM_PLATFORM:
       arm_target_pitch(r,platform_handle[0],platform_handle[1],platform_handle[2]+0.06,
           kPlatformGripPitch,kOpen,now,rx,ry,heading); break;
@@ -139,7 +163,10 @@ void configure(ControllerObjectTransferRuntime *r,double now,double rx,double ry
       arm_target_pitch(r,platform_handle[0],platform_handle[1],platform_handle[2]+0.10,
           kPlatformGripPitch,0.0,now,rx,ry,heading); break;
     case CONTROLLER_TRANSFER_PLACING:
-      arm_target(r,s.destination_x,s.destination_y,r->initial_object_z+kHandleOffset+0.06,
+      // Cancellation lowers the held cargo directly. Raising over its tilted
+      // centre first can exceed reach even though the current grip is valid.
+      if(s.cancel_pending) r->arm_phase=1;
+      arm_target(r,s.destination_x,s.destination_y,r->initial_object_z+kHandleOffset+(s.cancel_pending ? 0 : .06),
           0.0,now,rx,ry,heading); break;
     case CONTROLLER_TRANSFER_RELEASING:
     {
@@ -152,7 +179,7 @@ void configure(ControllerObjectTransferRuntime *r,double now,double rx,double ry
       std::memcpy(s.joint_targets,target.joints,sizeof(target.joints));break;
     }
     case CONTROLLER_TRANSFER_RETURNING_ARM:
-      if(!s.attached && !r->object.attached && s.error_code[0]) {
+      if(!s.attached && !r->object.attached && (s.error_code[0] || s.cancel_pending)) {
         r->arm_phase=1;
         auto parked=controller_manipulator_service_target(CONTROLLER_MANIPULATOR_TRANSPORT);
         parked.finger_opening=kOpen;
@@ -218,7 +245,13 @@ void controller_object_transfer_runtime_command(ControllerObjectTransferRuntime 
   if(!controller_webots_object_adapter_position(&r->object,&x,&y,&z)) { fail(r,"object_unavailable"); return; }
   r->initial_object_z=z; r->configured_stage=CONTROLLER_TRANSFER_STAGE_NONE;
   r->cancel_recovery_attempted=0;
-  waypoint(r,x-kGripDistance,y);
+  waypoint(r,x,y,1);
+  const double *orientation=wb_supervisor_node_get_orientation(r->object.node);
+  if(r->service.state.status==CONTROLLER_TRANSFER_RUNNING && orientation && r->navigation->route.count) {
+    const double dock_heading=r->navigation->route.waypoints[r->navigation->route.count-1].heading_rad;
+    // The downward wrist rotates about -Z. Match the square handle before closing.
+    r->grip_roll=std::remainder(dock_heading-std::atan2(orientation[3],orientation[0]),3.14159265358979323846);
+  }
 }
 int controller_object_transfer_runtime_allows_navigation(const ControllerObjectTransferRuntime *r) {
   if(!r) return 1;

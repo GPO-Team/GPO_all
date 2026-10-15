@@ -8,6 +8,7 @@ export const sendRouteChannelPayload = (routeSocketRef, payload, { onSent, onErr
     const temporary = shared?.readyState !== WebSocket.OPEN;
     const socket = temporary ? new WebSocket(ROUTE_WS_URL) : shared;
     let settled = false;
+    let sent=false;
     const finish = (error, acknowledgement) => {
       if (settled) return;
       settled = true;
@@ -17,12 +18,12 @@ export const sendRouteChannelPayload = (routeSocketRef, payload, { onSent, onErr
       socket.removeEventListener("error", fail);
       socket.removeEventListener("close", fail);
       if (temporary) socket.close();
-      if (error) onError?.(error);
+      if (error) {error.mayHaveReachedRobot=sent && !acknowledgement;onError?.(error);}
       else onSent?.(acknowledgement);
       resolve(!error);
     };
     const send = () => {
-      try { socket.send(JSON.stringify({ ...payload, requestId })); }
+      try { socket.send(JSON.stringify({ ...payload, requestId }));sent=true; }
       catch (error) { finish(error); }
     };
     const receive = (event) => {
