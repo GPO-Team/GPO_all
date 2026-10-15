@@ -3,6 +3,8 @@ x-runtime: &runtime
   build:
     context: .
     dockerfile: docker/bridge.Dockerfile
+    args:
+      GPO_SOURCE_REVISION: ${GPO_SOURCE_REVISION:-unknown}
   init: true
   restart: unless-stopped
   stop_grace_period: 15s
@@ -74,6 +76,8 @@ services:
     build:
       context: .
       dockerfile: docker/frontend.Dockerfile
+      args:
+        GPO_SOURCE_REVISION: ${GPO_SOURCE_REVISION:-unknown}
     depends_on:
       planning: {condition: service_healthy}
       route: {condition: service_healthy}

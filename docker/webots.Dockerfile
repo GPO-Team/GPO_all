@@ -10,6 +10,8 @@ COPY docker/cache-webots-assets.py /cache-webots-assets.py
 COPY webots/worlds/youbot_only.wbt /project/worlds/youbot_only.wbt
 COPY webots/protos /project/protos
 RUN python /cache-webots-assets.py
+COPY docker/webots-healthcheck.py docker/test_webots_healthcheck.py /healthcheck/
+RUN python -m unittest discover -s /healthcheck -p 'test_*.py'
 
 FROM cyberbotics/webots:R2025a-ubuntu22.04
 USER root
@@ -27,5 +29,7 @@ RUN sed -i 's/\r$//' /usr/local/bin/start-project-webots && chmod +x /usr/local/
     chown -R simulator:simulator /project
 ENV WEB_STATE_DIR=/data/webots
 USER simulator
+ARG GPO_SOURCE_REVISION=unknown
+LABEL org.opencontainers.image.revision=$GPO_SOURCE_REVISION
 EXPOSE 1234
 ENTRYPOINT ["/usr/local/bin/start-project-webots"]

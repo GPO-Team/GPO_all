@@ -57,3 +57,4 @@ public/webots/wwi/
 /docs/audit-*/
 
 /docs/superpowers/
+__pycache__/
