@@ -1,15 +1,15 @@
-FROM node:22-bookworm-slim AS native-build
+FROM node:25-bookworm-slim AS native-build
 RUN apt-get update && apt-get install --yes --no-install-recommends cmake g++ make && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY native ./native
 RUN cmake -S native -B native/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF && cmake --build native/build --parallel
 
-FROM node:22-bookworm-slim AS dependencies
+FROM node:25-bookworm-slim AS dependencies
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
-FROM node:22-bookworm-slim AS runtime
+FROM node:25-bookworm-slim AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
