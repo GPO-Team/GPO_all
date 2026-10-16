@@ -22,4 +22,6 @@ COPY docker/init-container-secret.cjs ./docker/init-container-secret.cjs
 COPY package.json ./
 RUN mkdir -p /data/missions /data/webots /data/webots/gateway-journal && chown -R node:node /data
 USER node
+ARG GPO_SOURCE_REVISION=unknown
+LABEL org.opencontainers.image.revision=$GPO_SOURCE_REVISION
 CMD ["node", "bridge/processes/run-planning-service.cjs"]

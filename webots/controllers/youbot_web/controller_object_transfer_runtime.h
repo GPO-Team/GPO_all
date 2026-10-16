@@ -29,6 +29,8 @@ typedef struct {
   int cancel_recovery_attempted;
   int have_joint_measurement;
   double last_grip_seen;
+  double linear_speed_limit,angular_speed_limit;
+  double progress_pose[3];
 } ControllerObjectTransferRuntime;
 
 void controller_object_transfer_runtime_init(
@@ -56,5 +58,7 @@ void controller_object_transfer_platform_pose(
 int controller_object_transfer_object_on_platform(
     double robot_x,double robot_y,double robot_z,double heading,
     double object_x,double object_y,double object_z);
+void controller_object_transfer_runtime_set_speed_limits(ControllerObjectTransferRuntime *runtime,
+    double linear_speed_limit, double angular_speed_limit);
 
 #endif

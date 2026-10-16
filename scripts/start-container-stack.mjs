@@ -1,82 +1,30 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import path from "node:path";
+import { runContainerStack } from "./container-stack.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
-const project = process.env.STACK_PROJECT || "gpo-full";
-const args = process.argv.slice(2);
-const allowed = new Set(["--no-build", "--cpu", "--gpu", "--gui"]);
-for (const arg of args) {
-  if (!allowed.has(arg)) throw new Error(`Unknown option: ${arg}`);
-}
-if (args.includes("--cpu") && args.includes("--gpu")) {
-  throw new Error("Use either --cpu or --gpu, not both.");
-}
-
-const baseFiles = ["-f", "compose.yaml", "-f", "compose.simulator.yaml"];
-const gpuFiles = ["-f", "compose.simulator.gpu-wslg.yaml"];
-const run = (commandArgs, { capture = false, env = process.env } = {}) =>
+const run = (args, { capture = false, env = process.env, timeoutMs = 0 } = {}) =>
   new Promise((resolve, reject) => {
-    const child = spawn("docker", commandArgs, {
-      cwd: root,
-      env,
-      windowsHide: true,
+    const child = spawn("docker", args, {
+      cwd: root, env, windowsHide: true, timeout: timeoutMs,
       stdio: capture ? ["ignore", "pipe", "pipe"] : "inherit",
     });
     let output = "";
     child.stdout?.on("data", data => { output += data; });
     child.stderr?.on("data", data => { output += data; });
     child.on("error", reject);
-    child.on("exit", code => resolve({ code, output }));
+    child.on("close", (code, signal) => resolve({ code: code ?? 1, output: output + (signal ? `\nDocker command stopped (${signal}); timeout ${timeoutMs}ms` : "") }));
   });
 
-const compose = (...composeArgs) =>
-  run(["compose", "-p", project, ...baseFiles, ...composeArgs]);
+let revision = "unknown";
+try {
+  const git = args => execFileSync("git", args, { cwd: root, windowsHide: true, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  revision = git(["rev-parse", "HEAD"]) + (git(["status", "--porcelain"]) ? "-dirty" : "");
+} catch { /* A source archive can run without Git. */ }
 
-async function wslgGpuAvailable() {
-  const x11Path = process.env.WSLG_X11_PATH || "/mnt/host/wslg/.X11-unix";
-  const wslLibPath = process.env.WSL_LIB_PATH || "/usr/lib/wsl";
-  const probe = await run([
-    "run",
-    "--rm",
-    "--device", "/dev/dxg:/dev/dxg",
-    "--mount", `type=bind,source=${x11Path},target=/probe-x11,readonly`,
-    "--mount", `type=bind,source=${wslLibPath},target=/probe-wsl,readonly`,
-    "--entrypoint", "node",
-    "gpo-service:local",
-    "-e",
-    "const f=require('fs');process.exit(f.existsSync('/dev/dxg')&&f.existsSync('/probe-x11')&&f.existsSync('/probe-wsl/lib')?0:1)",
-  ], { capture: true });
-  return probe.code === 0;
+try {
+  await runContainerStack({ run, args: process.argv.slice(2), revision });
+} catch (error) {
+  console.error(error.message);
+  process.exitCode = 1;
 }
-
-if (!args.includes("--no-build")) {
-  const built = await compose("build");
-  if (built.code !== 0) process.exit(built.code || 1);
-}
-
-const gpuAvailable = args.includes("--cpu") ? false : await wslgGpuAvailable();
-if (args.includes("--gpu") && !gpuAvailable) {
-  throw new Error("GPU mode requested, but Docker cannot access WSLg /dev/dxg and its graphics mounts.");
-}
-const useGpu = !args.includes("--cpu") && gpuAvailable;
-const useGui = args.includes("--gui");
-if (useGui && !useGpu) {
-  throw new Error("Webots GUI requires Docker Desktop with working WSLg GPU access. Remove --gui to use the browser viewer.");
-}
-
-const renderer = useGpu ? (args.includes("--gpu") ? "gpu" : "auto") : "cpu";
-console.log(useGpu
-  ? "GPU доступен: запускаю Webots с аппаратным OpenGL (с автоматическим откатом на CPU)."
-  : "Совместимый GPU/WSLg не найден: запускаю Webots на CPU.");
-if (useGui) console.log("Открываю полное окно Webots через WSLg.");
-const started = await run([
-  "compose",
-  "-p", project,
-  ...baseFiles,
-  ...(useGpu ? gpuFiles : []),
-  "up", "-d", "--wait", "--wait-timeout", "180",
-], { env: { ...process.env, WEBOTS_RENDERER: renderer, WEBOTS_UI: useGui ? "gui" : "browser" } });
-if (started.code !== 0) process.exit(started.code || 1);
-console.log(useGui
-  ? "Стек готов: окно Webots открыто; dashboard: http://127.0.0.1:8080/dashboard"
-  : "Стек готов: http://127.0.0.1:8080/dashboard");

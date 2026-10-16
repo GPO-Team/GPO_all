@@ -5,6 +5,8 @@ services:
     build:
       context: .
       dockerfile: docker/bridge.Dockerfile
+      args:
+        GPO_SOURCE_REVISION: ${GPO_SOURCE_REVISION:-unknown}
     user: '0:0'
     command: [node, docker/init-container-secret.cjs]
     volumes: [container-secrets:/run/secrets]
@@ -17,6 +19,8 @@ services:
     build:
       context: .
       dockerfile: docker/bridge.Dockerfile
+      args:
+        GPO_SOURCE_REVISION: ${GPO_SOURCE_REVISION:-unknown}
     command: [node, bridge/processes/run-gateway-service.cjs]
     init: true
     restart: unless-stopped
@@ -45,6 +49,8 @@ services:
     build:
       context: .
       dockerfile: docker/webots.Dockerfile
+      args:
+        GPO_SOURCE_REVISION: ${GPO_SOURCE_REVISION:-unknown}
     init: true
     restart: unless-stopped
     environment:

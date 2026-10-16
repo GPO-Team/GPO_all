@@ -144,3 +144,30 @@ ControllerTransferVelocity controller_transfer_route_velocity(double dx, double 
   const double speed = std::min(speed_limit,distance*.6);
   return {speed*std::max(0.0,std::cos(error)),0,angular};
 }
+
+double controller_transfer_route_timeout(const RouteData *route, double x, double y,
+    double heading, double speed_limit, double angular_limit) {
+  if (!route || route->count < 1 || route->count > MAX_WAYPOINTS ||
+      !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(heading) ||
+      !std::isfinite(speed_limit) || speed_limit <= 0 ||
+      !std::isfinite(angular_limit) || angular_limit <= 0) return 0;
+  double length=0,turns=0;
+  for(int i=0;i<route->count;++i) {
+    const auto &point=route->waypoints[i];
+    if(!std::isfinite(point.x) || !std::isfinite(point.z) ||
+        (point.has_heading && !std::isfinite(point.heading_rad))) return 0;
+    const double distance=std::hypot(point.x-x,point.z-y);
+    if(distance>1e-6) {
+      const double bearing=std::atan2(point.z-y,point.x-x);
+      turns+=std::fabs(std::remainder(bearing-heading,2*3.14159265358979323846));
+      heading=bearing;length+=distance;
+    }
+    if(point.has_heading) {
+      turns+=std::fabs(std::remainder(point.heading_rad-heading,2*3.14159265358979323846));
+      heading=point.heading_rad;
+    }
+    x=point.x;y=point.z;
+  }
+  // Allow acceleration, precision docking and moderate avoidance detours.
+  return 30+2*length/speed_limit+2*turns/angular_limit+8*route->count;
+}

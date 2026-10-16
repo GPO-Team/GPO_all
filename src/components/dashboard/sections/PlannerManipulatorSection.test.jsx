@@ -2,6 +2,15 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it } from "vitest";
 import PlannerManipulatorSection from "./PlannerManipulatorSection";
+it.each([
+  ["manipulator_path_blocked","Траектория руки пересекает препятствие или запретную зону"],
+  ["unsafe_release","Безопасно опустить груз сейчас невозможно"],
+  ["navigation_stalled","База перестала продвигаться по маршруту"],
+])("explains safety stop %s", (error,description) => {
+  const html=renderToStaticMarkup(<PlannerManipulatorSection connected
+    mission={{missionId:"safety-stop",status:"failed",failureReason:error}}/>);
+  expect(html).toContain(description);
+});
 it.each([["driving_to_object","База подъезжает к объекту"],["carrying","База перевозит груз"],["stowing","Рука возвращается в транспортное положение"]])("shows active delivery phase %s and its stop button", (stage,label) => {
   const html=renderToStaticMarkup(<PlannerManipulatorSection connected onCancel={()=>{}}
     mission={{missionId:"delivery",status:"running"}} telemetry={{manipulator:{missionId:"delivery",stage,active:true}}} />);

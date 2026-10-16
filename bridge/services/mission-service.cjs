@@ -27,7 +27,7 @@ const createMissionService = ({repository, adapter, now = () => new Date().toISO
     const matching=feedback?.missionId===record.missionId;
     const rank={persisted:0,accepted:1,running:2,holding_for_recovery:3,cancelling:4,completed:5,failed:5,cancelled:5};
     const resumed=record.status==="holding_for_recovery" && feedback?.status==="running" && !feedback.cached && Boolean(record.resumeRequestId);
-    const safelyHeld=record.operationType==="object_transfer" && feedback?.status==="holding_for_recovery";
+    const safelyHeld=["object_transfer","pick_place"].includes(record.operationType) && feedback?.status==="holding_for_recovery";
     const status=matching && feedback.status in rank && (rank[feedback.status]>=rank[record.status] || resumed || safelyHeld) ? feedback.status : record.status;
     const validRecoveryEpoch=matching && !feedback.cached && Number.isSafeInteger(feedback.recoveryEpoch) && feedback.recoveryEpoch>=0;
     const controllerRecoveryEpoch=validRecoveryEpoch ? Math.max(record.controllerRecoveryEpoch || 0,feedback.recoveryEpoch) : record.controllerRecoveryEpoch;
