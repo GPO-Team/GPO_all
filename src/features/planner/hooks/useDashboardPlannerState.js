@@ -28,6 +28,7 @@ export const useDashboardPlannerState = () => {
   const [expandedPoint, setExpandedPoint] = useState(null);
   const [hoveredPointIndex, setHoveredPointIndex] = useState(null);
   const [activePointKind, setActivePointKind] = useState("visit");
+  const [visitPointMode, setVisitPointMode] = useState("visit");
   const [pointPlacementRevision, setPointPlacementRevision] = useState(0);
   const activatePointPlacement = (kind) => {
     setActivePointKind(kind);
@@ -51,7 +52,6 @@ export const useDashboardPlannerState = () => {
   const [mappingSurveyMode, setMappingSurveyMode] = useState(MAPPING_SURVEY_MODES[0].key);
   const { plannerUiState, setSidebarCollapsed, setMapLayerVisible } = usePlannerSidebarState();
   const energySettings = usePlannerEnergySettings({
-    setEnergyWarning,
     setExpandedPoint,
     setHoveredPointIndex,
     setRouteEnergyStats,
@@ -71,7 +71,7 @@ export const useDashboardPlannerState = () => {
     },
     interaction: {
       expandedPoint, setExpandedPoint, hoveredPointIndex, setHoveredPointIndex,
-      activePointKind, setActivePointKind, mapExportPromptOpen, setMapExportPromptOpen,
+      activePointKind, setActivePointKind, visitPointMode, setVisitPointMode, mapExportPromptOpen, setMapExportPromptOpen,
       pointPlacementRevision, activatePointPlacement,
     },
     surfaces: {

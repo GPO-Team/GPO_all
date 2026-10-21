@@ -42,6 +42,14 @@ export const appendPlannerPoint = (
 export const removePlannerPointsByKind = (points, kind) =>
   kind ? points.filter((point) => kind === "visit" ? !["visit","free_visit"].includes(point.kind) : point.kind !== kind) : [];
 
+const VISIT_KINDS = ["visit", "free_visit"];
+
+// The order mode applies to every visit point, so switching it converts all of them.
+export const setVisitPointsKind = (points, kind) =>
+  VISIT_KINDS.includes(kind)
+    ? points.map((point) => VISIT_KINDS.includes(point.kind) && point.kind !== kind ? { ...point, kind } : point)
+    : points;
+
 export const removePlannerPoint = (points, pointIndex) =>
   points.filter((_, index) => index !== pointIndex);
 

@@ -37,7 +37,30 @@ const solveRequest = (baseUrl, points = [{ x: 0, y: 0 }, { x: 1, y: 0 }]) =>
     }),
   });
 
+const prepareRequest = (baseUrl, batteryRange) =>
+  fetch(`${baseUrl}/api/prepare-route`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      seedRoute: [{ x: 0, y: 0 }, { x: 6, y: 0 }, { x: 6, y: 6 }],
+      scene: { polygons: [], surfaceZones: [], chargingStations: [], motion: { cruiseSpeedMps: 0.22, payloadKg: 0, batteryRange } },
+    }),
+  });
+
 describe("solver HTTP server", () => {
+  it("re-plans an ordered route against the scene and reports energy shortages", async () => {
+    const baseUrl = await listenForTest({ solverExists: async () => true });
+    const prepared = await prepareRequest(baseUrl, 100);
+    const body = await prepared.json();
+    expect(prepared.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.planning.routeEnergy).toBeGreaterThan(0);
+    expect(body.route.length).toBeGreaterThanOrEqual(3);
+    const short = await prepareRequest(baseUrl, 1);
+    expect(short.status).toBe(422);
+    expect(await short.json()).toMatchObject({ ok: false, reason: "insufficient_range" });
+  });
+
   it("rejects untrusted browser origins and reflects only allowed origins", async () => {
     const baseUrl = await listenForTest({ solverExists: async () => true });
     const rejected = await fetch(`${baseUrl}/health`, { headers: { Origin: "https://untrusted.example" } });

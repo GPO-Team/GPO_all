@@ -1,5 +1,7 @@
 import { POINT_KIND_META, worldToCanvas } from "../../../lib/zonePlanner";
 
+export const FIRST_VISIT_COLOR = "#0891b2";
+
 export const renderPlannerPointLayer = (ctx, state) => {
   const markerScale = state.markerScale || 1;
   state.chargeEntries.forEach((entry) => {
@@ -28,6 +30,8 @@ export const renderPlannerPointLayer = (ctx, state) => {
 
   state.visitEntries.forEach((entry) => {
     const numbered=entry.point.kind !== "free_visit";
+    const first = state.firstVisitIndex === entry.index;
+    const label = numbered ? `V${entry.order}${first ? " · первая" : ""}` : first ? "Первая точка" : "Свободная точка";
     const plannedEntry = state.plannedVisitEntryMap.get(entry.index);
     const point = worldToCanvas(entry.point.x, entry.point.y);
     const hovered = state.hoveredPointIndex === entry.index;
@@ -52,7 +56,7 @@ export const renderPlannerPointLayer = (ctx, state) => {
       ctx.font = `700 ${11 / markerScale}px 'Segoe UI', sans-serif`;
       ctx.textAlign = "left";
       ctx.textBaseline = "bottom";
-      ctx.fillText(numbered ? `V${entry.order} -> S${entry.order}` : "Свободная точка", projected.x + 12 / markerScale, projected.y - 8 / markerScale);
+      ctx.fillText(numbered ? `V${entry.order} -> S${entry.order}` : label, projected.x + 12 / markerScale, projected.y - 8 / markerScale);
       if (hovered) {
         ctx.strokeStyle = "rgba(245, 158, 11, 0.9)";
         ctx.lineWidth = 3 / markerScale;
@@ -71,12 +75,24 @@ export const renderPlannerPointLayer = (ctx, state) => {
       ctx.font = `700 ${11 / markerScale}px 'Segoe UI', sans-serif`;
       ctx.textAlign = "left";
       ctx.textBaseline = "bottom";
-      ctx.fillText(numbered ? `V${entry.order}` : "Свободная точка", point.x + 14 / markerScale, point.y - 12 / markerScale);
+      ctx.fillText(label, point.x + 14 / markerScale, point.y - 12 / markerScale);
     }
-    ctx.fillStyle = POINT_KIND_META[numbered ? "visit" : "free_visit"].color;
+    if (first) {
+      ctx.strokeStyle = FIRST_VISIT_COLOR;
+      ctx.lineWidth = 3 / markerScale;
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 19 / markerScale, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = first ? FIRST_VISIT_COLOR : POINT_KIND_META.visit.color;
     ctx.beginPath();
     ctx.arc(point.x, point.y, 13 / markerScale, 0, Math.PI * 2);
     ctx.fill();
+    if (first) {
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2.5 / markerScale;
+      ctx.stroke();
+    }
     ctx.font = `700 ${12 / markerScale}px 'Segoe UI', sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";

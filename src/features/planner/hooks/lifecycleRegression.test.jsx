@@ -6,10 +6,10 @@ import { usePlannerRouteOptimization } from "./usePlannerRouteOptimization";
 import { usePlannerBridgeSync } from "./usePlannerBridgeSync";
 import { usePlannerRouteRebuild } from "./usePlannerRouteRebuild";
 import { usePlannerRouteSender } from "./usePlannerRouteSender";
-import { solveRouteWithNativeAlgorithm } from "../../../lib/routeAlgorithms";
+import { prepareRouteOnServer, solveRouteWithNativeAlgorithm } from "../../../lib/routeAlgorithms";
 import { sendRouteChannelPayload } from "../services/routeChannel";
 
-vi.mock("../../../lib/routeAlgorithms", () => ({ solveRouteWithNativeAlgorithm: vi.fn(), getAlgorithmLabel: () => "GA", getTaskLabel: () => "TSP" }));
+vi.mock("../../../lib/routeAlgorithms", () => ({ solveRouteWithNativeAlgorithm: vi.fn(), prepareRouteOnServer: vi.fn(), getAlgorithmLabel: () => "GA", getTaskLabel: () => "TSP" }));
 vi.mock("../services/routeChannel", () => ({ sendRouteChannelPayload: vi.fn() }));
 let root;
 beforeEach(() => { globalThis.IS_REACT_ACT_ENVIRONMENT = true; root = createRoot(document.createElement("div")); vi.clearAllMocks(); });
@@ -140,14 +140,43 @@ describe("planner lifecycle regressions", () => {
     expect(sendRouteChannelPayload).toHaveBeenCalledTimes(6);
   });
 
-  it("rebuilds a draft locally without sending a route command", async () => {
-    const props = { ...routeProps(), chargePointsRoutingText: "[]", previewPolygonRoutingText: "[]",
-      routeSeed: [{x:0,y:0},{x:1,y:0}], surfaceZones: [], zoneSyncPayloadText: '{"zones":[]}',
-      surfaceSyncPayloadText: '{"zones":[]}', routeSocketRef: {current:null}, startRouteTiming: vi.fn() };
-    function Harness({ config }) { usePlannerRouteRebuild(config); return null; }
-    await act(async () => root.render(<Harness config={props} />));
-    await act(async () => root.render(<Harness config={{ ...props, batteryRangeMeters: 90 }} />));
-    expect(props.setOptimizedRoute).toHaveBeenCalled();
-    expect(sendRouteChannelPayload).not.toHaveBeenCalled();
+  it("re-plans a changed scene on the planning service without sending a route command", async () => {
+    vi.useFakeTimers();
+    try {
+      const route = [{x:0,y:0},{x:0.5,y:0.2},{x:1,y:0}];
+      prepareRouteOnServer.mockResolvedValue({ ok: true, route, routeEnergy: 2 });
+      const props = { ...routeProps(), chargePointsRoutingText: "[]", previewPolygonRoutingText: "[]",
+        routeSeed: [{x:0,y:0},{x:1,y:0}], surfaceZones: [], zoneSyncPayloadText: '{"zones":[]}',
+        surfaceSyncPayloadText: '{"zones":[]}', routeSocketRef: {current:null}, startRouteTiming: vi.fn() };
+      function Harness({ config }) { usePlannerRouteRebuild(config); return null; }
+      await act(async () => root.render(<Harness config={props} />));
+      await act(async () => vi.advanceTimersByTimeAsync(500));
+      expect(prepareRouteOnServer).not.toHaveBeenCalled();
+      await act(async () => root.render(<Harness config={{ ...props, batteryRangeMeters: 90 }} />));
+      await act(async () => vi.advanceTimersByTimeAsync(500));
+      expect(prepareRouteOnServer).toHaveBeenCalledWith(props.routeSeed,
+        expect.objectContaining({ motion: expect.objectContaining({ batteryRange: 90 }) }), expect.any(AbortSignal));
+      expect(props.setOptimizedRoute).toHaveBeenCalledWith(route);
+      expect(sendRouteChannelPayload).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows the energy warning when the server reports a shortage after a scene change", async () => {
+    vi.useFakeTimers();
+    try {
+      prepareRouteOnServer.mockRejectedValue(Object.assign(new Error("Не хватает заряда"), { reason: "insufficient_range" }));
+      const props = { ...routeProps(), chargePointsRoutingText: "[]", previewPolygonRoutingText: "[]",
+        routeSeed: [{x:0,y:0},{x:1,y:0}], surfaceZones: [] };
+      function Harness({ config }) { usePlannerRouteRebuild(config); return null; }
+      await act(async () => root.render(<Harness config={props} />));
+      await act(async () => root.render(<Harness config={{ ...props, batteryRangeMeters: 1 }} />));
+      await act(async () => vi.advanceTimersByTimeAsync(500));
+      expect(props.setEnergyWarning).toHaveBeenLastCalledWith("Не хватает заряда");
+      expect(props.setOptimizedRoute).toHaveBeenLastCalledWith([]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

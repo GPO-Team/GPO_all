@@ -80,6 +80,14 @@ html {
 .panel-tabs button { flex: 1; min-height: 44px; border: 1px solid transparent; border-radius: 11px; padding: 10px 6px; font-size: 14px; font-weight: 600; color: #64748b; transition: background .15s, border-color .15s, color .15s; }
 .panel-tabs button:hover { background: #f1f5f9; color: #334155; }
 .panel-tabs button[aria-pressed="true"] { color: #0369a1; border-color: #bae6fd; background: #e0f2fe; }
+.panel-tabs button[data-alert] { position: relative; color: #be123c; border-color: #fda4af; background: #fff1f2; animation: panel-tab-alert 1.2s ease-out 2; }
+.panel-tabs button[data-alert][aria-pressed="true"] { color: #9f1239; border-color: #fb7185; background: #ffe4e6; }
+.panel-tab-alert { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; margin-left: 5px; border-radius: 999px; background: #e11d48; color: white; font-size: 11px; font-weight: 800; line-height: 1; vertical-align: 1px; }
+@keyframes panel-tab-alert { 0% { box-shadow: 0 0 0 0 #e11d4866; } 100% { box-shadow: 0 0 0 9px #e11d4800; } }
+.planner-panel-open { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 14px 0 11px; border-radius: 10px; background: #0369a1; color: white; font-size: 14px; font-weight: 600; white-space: nowrap; box-shadow: 0 4px 12px #0369a133; transition: background .15s; }
+.planner-panel-open:hover { background: #075985; }
+.planner-panel-open:focus-visible { outline: 2px solid #0284c7; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .panel-tabs button[data-alert] { animation: none; } }
 .map-tools { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 12px; background: rgba(255,255,255,.96); box-shadow: 0 3px 16px #0f172a18; white-space: nowrap; }
 .map-tools button { min-height: 40px; padding: 8px 12px; border-radius: 9px; font-size: 14px; color: #334155; }
 .map-tools button:hover, .map-tools button[aria-pressed="true"] { background: #eff6ff; color: #1d4ed8; }

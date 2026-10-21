@@ -23,7 +23,7 @@ export default function PlannerSetupSection({
   visitCount,
   zoneCount,
   surfaceCount,
-  activePointKind="visit",onActivePointKindChange,editingLocked=false,
+  activePointKind="visit",onActivePointKindChange,editingLocked=false,isOptimizing=false,onVisitPointModeChange,
 }) {
   return (
     <>
@@ -35,13 +35,13 @@ export default function PlannerSetupSection({
       </div>}
       <div className={cardCls}>
         {kinds.includes("visit") && <div className="mb-3 grid grid-cols-2 gap-2" role="group" aria-label="Порядок точек">
-          {[["visit","По порядку · 1, 2, 3"],["free_visit","Без номера · короткий путь"]].map(([kind,label])=><button key={kind} type="button" disabled={editingLocked} aria-pressed={activePointKind===kind} onClick={()=>onActivePointKindChange?.(kind)} className={`rounded-lg border px-2 py-2 text-xs disabled:opacity-50 ${activePointKind===kind?"border-sky-600 bg-sky-50 text-sky-800":"border-stone-200"}`}>{label}</button>)}
+          {[["visit","По порядку · 1, 2, 3"],["free_visit","Без номера · короткий путь"]].map(([kind,label])=><button key={kind} type="button" disabled={editingLocked} aria-pressed={activePointKind===kind} onClick={()=>(onVisitPointModeChange || onActivePointKindChange)?.(kind)} className={`rounded-lg border px-2 py-2 text-xs disabled:opacity-50 ${activePointKind===kind?"border-sky-600 bg-sky-50 text-sky-800":"border-stone-200"}`}>{label}</button>)}
         </div>}
         <div className="text-xs font-semibold text-sky-800">
           {POINT_KIND_OPTIONS.filter((option) => kinds.includes(option.key)).map((option) => option.label).join(" · ")}
           <HelpHint label="Добавление точек">Раздел меню сразу включает свой режим точек. Нажмите на карту, чтобы поставить точку; перетащите существующую для изменения позиции. Масштаб — колёсиком, перемещение карты — правой кнопкой или Alt + перетаскиванием.</HelpHint>
         </div>
-        <p className="mt-1 text-xs text-stone-600">{editingLocked ? "Миссия активна: точки заблокированы, линия маршрута сохранена." : "Нажмите на карту, чтобы поставить точку. Нумерованные точки посещаются в порядке добавления. Свободные точки вставляются в маршрут для сокращения пути."}</p>
+        <p className="mt-1 text-xs text-stone-600">{editingLocked && !isOptimizing ? "Миссия активна: точки заблокированы, линия маршрута сохранена." : `Нажмите на карту, чтобы поставить точку.${kinds.includes("visit") ? " «По порядку» — робот объезжает точки в порядке добавления. «Без номера» — порядок выбирает планировщик по кратчайшему пути. Режим действует на все точки." : ""}`}</p>
         {showClear && <div className="mt-3 grid gap-2">
           {kinds.includes("visit") && <button onClick={onClearVisitPoints} className={subtleButtonCls}>Очистить маршрутные точки</button>}
           {kinds.includes("charge") && <button onClick={onClearChargePoints} className={subtleButtonCls}>Очистить зарядки</button>}

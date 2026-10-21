@@ -17,6 +17,8 @@ export default function PlannerLeftSidebar({
   onImportFile,
   activePointKind,
   onActivePointKindChange,
+  visitPointMode = "visit",
+  onVisitPointModeChange,
   visitEntries,
   chargeEntries,
   plannedVisitEntries,
@@ -49,8 +51,6 @@ export default function PlannerLeftSidebar({
   onSelectRuntimeObstacle,
   onEditRuntimeObstacle,
   onDeleteRuntimeObstacle,
-  driveMode,
-  onDriveModeChange,
   hasRoute,
   routeLength,
   visitCount,
@@ -94,7 +94,7 @@ export default function PlannerLeftSidebar({
 }) {
   const tab = { visit: "route", free_visit: "route", limit: "objects", surface: "surfaces", charge: "energy" }[activePointKind] || "route";
   const selectTab = (key) => {
-    onActivePointKindChange({ route: "visit", objects: "limit", surfaces: "surface", energy: "charge" }[key]);
+    onActivePointKindChange({ route: visitPointMode, objects: "limit", surfaces: "surface", energy: "charge" }[key]);
   };
   return (
     <aside className="planner-sidebar planner-sidebar-left flex h-full min-h-0 w-[416px] min-w-[416px] max-w-[416px] flex-none flex-col overflow-hidden border-r border-stone-200 bg-gradient-to-b from-stone-100 via-white to-slate-100">
@@ -121,12 +121,20 @@ export default function PlannerLeftSidebar({
       </div>
 
       <nav className="panel-tabs" aria-label="Разделы планировщика">
-        {[["route", "Маршрут"], ["objects", "Зоны"], ["surfaces", "Покрытия"], ["energy", "Энергия"]].map(([key, label]) => <button type="button" key={key} aria-pressed={tab === key} onClick={() => selectTab(key)}>{label}</button>)}
+        {[["route", "Маршрут"], ["objects", "Зоны"], ["surfaces", "Покрытия"], ["energy", "Энергия"]].map(([key, label]) => {
+          const alert = key === "energy" && Boolean(energyWarning);
+          return <button type="button" key={key} aria-pressed={tab === key} data-alert={alert || undefined}
+            title={alert ? energyWarning : undefined} onClick={() => selectTab(key)}>
+            {label}{alert && <span className="panel-tab-alert" role="img" aria-label="не хватает энергии на маршрут">!</span>}
+          </button>;
+        })}
       </nav>
       <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-2 space-y-2">
       {mission?.operationType === "object_transfer" && <PlannerMissionStatus mission={mission} onCancel={onCancelMission} onResume={onResumeMission} />}
       {tab === "route" && <PlannerSetupSection
         editingLocked={editingLocked}
+        isOptimizing={isOptimizing}
+        onVisitPointModeChange={onVisitPointModeChange}
         kinds={["visit"]}
         activePointKind={activePointKind}
         activeZoneName={activeZoneName}
@@ -143,8 +151,6 @@ export default function PlannerLeftSidebar({
         zoneCount={zoneCount}
       />}
       {tab === "route" && <PlannerRouteControlsSection showParameters={false} showObstacle={false}
-        driveMode={driveMode}
-        onDriveModeChange={onDriveModeChange}
         algorithmFields={algorithmFields}
         hasRoute={hasRoute}
         isOptimizing={isOptimizing}

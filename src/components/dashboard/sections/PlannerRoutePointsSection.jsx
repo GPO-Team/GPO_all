@@ -25,7 +25,7 @@ export default function PlannerRoutePointsSection({
 
   return (
     <>
-      {showVisit && <details className={`planner-disclosure ${zonePanelCardCls}`}>
+      {showVisit && <details open className={`planner-disclosure ${zonePanelCardCls}`}>
         <summary className="disclosure-trigger flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2 py-2 text-sm font-semibold">
           <span>Точки посещения</span>
           <span className="ml-auto text-xs text-stone-500">{visitEntries.length} шт.</span>

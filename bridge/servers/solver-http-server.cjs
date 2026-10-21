@@ -88,6 +88,21 @@ const createSolverHttpServer = ({
         sendJson(response, statusCode, {
           ok: false,
           error: error instanceof Error ? error.message : "Unexpected solver failure.",
+          ...(typeof error?.reason === "string" ? { reason: error.reason } : {}),
+        });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/prepare-route") {
+      try {
+        sendJson(response, 200, await planningService.prepare(await readJsonBody(request)));
+      } catch (error) {
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(response, statusCode, {
+          ok: false,
+          error: error instanceof Error ? error.message : "Unexpected planning failure.",
+          ...(typeof error?.reason === "string" ? { reason: error.reason } : {}),
         });
       }
       return;

@@ -4,6 +4,7 @@ import { useDashboardPlannerRuntimeActions } from "./useDashboardPlannerRuntimeA
 import { usePlannerRouteSelection } from "./usePlannerRouteSelection";
 import { useEffect, useLayoutEffect } from "react";
 import { downloadGraphCsv } from "../model/graphExport";
+import { setVisitPointsKind } from "../model/pointEditor";
 
 export const useDashboardPlannerActions = (state, runtime, derived) => {
   const {
@@ -145,7 +146,21 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
     onMissionSubmitted: runtime.mission?.track,
   });
 
+  const changeVisitPointMode = (kind) => {
+    if (!["visit", "free_visit"].includes(kind)) return;
+    interaction.setVisitPointMode?.(kind);
+    (interaction.activatePointPlacement || interaction.setActivePointKind)?.(kind);
+    const changed = route.points.some((point) => ["visit", "free_visit"].includes(point.kind) && point.kind !== kind);
+    if (!changed) return;
+    route.setPoints(setVisitPointsKind(route.points, kind));
+    routeSelection.clearRouteState();
+    route.setStatus(kind === "visit"
+      ? "Точки пронумерованы в порядке добавления. Постройте маршрут заново."
+      : "Номера сняты: порядок обхода выберет планировщик. Постройте маршрут заново.");
+  };
+
   const operations = {
+    changeVisitPointMode,
     ...routeLifecycle,
     ...routeSelection,
     ...editors,

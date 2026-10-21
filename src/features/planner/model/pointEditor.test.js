@@ -3,6 +3,7 @@ import {
   appendPlannerPoint,
   findPointIndexAtCanvasPosition,
   movePlannerPoint,
+  setVisitPointsKind,
   removePlannerPoint,
   removePlannerPointsByKind,
   updatePlannerPointTask,
@@ -53,5 +54,14 @@ describe("planner point editor model", () => {
     expect(removePlannerPoint(points, 0)).toEqual([points[1]]);
     expect(updatePlannerPointTask(points, 0, "inspect")[0].task).toBe("inspect");
     expect(points[0].task).toBe("visit");
+  });
+});
+
+describe("visit point mode", () => {
+  it("converts every visit point and leaves other kinds alone", () => {
+    const points = [{ kind: "visit" }, { kind: "free_visit" }, { kind: "charge" }];
+    expect(setVisitPointsKind(points, "free_visit").map((point) => point.kind)).toEqual(["free_visit", "free_visit", "charge"]);
+    expect(setVisitPointsKind(points, "visit").map((point) => point.kind)).toEqual(["visit", "visit", "charge"]);
+    expect(setVisitPointsKind(points, "charge")).toBe(points);
   });
 });
