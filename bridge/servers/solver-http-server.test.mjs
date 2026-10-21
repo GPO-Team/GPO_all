@@ -48,6 +48,19 @@ const prepareRequest = (baseUrl, batteryRange) =>
   });
 
 describe("solver HTTP server", () => {
+  it("imports an uploaded graph file", async () => {
+    const baseUrl = await listenForTest({ solverExists: async () => true });
+    const response = await fetch(`${baseUrl}/api/import-graph`, {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream", "X-File-Name": encodeURIComponent("граф.csv") },
+      body: "x,y,type\n1,2,visit\n3,4,charge\n",
+    });
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.sourceName).toBe("граф.csv");
+    expect(body.graph.points.map((point) => point.kind)).toEqual(["visit", "charge"]);
+  });
+
   it("re-plans an ordered route against the scene and reports energy shortages", async () => {
     const baseUrl = await listenForTest({ solverExists: async () => true });
     const prepared = await prepareRequest(baseUrl, 100);

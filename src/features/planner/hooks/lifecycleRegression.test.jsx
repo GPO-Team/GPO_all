@@ -51,9 +51,9 @@ describe("planner lifecycle regressions", () => {
     expect(solveRouteWithNativeAlgorithm.mock.calls[0][0]).toEqual(props.plannerModel.visitPoints);
   });
 
-  it("submits the numbered seed unchanged for server safety validation", async () => {
+  it("submits the solved seed unchanged for server safety validation", async () => {
     const seed = [{ x: 4, y: 3 }, { x: -3, y: 2 }, { x: 2, y: 1 }];
-    const props = { ...routeProps(), driveMode: "ordered", optimizedRoute: seed,
+    const props = { ...routeProps(), optimizedRoute: seed,
       routeSeed: seed, routeSocketRef: { current: null } };
     let send;
     function Harness() {
@@ -65,33 +65,11 @@ describe("planner lifecycle regressions", () => {
     await act(async () => send());
     const command = sendRouteChannelPayload.mock.calls[0][1];
     expect(command.payload.seedRoute).toEqual(seed);
-    expect(command.payload.algorithm.task).toBe("hamiltonian_chain");
+    expect(command.payload.algorithm.task).toBe("tsp");
   });
-  it("preserves numbered visit order with obstacle detours without calling the optimizer", async () => {
+  it("shows the energy warning when the planning service reports a shortage", async () => {
+    solveRouteWithNativeAlgorithm.mockRejectedValue(Object.assign(new Error("Не хватает заряда"), { reason: "insufficient_range" }));
     const props = routeProps();
-    props.driveMode = "ordered";
-    props.plannerModel.visitPoints = [{ x: -4, y: 0 }, { x: 4, y: 0 }, { x: 2, y: 2 }];
-    props.plannerModel.previewPolygons = [{ points: [{ x: -1, y: -1 }, { x: 1, y: -1 }, { x: 1, y: 1 }, { x: -1, y: 1 }] }];
-    let optimize;
-    function Harness() {
-      const action = usePlannerRouteOptimization(props);
-      React.useEffect(() => { optimize = action; });
-      return null;
-    }
-    await act(async () => root.render(<Harness />));
-    await act(async () => optimize());
-    expect(solveRouteWithNativeAlgorithm).not.toHaveBeenCalled();
-    expect(props.setRouteSeed).toHaveBeenCalledWith(props.plannerModel.visitPoints);
-    const route = props.setOptimizedRoute.mock.calls[0][0];
-    expect(route.length).toBeGreaterThan(3);
-    const positions = props.plannerModel.visitPoints.map((visit) => route.findIndex((point) => point.x === visit.x && point.y === visit.y));
-    expect(positions[0]).toBe(0);
-    expect(positions[1]).toBeGreaterThan(positions[0]);
-    expect(positions[2]).toBe(route.length - 1);
-  });
-
-  it("rejects an ordered route with insufficient energy", async () => {
-    const props = { ...routeProps(), driveMode: "ordered", batteryRangeMeters: 0.01 };
     let optimize;
     function Harness() {
       const action = usePlannerRouteOptimization(props);
@@ -101,8 +79,8 @@ describe("planner lifecycle regressions", () => {
     await act(async () => root.render(<Harness />));
     await act(async () => optimize());
     expect(props.setOptimizedRoute).toHaveBeenCalledWith([]);
-    expect(props.setStatus.mock.calls.at(-1)[0]).toMatch(/запас|достижим/i);
-    expect(solveRouteWithNativeAlgorithm).not.toHaveBeenCalled();
+    expect(props.setEnergyWarning).toHaveBeenLastCalledWith("Не хватает заряда");
+    expect(props.setStatus.mock.calls.at(-1)[0]).toBe("Не хватает заряда");
   });
   it("aborts a stale solve and does not restore deleted points", async () => {
     const pending = Promise.withResolvers();

@@ -9,7 +9,6 @@ import {
 } from "../model/routeCommand";
 
 export const usePlannerRouteSender = ({
-  driveMode,
   algorithmKey,
   batteryRangeMeters,
   cruiseSpeedMps,
@@ -56,7 +55,7 @@ export const usePlannerRouteSender = ({
       cruiseSpeedMps,
       payloadKg,
       route: optimizedRoute,
-      routeTaskKey: driveMode === "ordered" ? "hamiltonian_chain" : routeTaskKey,
+      routeTaskKey,
       selectedAlgorithmParams,
     });
     payload.seedRoute = routeSeed.length > 1 ? routeSeed : optimizedRoute;

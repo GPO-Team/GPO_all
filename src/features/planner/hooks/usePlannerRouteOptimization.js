@@ -11,7 +11,6 @@ import {
 import { routeCrossesAnyLimitPolygon } from "../../../lib/zonePlanner";
 import {
   buildRouteEnergyStats,
-  buildRouteWithEnergyStops,
   createEmptyRouteEnergyStats,
   getEnergyWarningText,
 } from "../model/routeEnergy";
@@ -19,13 +18,13 @@ import { buildRouteOptimizationStatus } from "../model/routeOptimization";
 
 const ENERGY_CHECK_DELAY_MS = 400;
 
-export const usePlannerRouteOptimization = ({ driveMode = "optimized", algorithmKey, batteryRangeMeters, energyOptions, isOptimizing, plannerModel, routeTaskKey, selectedAlgorithmParams, setEnergyWarning, setIsOptimizing, setOptimizedRoute, setRouteEnergyStats, setRouteSeed, setStatus, telemetry }) => {
+export const usePlannerRouteOptimization = ({ algorithmKey, batteryRangeMeters, energyOptions, isOptimizing, plannerModel, routeTaskKey, selectedAlgorithmParams, setEnergyWarning, setIsOptimizing, setOptimizedRoute, setRouteEnergyStats, setRouteSeed, setStatus, telemetry }) => {
   const activeRequest = useRef(null);
   const energyCheckRequest = useRef(null);
   const energyFailureRef = useRef(null);
   const checkEnergyRef = useRef(null);
   const graphRevision = JSON.stringify([plannerModel.visitPoints, plannerModel.visitOrder, plannerModel.previewPolygons,
-    algorithmKey, selectedAlgorithmParams, driveMode, routeTaskKey]);
+    algorithmKey, selectedAlgorithmParams, routeTaskKey]);
   const energyRevision = JSON.stringify([plannerModel.surfaceZones, plannerModel.chargePoints, batteryRangeMeters, energyOptions]);
   const revision = graphRevision + energyRevision;
   useEffect(() => () => {
@@ -43,18 +42,7 @@ export const usePlannerRouteOptimization = ({ driveMode = "optimized", algorithm
   // visitPoints already contains safety projections for targets inside or
   // too close to forbidden zones. Keep those coordinates for every mode.
   const solve = async (signal) => {
-    const visitPoints = plannerModel.visitPoints;
-    const solveResult = driveMode === "ordered" ? {
-      seedRoute: visitPoints.map(({ x, y }) => ({ x, y })),
-      planning: buildRouteWithEnergyStops({
-        seedRoute: visitPoints,
-        polygons: plannerModel.previewPolygons,
-        surfaceZones: plannerModel.surfaceZones,
-        chargingStations: plannerModel.chargePoints,
-        batteryRangeMeters,
-        energyOptions,
-      }),
-    } : await solveRouteWithNativeAlgorithm(visitPoints, algorithmKey, selectedAlgorithmParams, routeTaskKey, signal, {
+    const solveResult = await solveRouteWithNativeAlgorithm(plannerModel.visitPoints, algorithmKey, selectedAlgorithmParams, routeTaskKey, signal, {
       scene:buildSceneSnapshot({plannerModel,batteryRangeMeters,energyOptions,preview:true}),
       anchor:getRouteAnchor(telemetry),
       visitOrder:plannerModel.visitOrder,
@@ -107,7 +95,7 @@ export const usePlannerRouteOptimization = ({ driveMode = "optimized", algorithm
       setOptimizedRoute(routed.route);
       setRouteEnergyStats(buildRouteEnergyStats(routed));
       setEnergyWarning("");
-      const status = buildRouteOptimizationStatus({ adjustedVisitCount: plannerModel.adjustedVisits.length, algorithmLabel: driveMode === "ordered" ? "1 → 2 → 3" : getAlgorithmLabel(algorithmKey), blocked: routeCrossesAnyLimitPolygon(routed.route, plannerModel.previewPolygons), routed, taskLabel: driveMode === "ordered" ? "По номерам точек" : getTaskLabel(routeTaskKey) });
+      const status = buildRouteOptimizationStatus({ adjustedVisitCount: plannerModel.adjustedVisits.length, algorithmLabel: getAlgorithmLabel(algorithmKey), blocked: routeCrossesAnyLimitPolygon(routed.route, plannerModel.previewPolygons), routed, taskLabel: getTaskLabel(routeTaskKey) });
       setStatus(status+(solveResult.visitOrdering ? ` Нумерованные — по порядку; свободные — ${solveResult.visitOrdering.optimal ? "точный минимум по доступным путям" : "лучший найденный порядок без гарантии глобального минимума"}.` : ""));
     } catch (error) {
       if (controller.signal.aborted) return;

@@ -22,7 +22,6 @@ export const useDashboardPlannerState = () => {
   const [isSubmitting,setIsSubmitting]=useState(false);
   const editingLockRef=useRef(false);
   const [routeTaskKey, setRouteTaskKey] = useState("hamiltonian_chain");
-  const [driveMode, setDriveMode] = useState("optimized");
   const [algorithmKey, setAlgorithmKey] = useState("ga_tabu");
   const [algorithmParams, setAlgorithmParams] = useState(createDashboardAlgorithmParams);
   const [expandedPoint, setExpandedPoint] = useState(null);
@@ -65,7 +64,6 @@ export const useDashboardPlannerState = () => {
       isSubmitting,setIsSubmitting,editingLockRef,
     },
     algorithm: {
-      driveMode, setDriveMode,
       routeTaskKey, setRouteTaskKey, algorithmKey, setAlgorithmKey,
       algorithmParams, setAlgorithmParams,
     },

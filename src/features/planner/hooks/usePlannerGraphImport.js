@@ -7,7 +7,6 @@ import {
 import {
   buildImportedGraphStatus,
   deriveNextZoneNumber,
-  normalizeImportedGraph,
 } from "../model/graphImport";
 import { createEmptyRouteEnergyStats } from "../model/routeEnergy";
 import { readPlannerImportFile } from "../services/plannerFileImport";
@@ -32,11 +31,13 @@ export const usePlannerGraphImport = ({
   setRouteTaskKey,
   setStatus,
   setSurfaceZones,
+  setVisitPointMode,
   isEditingLocked=()=>false,
 }) => {
-  const applyImportedGraph = (rawGraph, sourceName = "graph.json") => {
-    if(isEditingLocked())throw new Error("Нельзя заменить граф во время выполнения миссии. Остановите робота и дождитесь подтверждения.");
-    const imported = normalizeImportedGraph(rawGraph);
+  const lockedError = () => new Error("Нельзя заменить граф во время выполнения миссии. Остановите робота и дождитесь подтверждения.");
+  // The graph arrives already normalized and validated by the planning service.
+  const applyImportedGraph = ({ graph: imported, sourceName, visitPointMode, warnings }) => {
+    if(isEditingLocked())throw lockedError();
     const importedZones = imported.limitZones.length ? imported.limitZones : [INITIAL_ZONE];
     setPoints(imported.points);
     setLimitZones(importedZones);
@@ -54,7 +55,8 @@ export const usePlannerGraphImport = ({
         : importedZones[0].id
     );
     setNextZoneNumber(deriveNextZoneNumber(importedZones));
-    setActivePointKind("visit");
+    setVisitPointMode?.(visitPointMode);
+    setActivePointKind(visitPointMode);
     setExpandedPoint(null);
     setHoveredPointIndex(null);
     setRouteSeed([]);
@@ -69,11 +71,11 @@ export const usePlannerGraphImport = ({
     if (ALGORITHM_OPTIONS.some((algorithm) => algorithm.key === imported.algorithmKey)) {
       setAlgorithmKey(imported.algorithmKey);
     }
-    setStatus(buildImportedGraphStatus(imported.points, sourceName));
+    setStatus([buildImportedGraphStatus(imported.points, sourceName), ...warnings].join(" "));
   };
 
   return async (file) => {
-    const importedFile = await readPlannerImportFile(file);
-    applyImportedGraph(importedFile.graph, importedFile.sourceName);
+    if(isEditingLocked())throw lockedError();
+    applyImportedGraph(await readPlannerImportFile(file));
   };
 };

@@ -10,10 +10,7 @@ export const POINT_KIND_META = {
 
 export const POINT_KIND_OPTIONS = Object.values(POINT_KIND_META);
 export const DEFAULT_SURFACE_ZONES = SURFACE_ZONE_PRESETS;
-export const POINT_TASKS = [
-  "Ожидание 2 сек", "Сканирование", "Забрать объект", "Сбросить объект", "Сделать фото",
-];
-export const DEFAULT_POINT_TASK = POINT_TASKS[0];
+export { DEFAULT_POINT_TASK, POINT_TASKS } from "../../shared/planning/graphImport.js";
 
 const ZONE_COLORS = [
   { stroke: "#2563eb", fill: "rgba(37, 99, 235, 0.12)", badge: "bg-blue-500" },

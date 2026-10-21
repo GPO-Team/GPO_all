@@ -1,10 +1,13 @@
 const http = require("http");
 const { isAllowedOrigin } = require("../protocol/origin-policy.cjs");
 const { createPlanningService } = require("../services/planning-service.cjs");
+const { createGraphImportService } = require("../services/graph-import-service.cjs");
+
+const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
 
 const sendJson = (response, statusCode, payload) => {
   response.writeHead(statusCode, {
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-File-Name",
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     "Content-Type": "application/json; charset=utf-8",
   });
@@ -31,6 +34,23 @@ const readJsonBody = (request) =>
     request.on("error", reject);
   });
 
+const readRawBody = (request, limit) =>
+  new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    request.on("data", (chunk) => {
+      size += chunk.length;
+      if (size > limit) {
+        reject(Object.assign(new Error("Файл больше 5 МБ."), { statusCode: 413 }));
+        request.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    request.on("end", () => resolve(Buffer.concat(chunks)));
+    request.on("error", reject);
+  });
+
 const createSolverHttpServer = ({
   coordinateContract,
   host,
@@ -38,6 +58,7 @@ const createSolverHttpServer = ({
   port,
   solverPath,
   planningService: suppliedPlanningService,
+  graphImportService = createGraphImportService(),
 }) => {
   const planningService = suppliedPlanningService || createPlanningService({ nativeSolver });
   const server = http.createServer(async (request, response) => {
@@ -89,6 +110,21 @@ const createSolverHttpServer = ({
           ok: false,
           error: error instanceof Error ? error.message : "Unexpected solver failure.",
           ...(typeof error?.reason === "string" ? { reason: error.reason } : {}),
+        });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/import-graph") {
+      try {
+        const fileName = decodeURIComponent(String(request.headers["x-file-name"] || ""));
+        const bytes = await readRawBody(request, MAX_IMPORT_BYTES);
+        sendJson(response, 200, await graphImportService.importGraph({ fileName, bytes }));
+      } catch (error) {
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(response, statusCode, {
+          ok: false,
+          error: error instanceof Error ? error.message : "Не удалось импортировать граф.",
         });
       }
       return;
