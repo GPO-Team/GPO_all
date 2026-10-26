@@ -1,14 +1,17 @@
-import { getAlgorithmFields, getDefaultAlgorithmParams } from "../../../lib/routeAlgorithms";
+import { getAlgorithmPrecision, getDefaultAlgorithmParams } from "../../../lib/routeAlgorithms";
 
 export const createDashboardPlannerViewModel = ({
   algorithmKey,
   algorithmParams,
   activeSurfaceZoneId,
   surfaceZones,
-}) => ({
-  activeSurfaceZone:
-    surfaceZones.find((zone) => zone.id === activeSurfaceZoneId) || surfaceZones[0] || null,
-  algorithmFields: getAlgorithmFields(algorithmKey),
-  selectedAlgorithmParams:
-    algorithmParams[algorithmKey] || getDefaultAlgorithmParams(algorithmKey),
-});
+}) => {
+  const selectedAlgorithmParams =
+    algorithmParams[algorithmKey] || getDefaultAlgorithmParams(algorithmKey);
+  return {
+    activeSurfaceZone:
+      surfaceZones.find((zone) => zone.id === activeSurfaceZoneId) || surfaceZones[0] || null,
+    algorithmPrecision: getAlgorithmPrecision(algorithmKey, selectedAlgorithmParams),
+    selectedAlgorithmParams,
+  };
+};

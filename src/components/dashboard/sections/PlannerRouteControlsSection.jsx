@@ -4,10 +4,6 @@ import {
   SAFE_POINT_MARGIN,
 } from "../../../lib/zonePlanner";
 
-const cardCls =
-  "rounded-2xl bg-white/95 backdrop-blur border border-stone-200 shadow-[0_18px_40px_rgba(15,23,42,0.06)] p-3";
-const inputCls =
-  "w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 shadow-sm transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100";
 const actionPaths = {
   build: "M5 5h10a4 4 0 0 1 0 8H9a3 3 0 0 0 0 6h10M3 3h4v4H3zM17 17h4v4h-4z",
   send: "m3 3 18 9-18 9 4-9-4-9Zm4 9h14",
@@ -35,62 +31,42 @@ const missionStatusText = (mission) => {
 };
 
 export default function PlannerRouteControlsSection({
-  showParameters = true,
-  showActions = true,
   showObstacle = true,
-  algorithmFields,
   hasRoute,
   isOptimizing,
   onAddRandomObstacle,
-  onAlgorithmParamChange,
   onCancelMission,
   mission,
   onOptimizeRoute,
   onSendRoute,
   routeLength,
-  selectedAlgorithmParams,
 }) {
   const missionStatus = missionStatusText(mission);
   return (
-    <>
-      {showParameters && <details className={cardCls}>
-        <summary className="cursor-pointer text-xs font-semibold">Параметры алгоритма</summary>
-        <div className="space-y-3">
-          {algorithmFields.map((field) => (
-            <label key={field.key}>
-              <div className="text-xs text-stone-600 mb-1">{field.label}</div>
-              <input type="number" min={field.min} max={field.max} step={field.step}
-                value={selectedAlgorithmParams[field.key]} className={inputCls}
-                onChange={(event) => onAlgorithmParamChange(field, event.target.value)} />
-            </label>
-          ))}
-        </div>
-      </details>}
-      {showActions && <div className="route-controls">
-        <div className="route-controls-title">Управление маршрутом <HelpHint label="Безопасный маршрут">
-          Маршрут строится с зазором {ROUTE_CLEARANCE_MARGIN.toFixed(2)} м от контура,
-          а целевые точки держатся минимум на {SAFE_POINT_MARGIN.toFixed(2)} м от запретной зоны.
-        </HelpHint></div>
-        <div className="route-actions"><button type="button" onClick={onOptimizeRoute} disabled={isOptimizing}
-          className="route-action route-action-primary" aria-busy={isOptimizing}>
-          <RouteActionIcon kind="build" /><span>{isOptimizing ? "Строим маршрут..." : "Построить маршрут"}</span>
-        </button>
-        <button type="button" onClick={onSendRoute} disabled={isOptimizing || !hasRoute}
-          className="route-action route-action-accent">
-          <RouteActionIcon kind="send" /><span>Отправить маршрут</span>
-        </button>
-        <button type="button" onClick={onCancelMission} disabled={!mission || ["completed", "cancelled", "failed", "cancelling"].includes(mission.status)}
-          className={`route-action route-action-danger ${showObstacle ? "" : "route-action-wide"}`}>
-          <RouteActionIcon kind="stop" /><span>{mission?.status === "cancelling" ? "Останавливаем…" : "Остановить маршрут"}</span>
-        </button>
-        {showObstacle && <button type="button" onClick={onAddRandomObstacle} disabled={isOptimizing}
-          className="route-action">
-          <RouteActionIcon kind="obstacle" /><span>+ Препятствие</span>
-        </button>}
-        </div>
-        {missionStatus && <p role="status" className="mt-2 text-xs leading-relaxed text-stone-700">{missionStatus}</p>}
-        {hasRoute && <p className="mt-3 text-sm">Длина маршрута: <b>{routeLength.toFixed(2)} м</b></p>}
-      </div>}
-    </>
+    <div className="route-controls">
+      <div className="route-controls-title">Управление маршрутом <HelpHint label="Безопасный маршрут">
+        Маршрут строится с зазором {ROUTE_CLEARANCE_MARGIN.toFixed(2)} м от контура,
+        а целевые точки держатся минимум на {SAFE_POINT_MARGIN.toFixed(2)} м от запретной зоны.
+      </HelpHint></div>
+      <div className="route-actions"><button type="button" onClick={onOptimizeRoute} disabled={isOptimizing}
+        className="route-action route-action-primary" aria-busy={isOptimizing}>
+        <RouteActionIcon kind="build" /><span>{isOptimizing ? "Строим маршрут..." : "Построить маршрут"}</span>
+      </button>
+      <button type="button" onClick={onSendRoute} disabled={isOptimizing || !hasRoute}
+        className="route-action route-action-accent">
+        <RouteActionIcon kind="send" /><span>Отправить маршрут</span>
+      </button>
+      <button type="button" onClick={onCancelMission} disabled={!mission || ["completed", "cancelled", "failed", "cancelling"].includes(mission.status)}
+        className={`route-action route-action-danger ${showObstacle ? "" : "route-action-wide"}`}>
+        <RouteActionIcon kind="stop" /><span>{mission?.status === "cancelling" ? "Останавливаем…" : "Остановить маршрут"}</span>
+      </button>
+      {showObstacle && <button type="button" onClick={onAddRandomObstacle} disabled={isOptimizing}
+        className="route-action">
+        <RouteActionIcon kind="obstacle" /><span>+ Препятствие</span>
+      </button>}
+      </div>
+      {missionStatus && <p role="status" className="mt-2 text-xs leading-relaxed text-stone-700">{missionStatus}</p>}
+      {hasRoute && <p className="mt-3 text-sm">Длина маршрута: <b>{routeLength.toFixed(2)} м</b></p>}
+    </div>
   );
 }

@@ -1,9 +1,8 @@
 import { useCallback } from "react";
-import { getDefaultAlgorithmParams } from "../../../lib/routeAlgorithms";
+import { createDashboardAlgorithmParams } from "../model/dashboardAlgorithmParams";
 import { createEmptyRouteEnergyStats } from "../model/routeEnergy";
 
 export const usePlannerRouteSelection = ({
-  algorithmKey,
   resetRouteTiming,
   setAlgorithmKey,
   setAlgorithmParams,
@@ -29,12 +28,10 @@ export const usePlannerRouteSelection = ({
     resetRouteTiming();
   }, [isEditingLocked,resetRouteTiming, setEnergyWarning, setExpandedPoint, setHoveredPointIndex, setOptimizedRoute, setRouteEnergyStats, setRouteSeed]);
 
-  const updateAlgorithmParam = useCallback((field, rawValue) => {
-    const parsed = field.integer ? parseInt(rawValue, 10) : parseFloat(rawValue);
-    if (!Number.isFinite(parsed)) return;
-    setAlgorithmParams((prev) => ({ ...prev, [algorithmKey]: { ...getDefaultAlgorithmParams(algorithmKey), ...prev[algorithmKey], [field.key]: parsed } }));
+  const updateAlgorithmPrecision = useCallback((precision) => {
+    setAlgorithmParams(createDashboardAlgorithmParams(precision));
     clearRouteState();
-  }, [algorithmKey, clearRouteState, setAlgorithmParams]);
+  }, [clearRouteState, setAlgorithmParams]);
 
   const handleRouteTaskChange = useCallback((nextTaskKey) => {
     setRouteTaskKey(nextTaskKey);
@@ -50,5 +47,5 @@ export const usePlannerRouteSelection = ({
     setEnergyWarning("");
   }, [clearRouteState, setAlgorithmKey, setEnergyWarning, setStatus]);
 
-  return { clearRouteState, handleAlgorithmChange, handleRouteTaskChange, updateAlgorithmParam };
+  return { clearRouteState, handleAlgorithmChange, handleRouteTaskChange, updateAlgorithmPrecision };
 };

@@ -20,36 +20,36 @@ export const TASK_OPTIONS = Object.values(TASKS).map((item) => ({
 
 export const getTaskLabel = (taskKey) => TASKS[taskKey]?.label || TASKS.tsp.label;
 
-const DEFAULT_GA_TABU_PARAMS = {
-  population_size: 90,
-  generations: 260,
-  mutation_rate: 0.18,
-  crossover_rate: 0.9,
-  tabu_iterations: 24,
+export const PRECISION_OPTIONS = [
+  { key: "low", label: "Малая", hint: "Быстрый черновой расчёт" },
+  { key: "medium", label: "Средняя", hint: "Баланс скорости и длины маршрута" },
+  { key: "high", label: "Большая", hint: "Самый короткий маршрут, расчёт дольше" },
+];
+
+export const DEFAULT_PRECISION = "medium";
+
+const GA_TABU_PRESETS = {
+  low: { population_size: 40, generations: 80, mutation_rate: 0.2, crossover_rate: 0.85, tabu_iterations: 10 },
+  medium: { population_size: 90, generations: 260, mutation_rate: 0.18, crossover_rate: 0.9, tabu_iterations: 24 },
+  high: { population_size: 140, generations: 500, mutation_rate: 0.15, crossover_rate: 0.92, tabu_iterations: 40 },
 };
 
-const DEFAULT_ANNEALING_PARAMS = {
-  pool_size: 48,
-  max_iterations: 5000,
-  minimum_temperature: 0.001,
-  cooling_rate: 0.996,
-  neighborhood_strength: 2.5,
+const ANNEALING_PRESETS = {
+  low: { pool_size: 24, max_iterations: 1500, minimum_temperature: 0.01, cooling_rate: 0.99, neighborhood_strength: 2 },
+  medium: { pool_size: 48, max_iterations: 5000, minimum_temperature: 0.001, cooling_rate: 0.996, neighborhood_strength: 2.5 },
+  high: { pool_size: 64, max_iterations: 15000, minimum_temperature: 0.0005, cooling_rate: 0.998, neighborhood_strength: 3 },
 };
 
-const DEFAULT_SCATTER_PARAMS = {
-  population_size: 70,
-  refset_ratio: 0.18,
-  max_iterations: 130,
-  mutation_rate: 0.2,
-  local_steps: 8,
+const SCATTER_PRESETS = {
+  low: { population_size: 40, refset_ratio: 0.2, max_iterations: 50, mutation_rate: 0.2, local_steps: 5 },
+  medium: { population_size: 70, refset_ratio: 0.18, max_iterations: 130, mutation_rate: 0.2, local_steps: 8 },
+  high: { population_size: 110, refset_ratio: 0.15, max_iterations: 250, mutation_rate: 0.18, local_steps: 12 },
 };
 
-const DEFAULT_CUCKOO_PARAMS = {
-  nests: 30,
-  discovery_probability: 0.25,
-  max_iterations: 200,
-  alpha: 0.12,
-  beta: 1.5,
+const CUCKOO_PRESETS = {
+  low: { nests: 15, discovery_probability: 0.25, max_iterations: 80, alpha: 0.12, beta: 1.5 },
+  medium: { nests: 30, discovery_probability: 0.25, max_iterations: 200, alpha: 0.12, beta: 1.5 },
+  high: { nests: 45, discovery_probability: 0.25, max_iterations: 450, alpha: 0.12, beta: 1.5 },
 };
 
 const ALGORITHMS = {
@@ -96,7 +96,7 @@ const ALGORITHMS = {
         integer: true,
       },
     ],
-    defaults: DEFAULT_GA_TABU_PARAMS,
+    presets: GA_TABU_PRESETS,
   },
   otshig: {
     key: "otshig",
@@ -140,7 +140,7 @@ const ALGORITHMS = {
         step: 0.1,
       },
     ],
-    defaults: DEFAULT_ANNEALING_PARAMS,
+    presets: ANNEALING_PRESETS,
   },
   rasseivanie: {
     key: "rasseivanie",
@@ -185,7 +185,7 @@ const ALGORITHMS = {
         integer: true,
       },
     ],
-    defaults: DEFAULT_SCATTER_PARAMS,
+    presets: SCATTER_PRESETS,
   },
   cuckoo: {
     key: "cuckoo",
@@ -229,7 +229,7 @@ const ALGORITHMS = {
         step: 0.01,
       },
     ],
-    defaults: DEFAULT_CUCKOO_PARAMS,
+    presets: CUCKOO_PRESETS,
   },
 };
 
@@ -242,7 +242,17 @@ export const getAlgorithmLabel = (key) => ALGORITHMS[key]?.label || ALGORITHMS.g
 
 export const getAlgorithmFields = (key) => ALGORITHMS[key]?.fields || ALGORITHMS.ga_tabu.fields;
 
-export const getDefaultAlgorithmParams = (key) => ({
-  ...(ALGORITHMS[key]?.defaults || ALGORITHMS.ga_tabu.defaults),
-});
+const getAlgorithmPresets = (key) => (ALGORITHMS[key] || ALGORITHMS.ga_tabu).presets;
 
+export const getAlgorithmPresetParams = (key, precision = DEFAULT_PRECISION) => {
+  const presets = getAlgorithmPresets(key);
+  return { ...(presets[precision] || presets[DEFAULT_PRECISION]) };
+};
+
+export const getDefaultAlgorithmParams = (key) => getAlgorithmPresetParams(key, DEFAULT_PRECISION);
+
+export const getAlgorithmPrecision = (key, params) => {
+  const presets = getAlgorithmPresets(key);
+  return PRECISION_OPTIONS.find(({ key: level }) =>
+    Object.entries(presets[level]).every(([field, value]) => params?.[field] === value))?.key || null;
+};

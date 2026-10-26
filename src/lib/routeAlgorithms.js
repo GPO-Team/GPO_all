@@ -3,9 +3,13 @@ import { createPlanningRequest, unwrapPlanningResult } from "../../shared/contra
 
 export {
   ALGORITHM_OPTIONS,
+  DEFAULT_PRECISION,
+  PRECISION_OPTIONS,
   TASK_OPTIONS,
   getAlgorithmFields,
   getAlgorithmLabel,
+  getAlgorithmPrecision,
+  getAlgorithmPresetParams,
   getDefaultAlgorithmParams,
   getTaskLabel,
 } from "./routeAlgorithmRegistry";

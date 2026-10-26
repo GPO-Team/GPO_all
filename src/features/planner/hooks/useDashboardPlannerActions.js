@@ -88,7 +88,6 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
 
   const routeSelection = usePlannerRouteSelection({
     isEditingLocked,
-    algorithmKey: algorithm.algorithmKey,
     resetRouteTiming: runtime.routeTiming.reset,
     setAlgorithmKey: algorithm.setAlgorithmKey,
     setAlgorithmParams: algorithm.setAlgorithmParams,

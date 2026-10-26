@@ -3,7 +3,6 @@ import PlannerManipulatorSection from "./sections/PlannerManipulatorSection";
 import PlannerTelemetrySection from "./sections/PlannerTelemetrySection";
 import PlannerMapSection from "./sections/PlannerMapSection";
 import PlannerTaskAlgorithmSection from "./sections/PlannerTaskAlgorithmSection";
-import PlannerRouteControlsSection from "./sections/PlannerRouteControlsSection";
 
 export default function PlannerRightSidebar({
   onStartPickPlace,onStartObjectTransfer, mission, onCancelMission, onResumeMission,editingLocked=false,
@@ -12,7 +11,7 @@ export default function PlannerRightSidebar({
   mapExportPromptOpen, onStartMappingSurvey, onRequestMapExport,
   onExportMapVariant, onCancelMapExport, mapLayers, onMapLayerChange,
   routeTaskKey, onRouteTaskChange, algorithmKey, onAlgorithmChange,
-  algorithmFields, selectedAlgorithmParams, onAlgorithmParamChange, status,
+  algorithmPrecision, onAlgorithmPrecisionChange, status,
 }) {
   const [tab, setTab] = useState("telemetry");
   return <aside className="planner-sidebar planner-sidebar-right flex h-full min-h-0 w-[360px] min-w-[360px] max-w-[360px] flex-none flex-col overflow-hidden border-l border-sky-100 bg-gradient-to-b from-sky-50 via-white to-cyan-50">
@@ -44,9 +43,8 @@ export default function PlannerRightSidebar({
           onRequestMapExport={onRequestMapExport} mapExportPromptOpen={mapExportPromptOpen}
           onExportMapVariant={onExportMapVariant} onCancelMapExport={onCancelMapExport} />
         <fieldset disabled={editingLocked}><PlannerTaskAlgorithmSection routeTaskKey={routeTaskKey} onRouteTaskChange={onRouteTaskChange}
-          algorithmKey={algorithmKey} onAlgorithmChange={onAlgorithmChange} />
-        <PlannerRouteControlsSection showActions={false} algorithmFields={algorithmFields || []}
-          selectedAlgorithmParams={selectedAlgorithmParams || {}} onAlgorithmParamChange={onAlgorithmParamChange} /></fieldset>
+          algorithmKey={algorithmKey} onAlgorithmChange={onAlgorithmChange}
+          algorithmPrecision={algorithmPrecision} onAlgorithmPrecisionChange={onAlgorithmPrecisionChange} /></fieldset>
       </div>
     </div>
     {status && <p role="status" className="shrink-0 border-t border-sky-100 bg-white px-3 py-2 text-xs text-slate-700">{status}</p>}

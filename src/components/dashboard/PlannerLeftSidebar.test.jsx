@@ -10,7 +10,7 @@ it("activates point placement directly from each menu section and preserves tran
   function Harness() {
     const [kind, setKind] = useState("visit");
     return <PlannerLeftSidebar activePointKind={kind} onActivePointKindChange={(next) => { changed(next); setKind(next); }}
-      algorithmFields={[]} selectedAlgorithmParams={{}} routeLength={0}
+      routeLength={0}
       surfaceZones={[]} zoneEntries={[]} activeZoneName="Зона 1" visitCount={4} chargeCount={2} zoneCount={1}
       routeEnergyStats={{ routeEnergy: 0, limitingMaxSpeedMps: 0, averageSlipRisk: 0 }} />;
   }
@@ -19,6 +19,7 @@ it("activates point placement directly from each menu section and preserves tran
   try {
     await act(async () => root.render(<Harness />));
     expect(container.textContent).toContain("Перенос объекта");
+    expect(container.textContent).not.toContain("Проверка манипулятора");
     const pointsHeading = [...container.querySelectorAll("summary")].find((item) => item.textContent.includes("Точки посещения"));
     const transferHeading = [...container.querySelectorAll("summary")].find((item) => item.textContent.includes("Перенос объекта"));
     const importHeading = [...container.querySelectorAll("h3")].find((item) => item.textContent.includes("Импорт графа"));
@@ -36,6 +37,7 @@ it("activates point placement directly from each menu section and preserves tran
       expect(changed).toHaveBeenLastCalledWith(kind);
       expect(button.getAttribute("aria-pressed")).toBe("true");
       if (kind === "limit") expect(container.textContent).toContain("Зоны: 1");
+      if (kind === "limit") expect(container.textContent).not.toContain("Контроль ограничений");
       if (kind === "charge") expect(container.textContent).toContain("Зарядки: 2");
       if (kind === "surface") expect(container.textContent).toContain("Покрытия: 0");
     }

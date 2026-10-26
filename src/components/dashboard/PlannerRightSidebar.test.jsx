@@ -15,24 +15,29 @@ beforeEach(() => {
   root = createRoot(container);
 });
 afterEach(async () => { await act(async () => root.unmount()); });
-function Harness({ onStartMappingSurvey, onExportMapVariant }) {
+function Harness({ onStartMappingSurvey, onExportMapVariant, onAlgorithmPrecisionChange }) {
   const { plannerUiState, setMapLayerVisible } = usePlannerSidebarState();
   return <PlannerRightSidebar telemetry={{ ...INITIAL_TELEMETRY, obstacleMap: { cells: [{ x: 1, y: 2 }] } }}
     telemetryWsUp mapLayers={plannerUiState.mapLayers} onMapLayerChange={setMapLayerVisible}
     routeTaskKey="tsp" algorithmKey="ga_tabu" onRouteTaskChange={vi.fn()} onAlgorithmChange={vi.fn()}
-    algorithmFields={[]} mappingSurveyMode="double" mappingSurveyModes={[{ key: "double", label: "Двойной" }]}
+    algorithmPrecision="medium" onAlgorithmPrecisionChange={onAlgorithmPrecisionChange} mappingSurveyMode="double" mappingSurveyModes={[{ key: "double", label: "Двойной" }]}
     onMappingSurveyModeChange={vi.fn()} onStartMappingSurvey={onStartMappingSurvey} mapExportPromptOpen
     onExportMapVariant={onExportMapVariant} onRequestMapExport={vi.fn()} onCancelMapExport={vi.fn()} />;
 }
 it("separates robot readings from map controls, persists visibility, and keeps survey/export actions working", async () => {
-  const survey = vi.fn(), exportMap = vi.fn();
-  await act(async () => root.render(<Harness onStartMappingSurvey={survey} onExportMapVariant={exportMap} />));
+  const survey = vi.fn(), exportMap = vi.fn(), precision = vi.fn();
+  await act(async () => root.render(<Harness onStartMappingSurvey={survey} onExportMapVariant={exportMap} onAlgorithmPrecisionChange={precision} />));
   const telemetryPanel = container.querySelector("#planner-right-telemetry");
   const mapPanel = container.querySelector("#planner-right-map");
   expect(telemetryPanel.hidden).toBe(false);
   expect(mapPanel.hidden).toBe(true);
   expect(telemetryPanel.textContent).not.toContain("Алгоритм");
   expect(mapPanel.textContent).toContain("Алгоритм");
+  expect(mapPanel.textContent).not.toContain("Размер популяции");
+  const precisionButton = text => [...mapPanel.querySelectorAll('[aria-label="Точность расчёта"] button')].find(button => button.textContent === text);
+  expect(precisionButton("Средняя").getAttribute("aria-pressed")).toBe("true");
+  await act(async () => precisionButton("Большая").click());
+  expect(precision).toHaveBeenCalledWith("high");
   expect(mapPanel.textContent).not.toContain("Камера");
   expect(mapPanel.textContent).toContain("Карта лидара");
   expect(mapPanel.textContent).toContain("След лидара");

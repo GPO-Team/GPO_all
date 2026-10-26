@@ -3,10 +3,8 @@ import PlannerSurfaceZonesSection from "./sections/PlannerSurfaceZonesSection";
 import PlannerRouteControlsSection from "./sections/PlannerRouteControlsSection";
 import PlannerRoutePointsSection from "./sections/PlannerRoutePointsSection";
 import PlannerLimitZonesSection from "./sections/PlannerLimitZonesSection";
-import PlannerConstraintsSection from "./sections/PlannerConstraintsSection";
 import PlannerImportSection from "./sections/PlannerImportSection";
 import PlannerSetupSection from "./sections/PlannerSetupSection";
-import PlannerMissionStatus from "./sections/PlannerMissionStatus";
 import PlannerObjectTransferSection from "./sections/PlannerObjectTransferSection";
 import HelpHint from "./HelpHint";
 import PlannerRuntimeObstaclesSection from "./sections/PlannerRuntimeObstaclesSection";
@@ -34,14 +32,10 @@ export default function PlannerLeftSidebar({
   status,
   mission,
   onCancelMission,
-  onResumeMission,
   onStartObjectTransfer,
   editingLocked=false,onExportCsv,hasPoints=false,
   energyWarning,
   routeBlocked,
-  algorithmFields,
-  selectedAlgorithmParams,
-  onAlgorithmParamChange,
   isOptimizing,
   onOptimizeRoute,
   onSendRoute,
@@ -64,7 +58,6 @@ export default function PlannerLeftSidebar({
   onToggleZoneClosed,
   onClearZone,
   onRemoveZone,
-  visitsInsideLimitCount,
   polygonCount,
   adjustedVisitCount,
   activeZoneName,
@@ -130,7 +123,6 @@ export default function PlannerLeftSidebar({
         })}
       </nav>
       <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-2 space-y-2">
-      {mission?.operationType === "object_transfer" && <PlannerMissionStatus mission={mission} onCancel={onCancelMission} onResume={onResumeMission} />}
       {tab === "route" && <PlannerSetupSection
         editingLocked={editingLocked}
         isOptimizing={isOptimizing}
@@ -150,18 +142,15 @@ export default function PlannerLeftSidebar({
         visitCount={visitCount}
         zoneCount={zoneCount}
       />}
-      {tab === "route" && <PlannerRouteControlsSection showParameters={false} showObstacle={false}
-        algorithmFields={algorithmFields}
+      {tab === "route" && <PlannerRouteControlsSection showObstacle={false}
         hasRoute={hasRoute}
         isOptimizing={isOptimizing}
         onAddRandomObstacle={onAddRandomObstacle}
-        onAlgorithmParamChange={onAlgorithmParamChange}
         onCancelMission={onCancelMission}
         mission={mission}
         onOptimizeRoute={onOptimizeRoute}
         onSendRoute={onSendRoute}
         routeLength={routeLength}
-        selectedAlgorithmParams={selectedAlgorithmParams}
       />}
       {tab === "route" && <PlannerRoutePointsSection
         editingLocked={editingLocked}
@@ -212,12 +201,6 @@ export default function PlannerLeftSidebar({
         <PlannerRuntimeObstaclesSection obstacles={runtimeObstacles}
           activeObstacleId={activeRuntimeObstacleId} onSelect={onSelectRuntimeObstacle}
           onApply={onEditRuntimeObstacle} onDelete={onDeleteRuntimeObstacle} />
-        <PlannerConstraintsSection
-          adjustedVisitCount={adjustedVisitCount}
-          polygonCount={polygonCount}
-          routeBlocked={routeBlocked}
-          visitsInsideLimitCount={visitsInsideLimitCount}
-        />
       </>}
       {tab === "energy" && <>
       <PlannerSetupSection

@@ -19,6 +19,6 @@ describe("createDashboardPlannerViewModel", () => {
     expect(viewModel.selectedAlgorithmParams).toMatchObject({
       generations: expect.any(Number),
     });
-    expect(viewModel.algorithmFields.length).toBeGreaterThan(0);
+    expect(viewModel.algorithmPrecision).toBe("medium");
   });
 });
