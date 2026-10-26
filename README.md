@@ -1,5 +1,7 @@
 # GPO
 
+PostgreSQL в Docker: [запуск базы и схема](docs/POSTGRES.md) (`npm run db:up`).
+
 [![React 19](https://img.shields.io/badge/React-19-20232A?logo=react)](https://react.dev/)
 [![Vite 7](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
 [![Webots](https://img.shields.io/badge/Webots-youBot-2563EB)](https://cyberbotics.com/)
