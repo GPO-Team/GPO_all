@@ -76,15 +76,6 @@ DEF DEMO_BOX Solid {
         }
       ]
     }
-    Connector {
-      translation 0 0 0.1
-      model "demo-cargo"
-      type "passive"
-      distanceTolerance 0.04
-      axisTolerance 3.14
-      rotationTolerance 3.14
-      snap FALSE
-    }
     Shape {
       appearance PBRAppearance {
         baseColor 0.92 0.3 0.08
@@ -112,6 +103,22 @@ DEF DEMO_BOX Solid {
     mass 0.25
   }
 }
+DEF PICK_BOX Solid {
+  translation 0.4 -0.1 0.04
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.1 0.45 0.75
+        roughness 0.7
+      }
+      geometry Box { size 0.03 0.03 0.08 }
+    }
+  ]
+  name "pick-box"
+  contactMaterial "demo-object"
+  boundingObject Box { size 0.03 0.03 0.08 }
+  physics Physics { density -1 mass 0.04 }
+}
 YoubotManipulation {
   hidden position_0_0 -1.1278584212826214e-09
   hidden position_0_1 -8.544116525399659e-10
@@ -135,30 +142,75 @@ YoubotManipulation {
     DEF TCP Pose {
       translation 0 0 0.12
     }
-    Connector {
-      translation 0 0 0.12
-      name "cargo_connector"
-      model "demo-cargo"
-      type "active"
-      distanceTolerance 0.04
-      axisTolerance 3.14
-      rotationTolerance 3.14
-      snap FALSE
-    }
   ]
   bodySlot [
-    DEF FRONT_LIDAR Lidar {
-      translation 0.24 0 0.18
+    # One compact front sensor pod keeps the devices visually attached to the
+    # chassis and places the camera directly above the lidar.
+    DEF FRONT_SENSOR_MOUNT Pose {
+      translation 0.285 0 0.14
       children [
         Shape {
           appearance PBRAppearance {
-            baseColor 0.12 0.12 0.12
-            roughness 1
-            metalness 0
+            baseColor 0.94 0.32 0.04
+            roughness 0.55
+            metalness 0.1
           }
           geometry Box {
-            size 0.05 0.04 0.04
+            size 0.09 0.095 0.018
           }
+        }
+        Pose {
+          translation 0 0 0.046
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0.94 0.32 0.04
+                roughness 0.55
+                metalness 0.1
+              }
+              geometry Box {
+                size 0.028 0.052 0.078
+              }
+            }
+          ]
+        }
+      ]
+    }
+    DEF FRONT_LIDAR Lidar {
+      translation 0.285 0 0.17
+      children [
+        Pose {
+          rotation 1 0 0 1.5708
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0.025 0.03 0.035
+                roughness 0.72
+                metalness 0.08
+              }
+              geometry Cylinder {
+                height 0.026
+                radius 0.038
+              }
+            }
+          ]
+        }
+        Pose {
+          translation 0 0 -0.016
+          rotation 1 0 0 1.5708
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0.94 0.32 0.04
+                roughness 0.5
+                metalness 0.12
+              }
+              geometry Cylinder {
+                height 0.01
+                radius 0.044
+              }
+            }
+          ]
         }
       ]
       name "front_lidar"
@@ -171,33 +223,50 @@ YoubotManipulation {
       defaultFrequency 12
     }
     DEF FRONT_CAMERA Camera {
-      translation 0.3 0 0.24
+      translation 0.285 0 0.225
       # Optical axis +X points forward; +Z stays up in the ENU robot frame.
       rotation 0 0 1 0
       children [
         Shape {
           appearance PBRAppearance {
-            baseColor 0.02 0.025 0.035
-            roughness 0.85
-            metalness 0
+            baseColor 0.94 0.32 0.04
+            roughness 0.55
+            metalness 0.1
           }
           geometry Box {
-            size 0.055 0.07 0.04
+            size 0.052 0.068 0.042
           }
         }
         Pose {
-          translation -0.026 0 0
+          translation -0.03 0 0
           rotation 0 1 0 1.5708
           children [
             Shape {
               appearance PBRAppearance {
-                baseColor 0.05 0.45 0.7
-                roughness 0.45
-                metalness 0.1
+                baseColor 0.025 0.03 0.035
+                roughness 0.38
+                metalness 0.18
               }
               geometry Cylinder {
-                height 0.008
-                radius 0.018
+                height 0.012
+                radius 0.021
+              }
+            }
+          ]
+        }
+        Pose {
+          translation -0.037 0 0
+          rotation 0 1 0 1.5708
+          children [
+            Shape {
+              appearance PBRAppearance {
+                baseColor 0.06 0.32 0.48
+                roughness 0.22
+                metalness 0.25
+              }
+              geometry Cylinder {
+                height 0.004
+                radius 0.013
               }
             }
           ]

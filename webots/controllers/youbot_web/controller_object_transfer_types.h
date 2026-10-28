@@ -5,6 +5,7 @@ typedef enum {CONTROLLER_TRANSFER_IDLE=0,CONTROLLER_TRANSFER_ACCEPTED,CONTROLLER
 typedef struct {char mission_id[64];char object_id[32];double destination_x;double destination_y;ControllerObjectTransferStatus status;ControllerObjectTransferStage stage;int progress;int attached;int on_platform;int gripper_closed;int alignment_retries;char error_code[64];double stage_started_at;
   double joint_positions[5]; double joint_targets[5]; double finger_positions[2];
   double motor_efforts[7]; double tcp_pose[3]; double object_pose[3]; double object_up[3];
+  double finger_contacts[2];
   int sensors_valid; int grip_evidence; int release_evidence; int cancel_pending;
   char controller_boot_id[64];
   unsigned int recovery_epoch;

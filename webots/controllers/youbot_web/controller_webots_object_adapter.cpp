@@ -1,14 +1,10 @@
 ﻿#include "controller_webots_object_adapter.h"
-#include <webots/connector.h>
-#include <webots/robot.h>
 #include <cmath>
 #include <cstring>
 int controller_webots_object_adapter_init(ControllerWebotsObjectAdapter *a,const char *name) {
   if(!a || !name) return 0;
   std::memset(a,0,sizeof(*a)); a->node=wb_supervisor_node_get_from_def(name);
-  a->connector=wb_robot_get_device("cargo_connector");
-  if(a->connector) wb_connector_enable_presence(a->connector,16);
-  return a->node!=nullptr && a->connector;
+  return a->node!=nullptr;
 }
 int controller_webots_object_adapter_position(const ControllerWebotsObjectAdapter *a,
     double *x,double *y,double *z) {
@@ -19,14 +15,20 @@ int controller_webots_object_adapter_position(const ControllerWebotsObjectAdapte
 }
 void controller_webots_object_adapter_attach(ControllerWebotsObjectAdapter *a) {
   if(!a) return;
-  if(a->connector && wb_connector_get_presence(a->connector)) wb_connector_lock(a->connector);
+  // Ownership records a measured grasp; only finger contact physics holds the box.
   a->attached=1;
 }
 void controller_webots_object_adapter_detach(ControllerWebotsObjectAdapter *a) {
   if(!a) return;
-  if(a->connector) wb_connector_unlock(a->connector);
   a->attached=0;
 }
-int controller_webots_object_adapter_locked(const ControllerWebotsObjectAdapter *a) {
-  return a && a->connector && wb_connector_is_locked(a->connector);
+int controller_webots_object_adapter_contact(const WbContactPoint *object_points,int object_count,
+    const WbContactPoint *robot_points,int robot_count,int finger_node_id) {
+  if(!object_points || !robot_points || finger_node_id<0) return 0;
+  for(int i=0;i<robot_count;++i) if(robot_points[i].node_id==finger_node_id)
+    for(int j=0;j<object_count;++j)
+      if(std::hypot(std::hypot(robot_points[i].point[0]-object_points[j].point[0],
+          robot_points[i].point[1]-object_points[j].point[1]),
+          robot_points[i].point[2]-object_points[j].point[2])<.001) return 1;
+  return 0;
 }

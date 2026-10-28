@@ -40,6 +40,7 @@ const createMissionService = ({repository, adapter, now = () => new Date().toISO
       feedbackFresh:Boolean(matching && !feedback.cached),connectionError:null,
       ...(matching ? {stage:feedback.stage ?? null,progress:feedback.progress ?? record.progress,
         errorCode:feedback.errorCode ?? null,attached:feedback.attached === undefined ? record.attached : Boolean(feedback.attached),
+        onPlatform:feedback.onPlatform === undefined ? record.onPlatform : Boolean(feedback.onPlatform),
         controllerBootId:feedback.controllerBootId ?? record.controllerBootId,
         objectPose:feedback.objectPose ?? record.objectPose,manipulator:feedback.manipulator ?? record.manipulator} : {}),
       ...(matching && status === "failed" && typeof feedback.error === "string" ? {failureReason:feedback.error.slice(0,128)} : {}),

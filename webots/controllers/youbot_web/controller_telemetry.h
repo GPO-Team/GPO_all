@@ -74,6 +74,14 @@ typedef struct {
   double fingers[2];
   double target_joints[5];
   double target_finger_opening;
+  const char *mission_id;
+  const char *object_def;
+  const char *stage;
+  const char *error;
+  int active, load_held, cancel_pending;
+  int object_valid;
+  double object_position[3];
+  double contacts[2];
 } ControllerTelemetryManipulator;
 
 typedef struct {

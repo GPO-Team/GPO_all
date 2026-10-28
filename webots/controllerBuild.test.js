@@ -13,6 +13,13 @@ const runtimeSource = [
 ].map((file) => readFileSync(`${controllerDirectory}/${file}`, "utf8")).join("\n");
 
 describe("Webots controller build configuration", () => {
+  it("uses contact physics without a cargo connector or object motion commands", () => {
+    const world = readFileSync("webots/worlds/youbot_only.wbt", "utf8");
+    const adapter = readFileSync(`${controllerDirectory}/controller_webots_object_adapter.cpp`, "utf8");
+    expect(world).not.toMatch(/\bConnector\s*\{/u);
+    expect(adapter).not.toMatch(/wb_connector_|wb_supervisor_(?:field_set|node_(?:set|add|reset))/u);
+  });
+
   it("keeps the executable entry point thin and registers focused runtimes", () => {
     const entryPath = `${controllerDirectory}/youbot_web.cpp`;
     const entry = readFileSync(entryPath, "utf8");

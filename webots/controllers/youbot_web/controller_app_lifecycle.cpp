@@ -8,7 +8,6 @@
 #include "controller_io.h"
 #include "controller_lidar_runtime.h"
 #include "controller_mapping_runtime.h"
-#include "controller_mapping_survey_lifecycle_service.h"
 #include "controller_mapping_survey_safety_service.h"
 #include "controller_motion_profile_reload_service.h"
 #include "controller_navigation_runtime.h"
@@ -19,7 +18,6 @@
 #include "controller_runtime.h"
 #include "controller_runtime_command_reload_service.h"
 #include "controller_step.h"
-#include "controller_survey_default_route.h"
 #include "controller_survey_runtime.h"
 #include "controller_telemetry_publisher.h"
 #include "controller_telemetry_service.h"
@@ -174,11 +172,32 @@ static void write_state_snapshot(void) {
         object_transfer_runtime.manipulator.target.joints[index];
   manipulator->target_finger_opening =
       object_transfer_runtime.manipulator.target.finger_opening;
+  const auto &pick = controller_app.manipulator;
+  manipulator->mission_id = pick.mission_id;
+  manipulator->object_def = pick.object_def;
+  manipulator->stage = controller_webots_manipulator_stage(&pick);
+  manipulator->error = pick.state.error;
+  manipulator->active = controller_webots_manipulator_active(&pick) || object_transfer_runtime.manual_active;
+  manipulator->load_held = pick.state.load_held;
+  manipulator->cancel_pending = pick.state.cancel_pending;
+  manipulator->object_valid = pick.sample.object_valid;
+  for(int i=0;i<2;++i) manipulator->contacts[i] = pick.sample.contacts[i];
+  for(int i=0;i<3;++i) manipulator->object_position[i] = pick.object_world[i];
+  if(pick.mission_id[0]) {
+    for(int i=0;i<5;++i) manipulator->target_joints[i] = pick.state.targets[i];
+    manipulator->target_finger_opening = pick.state.finger_target;
+  }
   controller_telemetry_write_snapshot(STATE_TEMP_PATH, STATE_PATH, &output.snapshot);
 }
 
 static void merge_trace_for_controller_step(void) {
   merge_trace_into_map(wb_robot_get_time());
+}
+
+static int robot_motion_owned(void) {
+  const auto status = object_transfer_runtime.service.state.status;
+  return controller_webots_manipulator_busy() || object_transfer_runtime.manual_active || status == CONTROLLER_TRANSFER_RUNNING ||
+      status == CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY;
 }
 
 static void handle_transfer_command(const RuntimeCommand *command) {
@@ -216,6 +235,14 @@ static void run_control_cycle(void) {
   }
   if(transferring && (object_transfer_runtime.service.state.stage == CONTROLLER_TRANSFER_TRANSPORTING ||
       object_transfer_runtime.service.state.stage == CONTROLLER_TRANSFER_APPROACHING_OBJECT)) {
+    if(!controller_object_transfer_runtime_allows_navigation(&object_transfer_runtime)) {
+      controller_object_transfer_runtime_hold(&object_transfer_runtime,"transport_pose_invalid");
+      return;
+    }
+    if(!perception_runtime.lidar.available || !controller_webots_sensors_lidar_ranges(&webots_sensors)) {
+      controller_object_transfer_runtime_hold(&object_transfer_runtime,"lidar_unavailable");
+      return;
+    }
     ControllerNavigationRouteOutput route_output={};
     const auto decision=controller_navigation_route_evaluate(&controller_runtime.route,
         &controller_runtime.current_waypoint_index,&controller_runtime.route_finished,
@@ -424,6 +451,10 @@ int controller_app_lifecycle_run(int argc, char **argv) {
       spawn_runtime_obstacle);
   controller_runtime_command_reload_service_set_transfer_handler(
       &runtime_command_reload_service, handle_transfer_command);
+  runtime_command_reload_service.start_pick_place = controller_webots_manipulator_start;
+  runtime_command_reload_service.cancel_pick_place = controller_webots_manipulator_cancel;
+  runtime_command_reload_service.motion_blocked = robot_motion_owned;
+  route_zone_reload_service.motion_blocked = robot_motion_owned;
   runtime_command_reload_service.last_modified = get_file_mtime(RUNTIME_COMMAND_PATH);
   runtime_command_reload_service.last_processed_id = controller_runtime_command_latest_id(RUNTIME_COMMAND_PATH);
 
@@ -431,14 +462,7 @@ int controller_app_lifecycle_run(int argc, char **argv) {
     set_status("error");
     set_error("Supervisor fields are not available");
   } else {
-    const ControllerSurveyDefaultRouteConfig default_route_config{
-        SURVEY_X_MIN, SURVEY_X_MAX, SURVEY_Y_MIN, SURVEY_Y_MAX, SURVEY_STRIP};
-    controller_mapping_survey_lifecycle_service_ensure_default_route(
-        ROUTE_PATH,
-        get_file_mtime(ROUTE_PATH),
-        &default_route_config,
-        clear_persistent_map,
-        set_status);
+    // Creating route.csv here makes the reload loop launch an unrequested survey.
     wait_for_fresh_route();
   }
 

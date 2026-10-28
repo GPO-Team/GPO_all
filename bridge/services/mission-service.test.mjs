@@ -20,6 +20,14 @@ const transferPayload = (() => {
   return {type:"transfer_object",objectId:"demo-box",destination:{x:4,y:-2},scene,sceneRevision:sceneRevision(scene)};
 })();
 describe("mission application service", () => {
+  it("retains platform cargo ownership and allows recovery without gripper attachment", async () => {
+    const {service,adapter}=await setup();
+    await service.submit(transferPayload,{requestId:"platform-cargo"});
+    adapter.getFeedback.mockResolvedValue({missionId:"platform-cargo",status:"holding_for_recovery",stage:"transporting",attached:false,onPlatform:true,manipulator:{attachmentEvidence:false}});
+    expect(await service.get("platform-cargo")).toMatchObject({attached:false,onPlatform:true,status:"holding_for_recovery"});
+    expect(await service.resume("platform-cargo")).toMatchObject({onPlatform:true,resumeDelivered:true});
+    await expect(service.submit(payload,{requestId:"replace-platform"})).rejects.toMatchObject({code:"mission_active"});
+  });
   it("persists a submission and makes the same request idempotent across restart", async () => {
     const {repository,adapter,service} = await setup();
     const first = await service.submit(payload,{requestId:"mission-1"});

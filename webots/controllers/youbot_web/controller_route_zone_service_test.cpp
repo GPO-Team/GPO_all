@@ -67,6 +67,11 @@ int main(void) {
   remove(route_path);
   remove(limit_path);
   remove(surface_path);
+  controller_route_zone_service_init(&service);
+  const auto absent = controller_route_zone_service_reload(
+      &service, &paths, &request, &route, &limit_zones, &surface_zones);
+  if (absent.limit_zones_status != CONTROLLER_ROUTE_ZONE_STATUS_UNCHANGED ||
+      absent.surface_zones_status != CONTROLLER_ROUTE_ZONE_STATUS_UNCHANGED) return 14;
 
   if (result.route_status != CONTROLLER_ROUTE_ZONE_STATUS_OK ||
       result.limit_zones_status != CONTROLLER_ROUTE_ZONE_STATUS_OK ||

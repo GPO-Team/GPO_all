@@ -3,6 +3,7 @@
 #include "controller_io.h"
 
 #include <stdio.h>
+#include <cmath>
 
 #define CONTROLLER_TELEMETRY_PI 3.14159265358979323846
 
@@ -167,13 +168,27 @@ int controller_telemetry_write_snapshot(
   fprintf(file, "], \"fingerPositions\": [%.6f,%.6f], \"motorEfforts\": [",
       transfer ? transfer->finger_positions[0] : 0, transfer ? transfer->finger_positions[1] : 0);
   for(int i=0;i<7;++i) fprintf(file,"%s%.6f",i ? "," : "",transfer ? transfer->motor_efforts[i] : 0);
-  fprintf(file, "], \"tcpPose\": {\"x\": %.6f,\"y\": %.6f,\"z\": %.6f}, \"sensorValidity\": %s, \"gripEvidence\": %s, \"releaseEvidence\": %s, \"attachmentEvidence\": %s}\n  },\n",
+  fprintf(file, "], \"fingerContacts\": [%.6f,%.6f], \"tcpPose\": {\"x\": %.6f,\"y\": %.6f,\"z\": %.6f}, \"sensorValidity\": %s, \"gripEvidence\": %s, \"releaseEvidence\": %s, \"attachmentEvidence\": %s}\n  },\n",
+      transfer ? transfer->finger_contacts[0] : 0, transfer ? transfer->finger_contacts[1] : 0,
       transfer ? transfer->tcp_pose[0] : 0, transfer ? transfer->tcp_pose[1] : 0, transfer ? transfer->tcp_pose[2] : 0,
       json_bool(transfer && transfer->sensors_valid),json_bool(transfer && transfer->grip_evidence),
       json_bool(transfer && transfer->release_evidence),json_bool(transfer && transfer->attached && transfer->grip_evidence));
   const ControllerTelemetryManipulator *manipulator = &snapshot->manipulator;
   fprintf(file, "  \"manipulator\": {\n");
   fprintf(file, "    \"available\": %s,\n", json_bool(manipulator->available));
+  fprintf(file, "    \"missionId\": \"%s\", \"objectDef\": \"%s\",\n",
+      safe_command_id(manipulator->mission_id), safe_command_id(manipulator->object_def));
+  fprintf(file, "    \"stage\": \"%s\", \"error\": \"%s\",\n",
+      manipulator->stage ? manipulator->stage : "idle", safe_text(manipulator->error));
+  fprintf(file, "    \"active\": %s, \"loadHeld\": %s, \"cancelPending\": %s,\n",
+      json_bool(manipulator->active), json_bool(manipulator->load_held), json_bool(manipulator->cancel_pending));
+  if(std::isfinite(manipulator->contacts[0]) && std::isfinite(manipulator->contacts[1]))
+    fprintf(file, "    \"contacts\": [%.6f, %.6f],\n", manipulator->contacts[0], manipulator->contacts[1]);
+  else fprintf(file, "    \"contacts\": null,\n");
+  if(manipulator->object_valid)
+    fprintf(file, "    \"objectPosition\": {\"x\": %.6f, \"y\": %.6f, \"z\": %.6f},\n",
+        manipulator->object_position[0], manipulator->object_position[1], manipulator->object_position[2]);
+  else fprintf(file, "    \"objectPosition\": null,\n");
   fprintf(file, "    \"pose\": \"%s\",\n", safe_text(manipulator->pose));
   fprintf(file, "    \"state\": \"%s\",\n", safe_text(manipulator->state));
   fprintf(file, "    \"joints\": [%.6f, %.6f, %.6f, %.6f, %.6f],\n",

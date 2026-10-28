@@ -11,6 +11,16 @@ int main() {
   ControllerManipulator arm={};
   const double source[]={.4,-.1,-.047},destination[]={.4,.1,-.047};
   assert(controller_manipulator_start(&arm,source,destination));
+  for(const auto &pose:arm.poses) assert(fabs(pose[0]-pose[4])<1e-9);
+  ControllerManipulator rotated={};rotated.grip_yaw=.3;
+  assert(controller_manipulator_start(&rotated,source,destination));
+  for(const auto &pose:rotated.poses) assert(fabs(pose[0]-pose[4]-.3)<1e-9);
+  // A mobile pickup may face the object from the opposite side. Parallel jaws
+  // are equivalent after a half turn; do not exceed the wrist limits.
+  ControllerManipulator opposite={};opposite.grip_yaw=2.7186;
+  assert(controller_manipulator_start(&opposite,source,destination));
+  for(const auto &pose:opposite.poses)
+    assert(fabs(std::remainder(pose[0]-pose[4]-opposite.grip_yaw,3.14159265358979323846))<1e-9);
   Obstacle obstacle={5,5,5,.02,0};
   assert(controller_manipulator_motion_clear(arm.poses[1],arm.poses[3],.05,clear,&obstacle));
   assert(obstacle.samples>10);

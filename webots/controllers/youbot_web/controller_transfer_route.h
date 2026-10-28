@@ -1,5 +1,8 @@
 #ifndef CONTROLLER_TRANSFER_ROUTE_H
 #define CONTROLLER_TRANSFER_ROUTE_H
+
+// Known floor docking geometry shared by approach and safe cancellation.
+#define CONTROLLER_TRANSFER_DOCK_DISTANCE 0.39
 #include "controller_types.h"
 
 // Shortest path on a conservative rectangle-corner visibility graph.

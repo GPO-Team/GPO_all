@@ -17,8 +17,8 @@ void controller_manipulator_forward(const double q[5], double p[3]) {
   p[2] = 0.147 + 0.155 * cos(a) + 0.135 * cos(b) + ARM_TOOL_LENGTH * cos(c);
 }
 
-int controller_manipulator_inverse(const double p[3], double q[5]) {
-  if (!p || !q) return 0;
+int controller_manipulator_inverse(const double p[3], double q[5], double grip_yaw) {
+  if (!p || !q || !std::isfinite(grip_yaw)) return 0;
   for (int i = 0; i < 3; ++i) if (!std::isfinite(p[i])) return 0;
   const double dx = p[0] - 0.156, dy = p[1];
   const double r = hypot(dx, dy) - 0.033;
@@ -29,7 +29,9 @@ int controller_manipulator_inverse(const double p[3], double q[5]) {
   q[2] = -acos(cosine);
   q[1] = atan2(-r, z) - atan2(0.135 * sin(q[2]), 0.155 + 0.135 * cos(q[2]));
   q[3] = -ARM_PI - q[1] - q[2];
-  q[4] = 0;
+  // The downward wrist rotates around -Z; counter-rotate the base joint to keep the jaws aligned.
+  // Parallel jaws have the same grasp axis after a half turn.
+  q[4] = std::remainder(q[0] - grip_yaw, ARM_PI);
   for (int i = 0; i < 5; ++i) if (!std::isfinite(q[i]) || q[i] < lower[i] || q[i] > upper[i]) return 0;
   return 1;
 }
@@ -103,6 +105,7 @@ static void enter(ControllerManipulator *arm, ControllerManipulatorStage stage) 
 int controller_manipulator_start(ControllerManipulator *arm, const double source[3], const double destination[3]) {
   if (!arm || !source || !destination || controller_manipulator_active(arm)) return 0;
   ControllerManipulator next = {};
+  next.grip_yaw = arm->grip_yaw;
   next.error = "";
   memcpy(next.source, source, sizeof(next.source));
   memcpy(next.destination, destination, sizeof(next.destination));
@@ -112,7 +115,7 @@ int controller_manipulator_start(ControllerManipulator *arm, const double source
   const char *errors[4] = {"source_unreachable", "source_approach_unreachable",
       "target_unreachable", "target_approach_unreachable"};
   for (int index = 0; index < 4; ++index) {
-    if (!controller_manipulator_inverse(positions[index], next.poses[index])) {
+    if (!controller_manipulator_inverse(positions[index], next.poses[index], next.grip_yaw)) {
       arm->error = errors[index];
       return 0;
     }
@@ -188,8 +191,8 @@ int controller_manipulator_recover(ControllerManipulator *arm,
        fabs(sample->contacts[0])<=.02 || fabs(sample->contacts[1])<=.02))) return 0;
   ControllerManipulator next=*arm;
   double above[]={destination[0],destination[1],destination[2]+ARM_CLEARANCE};
-  if(!controller_manipulator_inverse(destination,next.poses[2]) ||
-      !controller_manipulator_inverse(above,next.poses[3])) return 0;
+  if(!controller_manipulator_inverse(destination,next.poses[2],next.grip_yaw) ||
+      !controller_manipulator_inverse(above,next.poses[3],next.grip_yaw)) return 0;
   memcpy(next.destination,destination,sizeof(next.destination));
   next.halt_motion=next.hold_fingers=0;next.cancel_pending=cancel_pending;next.error="";
   enter(&next,MANIPULATOR_TRANSFER);
@@ -244,7 +247,7 @@ void controller_manipulator_step(ControllerManipulator *arm, const ControllerMan
     // The load is supported. Relieve floor pressure while opening the fingers;
     // freezing a compressed contact can prevent the fingers from sliding apart.
     double relief[3];controller_manipulator_forward(sample->joints,relief);relief[2]+=.005;
-    if(!controller_manipulator_inverse(relief,arm->poses[2])) {fail(arm,sample,"target_approach_unreachable");return;}
+    if(!controller_manipulator_inverse(relief,arm->poses[2],arm->grip_yaw)) {fail(arm,sample,"target_approach_unreachable");return;}
   }
   enter(arm, (ControllerManipulatorStage)(arm->stage + 1));
 }

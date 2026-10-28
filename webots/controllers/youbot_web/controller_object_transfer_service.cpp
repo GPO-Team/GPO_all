@@ -11,8 +11,8 @@ void enter(ControllerObjectTransferState *s, ControllerObjectTransferStage stage
     s->navigation_last_progress_at=now;
 }
 void fault(ControllerObjectTransferState *s, const char *code) {
-  if(s->attached && s->status!=CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY) ++s->recovery_epoch;
-  s->status = s->attached ? CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY : CONTROLLER_TRANSFER_FAILED;
+  if((s->attached || s->on_platform) && s->status!=CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY) ++s->recovery_epoch;
+  s->status = (s->attached || s->on_platform) ? CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY : CONTROLLER_TRANSFER_FAILED;
   std::snprintf(s->error_code, sizeof(s->error_code), "%s", code);
 }
 }
@@ -23,7 +23,7 @@ int controller_object_transfer_service_start(ControllerObjectTransferService *se
     const char *id, const char *object, double x, double y, double now) {
   if (!service || !id || !object || !std::isfinite(x) || !std::isfinite(y) ||
       service->state.status == CONTROLLER_TRANSFER_RUNNING ||
-      service->state.status == CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY || service->state.attached ||
+      service->state.status == CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY || service->state.attached || service->state.on_platform ||
       (service->state.mission_id[0] && std::strcmp(service->state.mission_id,id)==0)) return 0;
   controller_object_transfer_service_init(service);
   auto *s = &service->state;
@@ -43,11 +43,15 @@ void controller_object_transfer_service_step(ControllerObjectTransferService *se
   if (s->status != CONTROLLER_TRANSFER_RUNNING) return;
   if (in->cancel_requested && !s->cancel_pending) {
     out->stop_base=1;
-    if (s->attached || in->attached) {
+    if(s->on_platform && !s->attached) {
+      if(!in->on_platform) {fault(s,"cargo_lost");return;}
+      s->cancel_pending=1; enter(s,CONTROLLER_TRANSFER_PICKING_FROM_PLATFORM,now);
+    } else if (s->attached || in->attached) {
       s->attached=1;
       if (!in->release_safe && !in->can_lower) { fault(s,"unsafe_release"); return; }
       s->cancel_pending=1; enter(s,CONTROLLER_TRANSFER_PLACING,now);
     } else { s->status=CONTROLLER_TRANSFER_CANCELLED; s->stage=CONTROLLER_TRANSFER_STAGE_NONE; return; }
+    return;
   }
   const double elapsed=now-s->stage_started_at;
   if(in->navigation_progress) s->navigation_last_progress_at=now;
@@ -76,12 +80,12 @@ void controller_object_transfer_service_step(ControllerObjectTransferService *se
       else if(elapsed>kTimeout) fault(s,"lift_failed"); break;
     case CONTROLLER_TRANSFER_PLACING_ON_PLATFORM:
       out->request_arm_pose=1;
-      if(in->arm_reached && in->attached) enter(s,CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM,now);
+      if(in->arm_reached && in->attached && in->on_platform) enter(s,CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM,now);
       else if(elapsed>kTimeout) fault(s,"platform_place_timeout"); break;
     case CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM:
-      if(s->attached && in->arm_reached) {
+      if(s->attached && in->arm_reached && in->on_platform) {
         out->detach_object=1; s->attached=0; s->gripper_closed=0;
-      } else if(in->on_platform && !in->attached) {
+      } else if(in->arm_reached && in->on_platform && !in->attached) {
         s->on_platform=1; enter(s,CONTROLLER_TRANSFER_RETURNING_ARM_FOR_TRANSPORT,now);
       } else if(elapsed>kTimeout) fault(s,"platform_release_failed");
       break;
@@ -116,8 +120,10 @@ void controller_object_transfer_service_step(ControllerObjectTransferService *se
       if(in->arm_reached && in->release_safe) enter(s,CONTROLLER_TRANSFER_RELEASING,now);
       else if(elapsed>kTimeout) fault(s,"unsafe_release"); break;
     case CONTROLLER_TRANSFER_RELEASING:
-      if(in->arm_reached && in->release_safe) {
-        out->detach_object=1; s->attached=0; s->on_platform=0; s->gripper_closed=0; enter(s,CONTROLLER_TRANSFER_RETURNING_ARM,now);
+      if(s->attached && in->arm_reached && in->release_safe) {
+        out->detach_object=1; s->attached=0; s->on_platform=0; s->gripper_closed=0;
+      } else if(!in->attached && in->arm_reached && in->release_safe) {
+        enter(s,CONTROLLER_TRANSFER_RETURNING_ARM,now);
       } else if(elapsed>kTimeout) fault(s,"release_failed"); break;
     case CONTROLLER_TRANSFER_RETURNING_ARM:
       out->request_arm_pose=1;
@@ -128,7 +134,10 @@ void controller_object_transfer_service_step(ControllerObjectTransferService *se
       } else if(elapsed>kTimeout) fault(s,"placement_failed"); break;
     default: break;
   }
-  if(s->status!=CONTROLLER_TRANSFER_RUNNING) out->stop_base=1;
+  if(s->status!=CONTROLLER_TRANSFER_RUNNING) {
+    out->stop_base=1;
+    out->request_navigation=0;
+  }
 }
 int controller_object_transfer_service_resume(ControllerObjectTransferService *service,double now) {
   if(!service || service->state.status!=CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY) return 0;

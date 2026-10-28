@@ -14,7 +14,7 @@ int main() {
   assert(controller_transfer_route_plan_dock(&zones,3,-1,1.4,0,.36,1,&route));
   const auto dock=route.waypoints[route.count-1];
   assert(dock.x>1.4 && dock.z<0);
-  assert(std::fabs(std::hypot(dock.x-1.4,dock.z)-.39)<1e-9);
+  assert(std::fabs(std::hypot(dock.x-1.4,dock.z)-CONTROLLER_TRANSFER_DOCK_DISTANCE)<1e-9);
   assert(std::fabs(std::atan2(-dock.z,1.4-dock.x)-dock.heading_rad)<1e-9);
   const ControllerTransferObstacle cargo={1.4,0,.38};
   assert(controller_transfer_route_plan(&zones,3,0,1,0,.36,&route,0,&cargo));

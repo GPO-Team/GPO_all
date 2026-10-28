@@ -18,6 +18,7 @@ const destination={x:mobile ? (obstacle ? 4 : nearObject ? 1 : 2) : 0.4,y:afterD
 const directory=await mkdtemp(path.join(os.tmpdir(),"gpo-manipulator-"));
 await cp(path.join(root,"webots/protos"),path.join(directory,"protos"),{recursive:true});
 const children=[];
+const armSamples=[];
 let socket;
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const freePort=async()=>{const s=createServer();s.listen(0,"127.0.0.1");await once(s,"listening");const p=s.address().port;await new Promise(r=>s.close(r));return p;};
@@ -50,7 +51,8 @@ try {
   socket=new WebSocket(`ws://127.0.0.1:${missionPort}/ui`);await once(socket,"open");
   await until(async () => (await readState()).simulationTime > 2, "settling");
   let before=await readState();
-  assert.ok(Math.hypot(before.pose.x,before.pose.y)<0.015,"Robot started moving without a mission");
+  assert.ok(Math.hypot(before.pose.x,before.pose.y)<0.015,
+    `Robot started moving without a mission: ${JSON.stringify(before.pose)} at ${before.simulationTime}s`);
   if(afterDemo) {
     const scene=sceneContract.normalizeScene({});
     const demoAck=await send({requestId:"demo-before-pick",type:"transfer_object",objectId:"demo-box",
@@ -85,6 +87,7 @@ try {
   let injectedRuntime = false;
   await until(async()=>{
     const state=await readState();
+    if(state.manipulator?.stage==="closing") armSamples.push(state.manipulator);
     baseTrace.push({x:state.pose.x,y:state.pose.y,yaw:state.pose.yaw,time:state.simulationTime,
       stage:state.manipulator?.stage,distance:state.navigation.distanceToTarget,
       waypoint:state.navigation.currentWaypointIndex});
@@ -99,9 +102,9 @@ try {
     }
     assert.ok(!injectedRoute || state.navigation.missionId !== "foreign-route", "A route update preempted an active manipulator mission");
     assert.ok(!injectedRuntime || !["foreign-survey","foreign-arm"].includes(state.navigation.missionId), "A runtime command preempted an active manipulator mission");
-    if(state.manipulator?.stage!==lastStage){ lastStage=state.manipulator?.stage; observations.push(state); console.log(lastStage,JSON.stringify(state.manipulator)); }
+    if(state.manipulator?.missionId==="arm-physics" && state.manipulator.stage!==lastStage){ lastStage=state.manipulator.stage; observations.push(state); console.log(lastStage,JSON.stringify(state.manipulator)); }
     const m=await getMission("arm-physics");
-    if(m.status==="failed")throw new Error(JSON.stringify(state));
+    if(["failed","holding_for_recovery"].includes(m.status))throw new Error(JSON.stringify(state));
     return m.status==="completed";
   },"physical pick-place",mobile ? 180000 : 90000);
   const final=await readState();
@@ -159,7 +162,7 @@ try {
   assert.equal(reverseAck.ok,true,JSON.stringify(reverseAck));
   await until(async()=>{
     const mission=await getMission("arm-reverse");
-    if(mission.status==="failed") throw new Error(await readFile(path.join(stateDir,"robot_state.json"),"utf8"));
+    if(["failed","holding_for_recovery"].includes(mission.status)) throw new Error(await readFile(path.join(stateDir,"robot_state.json"),"utf8"));
     return mission.status==="completed";
   },"repeat transfer",mobile ? 180000 : 90000);
   const reverse=await readState();
@@ -190,19 +193,37 @@ try {
   },"lifting before cancel",mobile ? 90000 : 30000,5);
   const cancel=await fetch(`http://127.0.0.1:${missionPort}/api/missions/arm-cancel/cancel`,{method:"POST"});
   assert.equal(cancel.status,202);
-  await until(async()=>(await getMission("arm-cancel")).status==="cancelled","arm cancellation");
+  let cancellationStableSince=0;
+  let cancellationStage;
+  await until(async()=>{
+    const mission=await getMission("arm-cancel"),arm=(await readState()).manipulator;
+    const terminal=arm.missionId==="arm-cancel" && ["cancelled","holding_for_recovery"].includes(arm.stage) &&
+      ["cancelled","holding_for_recovery"].includes(mission.status);
+    if(!terminal || arm.stage!==cancellationStage) cancellationStableSince=0;
+    cancellationStage=arm.stage;
+    if(terminal && !cancellationStableSince) cancellationStableSince=Date.now();
+    return terminal && Date.now()-cancellationStableSince>=750;
+  },"arm cancellation or safe hold");
   const stopped=await readState();
   await delay(500);
   const afterStop=await readState();
-  assert.equal(afterStop.manipulator.stage,"cancelled");
-  assert.equal(afterStop.navigation.status,"mission_cancelled");
+  const holding=afterStop.manipulator.stage==="holding_for_recovery";
+  assert.ok(holding || afterStop.manipulator.stage==="cancelled","Cancellation did not stop the arm");
+  assert.equal(afterStop.navigation.status,holding ? "manipulator_holding" : "mission_cancelled");
   assert.ok(Math.hypot(afterStop.pose.x-stopped.pose.x,afterStop.pose.y-stopped.pose.y)<0.01,"Base moved after cancellation");
   assert.ok(afterStop.manipulator.joints.every((q,i)=>Math.abs(q-stopped.manipulator.joints[i])<0.02),"Arm moved after cancellation");
   const heldObject = afterStop.manipulator.objectPosition;
   const stoppedObject = stopped.manipulator.objectPosition;
-  // Loaded cancellation maintains closing force; asymmetric contacts can redistribute.
-  assert.ok(afterStop.manipulator.fingers.reduce((sum,q)=>sum+q,0)>0.002,"Gripper became empty after cancellation");
-  assert.ok(heldObject.z>(mobile ? 0.08 : 0.06) && Math.abs(heldObject.z-stoppedObject.z)<0.015,"Cargo dropped after cancellation");
+  assert.equal(afterStop.manipulator.loadHeld,holding,"Cancellation lost load ownership");
+  assert.equal(afterStop.manipulator.active,holding,"Cancellation released arm ownership during recovery");
+  if(holding) {
+    assert.ok(afterStop.manipulator.fingers.reduce((sum,q)=>sum+q,0)>0.002,"Recovery hold lost the grasp");
+    assert.ok(heldObject.z>=0.034,"Cargo fell onto its side during recovery");
+  } else {
+    assert.ok(afterStop.manipulator.fingers.every(q=>q>0.024),"Gripper did not open after safe unloading");
+    assert.ok(Math.abs(heldObject.z-0.04)<0.006,"Cargo was not placed on the floor");
+  }
+  assert.ok(Math.abs(heldObject.z-stoppedObject.z)<0.015,"Cargo did not settle after cancellation");
   assert.ok(Math.hypot(heldObject.x-stoppedObject.x,heldObject.y-stoppedObject.y,heldObject.z-stoppedObject.z)<(mobile ? 0.03 : 0.02),"Object moved out of the grasp after cancellation");
   await mkdir(path.join(root,"output/manipulator-smoke"),{recursive:true});
   const reportName = afterDemo ? "pick-after-demo.json" : mobile ? obstacle ? "mobile-delivery-obstacle.json" : nearObject ? "mobile-delivery-near.json" : "mobile-delivery.json" : injectedRoute ? "manipulator-route-interlock.json" : "manipulator-physics.json";
@@ -212,7 +233,7 @@ try {
 } catch(error) {
   await mkdir(path.join(root,"output/manipulator-smoke"),{recursive:true});
   const lastState = await readFile(path.join(stateDir,"robot_state.json"),"utf8").catch(()=>null);
-  await writeFile(path.join(root,"output/manipulator-smoke/manipulator-failure.json"),JSON.stringify({error:error.message,lastState},null,2));
+  await writeFile(path.join(root,"output/manipulator-smoke/manipulator-failure.json"),JSON.stringify({error:error.message,lastState,armSamples},null,2));
   for(const child of children)console.error(child.logs.slice(-8000));
   throw error;
 } finally {

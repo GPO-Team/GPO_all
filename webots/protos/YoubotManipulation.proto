@@ -795,33 +795,29 @@ Robot {
     DEF PLATE Solid {
       translation -0.155 0 0
       children [
-        PlateMesh {
-        }
+        PlateMesh {}
         Pose {
-          translation -0.02 0 0.06
+          translation 0.025 0 0.045
           children [
-            Shape {
-              appearance PBRAppearance { baseColor 0.18 0.18 0.2 roughness 0.8 }
-              geometry Box { size 0.012 0.19 0.02 }
-            }
+            Shape { appearance PBRAppearance { baseColor 0.18 0.18 0.2 roughness 0.8 } geometry Box { size 0.32 0.38 0.007 } }
           ]
         }
         Pose {
-          translation 0.065 0.085 0.07
+          translation -0.125 0 0.07
           children [
-            Shape {
-              appearance PBRAppearance { baseColor 0.18 0.18 0.2 roughness 0.8 }
-              geometry Box { size 0.17 0.012 0.04 }
-            }
+            Shape { appearance PBRAppearance { baseColor 0.18 0.18 0.2 roughness 0.8 } geometry Box { size 0.012 0.38 0.04 } }
           ]
         }
         Pose {
-          translation 0.065 -0.085 0.07
+          translation 0.025 0.185 0.07
           children [
-            Shape {
-              appearance PBRAppearance { baseColor 0.18 0.18 0.2 roughness 0.8 }
-              geometry Box { size 0.17 0.012 0.04 }
-            }
+            Shape { appearance PBRAppearance { baseColor 0.18 0.18 0.2 roughness 0.8 } geometry Box { size 0.32 0.012 0.04 } }
+          ]
+        }
+        Pose {
+          translation 0.025 -0.185 0.07
+          children [
+            Shape { appearance PBRAppearance { baseColor 0.18 0.18 0.2 roughness 0.8 } geometry Box { size 0.32 0.012 0.04 } }
           ]
         }
       ]
@@ -829,68 +825,33 @@ Robot {
       contactMaterial "cargo-platform"
       boundingObject Group {
         children [
-          Pose {
-            translation 0.008 0 0.045
-            children [
-              Box {
-                size 0.25 0.17 0.007
-              }
-            ]
-          }
-          Pose {
-            translation -0.015 0.112 0.045
-            rotation 0 0 1 -0.13
-            children [
-              Box {
-                size 0.17 0.08 0.007
-              }
-            ]
-          }
-          Pose {
-            translation -0.015 -0.112 0.045
-            rotation 0 0 1 0.13
-            children [
-              Box {
-                size 0.17 0.08 0.007
-              }
-            ]
-          }
-          Pose {
-            translation 0.076 0.084 0.045
-            rotation 0 0 1 0.81
-            children [
-              Box {
-                size 0.08 0.08 0.007
-              }
-            ]
-          }
-          Pose {
-            translation 0.076 -0.084 0.045
-            rotation 0 0 1 -0.81
-            children [
-              Box {
-                size 0.08 0.08 0.007
-              }
-            ]
-          }
-          Pose {
-            translation -0.02 0 0.06
-            children [ Box { size 0.012 0.19 0.02 } ]
-          }
-          Pose {
-            translation 0.065 0.085 0.07
-            children [ Box { size 0.17 0.012 0.04 } ]
-          }
-          Pose {
-            translation 0.065 -0.085 0.07
-            children [ Box { size 0.17 0.012 0.04 } ]
-          }
+        Pose {
+          translation 0.025 0 0.045
+          children [
+            Box { size 0.32 0.38 0.007 }
+          ]
+        }
+        Pose {
+          translation -0.125 0 0.07
+          children [
+            Box { size 0.012 0.38 0.04 }
+          ]
+        }
+        Pose {
+          translation 0.025 0.185 0.07
+          children [
+            Box { size 0.32 0.012 0.04 }
+          ]
+        }
+        Pose {
+          translation 0.025 -0.185 0.07
+          children [
+            Box { size 0.32 0.012 0.04 }
+          ]
+        }
         ]
       }
-      physics Physics {
-        density -1
-        mass 0.5
-      }
+      physics Physics { density -1 mass 0.5 }
     }
     %< } >%
   ]

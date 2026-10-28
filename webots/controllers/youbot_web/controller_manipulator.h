@@ -24,6 +24,7 @@ typedef struct {
   double targets[5];
   double source[3], destination[3];
   double finger_target;
+  double grip_yaw;
   double elapsed, settled;
   double previous_fingers[2];
   int halt_motion;
@@ -35,7 +36,7 @@ typedef struct {
 } ControllerManipulator;
 
 // Positions are relative to the robot origin (ENU). Dimensions: Webots R2025a Youbot.proto.
-int controller_manipulator_inverse(const double position[3], double joints[5]);
+int controller_manipulator_inverse(const double position[3], double joints[5], double grip_yaw = 0.0);
 void controller_manipulator_forward(const double joints[5], double position[3]);
 int controller_manipulator_start(ControllerManipulator *arm, const double source[3], const double destination[3]);
 int controller_manipulator_active(const ControllerManipulator *arm);

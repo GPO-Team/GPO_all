@@ -89,7 +89,7 @@ void controller_webots_devices_set_manipulator(
       wb_motor_set_position(devices->arm_joints[i],
                             clamp_position(joints[i], kJointMinimum[i], kJointMaximum[i]));
   }
-  finger_opening = clamp_position(finger_opening, 0.0, 0.0115);
+  finger_opening = clamp_position(finger_opening, 0.0, 0.025);
   for (int i = 0; i < 2; ++i) {
     if (devices->gripper_fingers[i])
       wb_motor_set_position(devices->gripper_fingers[i], finger_opening);

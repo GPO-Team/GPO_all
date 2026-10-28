@@ -283,7 +283,7 @@ export default function PlannerLeftSidebar({
       </>}
       {tab === "route" && <details className="planner-disclosure rounded-xl border border-orange-200 bg-white p-3">
         <summary className="disclosure-trigger text-sm font-semibold">Перенос объекта</summary>
-        <div className="mt-3"><PlannerObjectTransferSection onStartTransfer={onStartObjectTransfer} /></div>
+        <div className="mt-3"><PlannerObjectTransferSection onStartTransfer={onStartObjectTransfer} editingLocked={editingLocked} /></div>
       </details>}
       {tab === "route" && <PlannerImportSection onImportFile={onImportFile} onExportCsv={onExportCsv} hasPoints={hasPoints} editingLocked={editingLocked} />}
       </div>

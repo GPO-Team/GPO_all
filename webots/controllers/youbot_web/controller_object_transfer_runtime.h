@@ -17,18 +17,23 @@ typedef struct {
   ControllerObjectTransferStage configured_stage;
   int available;
   WbNodeRef tcp_node;
+  WbNodeRef platform_node;
+  int finger_node_ids[2];
   char boot_id[64];
   int arm_phase;
   double initial_object_z;
   double grip_roll;
-  double grip_offset[3];
+  double lift_origin[3];
   double stable_since;
-  double last_object_pose[3];
+  double floor_support_pose[3];
+  int floor_support_confirmed;
   double last_time;
   double contacts[2];
   int cancel_recovery_attempted;
   int have_joint_measurement;
+  int manual_active;
   double last_grip_seen;
+  double last_platform_seen;
   double linear_speed_limit,angular_speed_limit;
   double progress_pose[3];
 } ControllerObjectTransferRuntime;
@@ -60,5 +65,13 @@ int controller_object_transfer_object_on_platform(
     double object_x,double object_y,double object_z);
 void controller_object_transfer_runtime_set_speed_limits(ControllerObjectTransferRuntime *runtime,
     double linear_speed_limit, double angular_speed_limit);
+int controller_object_transfer_release_safe(const ControllerObjectTransferState *state,
+    int floor_contact, double linear_speed, double angular_speed);
+int controller_object_transfer_release_supported(const ControllerObjectTransferState *state,
+    int floor_contact);
+int controller_object_transfer_floor_supported(ControllerObjectTransferRuntime *runtime,
+    int floor_contact, double linear_speed, double angular_speed);
+ControllerManipulatorTarget controller_object_transfer_runtime_sample(
+    const ControllerObjectTransferRuntime *runtime, double now);
 
 #endif

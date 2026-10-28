@@ -49,8 +49,9 @@ static ControllerRouteZoneStatus zone_status_from_load_result(
 void controller_route_zone_service_init(ControllerRouteZoneService *service) {
   if (!service) return;
   service->route_last_checked = -2;
-  service->limit_zones_last_checked = -2;
-  service->surface_zones_last_checked = -2;
+  // Zone files are optional until configured; a later deletion still reports an error.
+  service->limit_zones_last_checked = -1;
+  service->surface_zones_last_checked = -1;
 }
 
 void controller_route_zone_service_ignore_existing(

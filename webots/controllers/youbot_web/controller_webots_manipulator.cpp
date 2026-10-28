@@ -18,6 +18,11 @@ using std::isfinite;
 static void guard_arm_motion(void);
 static double cargo_floor_height(WbNodeRef cargo);
 
+static double grip_yaw_in_base(WbNodeRef cargo, double base_yaw) {
+  const double *rotation=cargo ? wb_supervisor_node_get_orientation(cargo) : NULL;
+  return rotation ? std::remainder(atan2(rotation[3],rotation[0])-base_yaw,2*3.14159265358979323846) : 0;
+}
+
 static int world_to_local(const double world[3], double local[3]) {
   const double *base = wb_supervisor_node_get_position(webots_pose.self_node);
   const double *rotation = wb_supervisor_node_get_orientation(webots_pose.self_node);
@@ -101,7 +106,8 @@ static void apply_targets(void) {
   }
   for (int i = 0; i < 2; ++i) if (webots_devices.gripper_fingers[i]) {
     wb_motor_set_velocity(webots_devices.gripper_fingers[i], 0.015);
-    wb_motor_set_available_force(webots_devices.gripper_fingers[i], 20);
+    // The 40 g box needs little force; 20 N per finger excites the contact solver.
+    wb_motor_set_available_force(webots_devices.gripper_fingers[i], 2.0);
     const double minimum = wb_motor_get_min_position(webots_devices.gripper_fingers[i]);
     const double maximum = wb_motor_get_max_position(webots_devices.gripper_fingers[i]);
     const double target = controller_manipulator_finger_target(arm, i);
@@ -456,6 +462,7 @@ void controller_webots_manipulator_start(const RuntimeCommand *command) {
   manipulator->room_zone_index=controller_zone_geometry_find_room(&controller_runtime.limit_zones,x,y);
   ControllerManipulatorSample sample = read_sample();
   WbNodeRef cargo=wb_supervisor_node_get_from_def(manipulator->object_def);
+  manipulator->state.grip_yaw=grip_yaw_in_base(cargo,yaw);
   manipulator->support_z=cargo_floor_height(cargo);
   WbFieldRef bounding=cargo ? (wb_supervisor_node_is_proto(cargo) ? wb_supervisor_node_get_base_node_field(cargo,"boundingObject") : wb_supervisor_node_get_field(cargo,"boundingObject")) : NULL;
   manipulator->cargo_radius=geometry_radius(bounding ? wb_supervisor_field_get_sf_node(bounding) : NULL,0);
@@ -582,6 +589,10 @@ int controller_webots_manipulator_step(double dt) {
           controller_runtime.route.count=0;
           controller_runtime.current_waypoint_index=0;
           if(!carrying) {
+            // The chassis has turned since mission submission; align the jaws
+            // in the current base frame before solving the pickup poses.
+            manipulator->state.grip_yaw=grip_yaw_in_base(
+                wb_supervisor_node_get_from_def(manipulator->object_def),yaw);
             manipulator->state.hold_fingers=0;
             if(!controller_manipulator_start(&manipulator->state,sample.object,sample.object))delivery_fail(&sample,"source_unreachable");
             else manipulator->delivery_phase=DELIVERY_PICK;
@@ -589,10 +600,10 @@ int controller_webots_manipulator_step(double dt) {
             double grip[3]={manipulator->destination_world[0],manipulator->destination_world[1],manipulator->destination_world[2]+GRIP_OFFSET};
             double local[3];world_to_local(grip,local);
             memcpy(manipulator->state.destination,local,sizeof(local));
-            if(!controller_manipulator_inverse(local,manipulator->state.poses[2]))delivery_fail(&sample,"target_unreachable");
+            if(!controller_manipulator_inverse(local,manipulator->state.poses[2],manipulator->state.grip_yaw))delivery_fail(&sample,"target_unreachable");
             else {
               local[2]+=0.08;
-              if(!controller_manipulator_inverse(local,manipulator->state.poses[3]))delivery_fail(&sample,"target_approach_unreachable");
+              if(!controller_manipulator_inverse(local,manipulator->state.poses[3],manipulator->state.grip_yaw))delivery_fail(&sample,"target_approach_unreachable");
               else {
                 manipulator->state.hold_fingers=0;manipulator->state.elapsed=manipulator->state.settled=0;
                 memcpy(manipulator->state.targets,manipulator->state.poses[3],sizeof(manipulator->state.targets));

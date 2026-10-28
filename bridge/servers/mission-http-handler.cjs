@@ -4,7 +4,7 @@ const publicMission = mission => ({ok:true,missionId:mission.missionId,operation
   failureReason:mission.failureReason || null,
   sceneRevision:mission.command?.sceneRevision,createdAt:mission.createdAt,updatedAt:mission.updatedAt,
   feedbackFresh:mission.feedbackFresh,lastFeedbackAt:mission.lastFeedbackAt,connectionError:mission.connectionError,
-  stage:mission.stage,progress:mission.progress,errorCode:mission.errorCode,attached:mission.attached,
+  stage:mission.stage,progress:mission.progress,errorCode:mission.errorCode,attached:mission.attached,onPlatform:mission.onPlatform,
   recoveryEpoch:mission.recoveryEpoch,controllerRecoveryEpoch:mission.controllerRecoveryEpoch,resumeDelivered:mission.resumeDelivered,
   controllerBootId:mission.controllerBootId,objectPose:mission.objectPose,manipulator:mission.manipulator});
 const createMissionHttpHandler = ({missionService,getStatus,ready=async()=>true}) => async(request,response)=>{
