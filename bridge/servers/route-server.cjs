@@ -1,5 +1,6 @@
 const http = require("http");
 const {createMissionHttpHandler} = require("./mission-http-handler.cjs");
+const {createWarehouseHttpHandler} = require("./warehouse-http-handler.cjs");
 const WebSocket = require("ws");
 const { createRouteService } = require("../services/route-service.cjs");
 const { verifyWebSocketOrigin } = require("../protocol/origin-policy.cjs");
@@ -18,8 +19,14 @@ const normalizeIncomingPayload = async (payload) => {
   return unwrapRouteCommand(payload);
 };
 
-const createRouteServer = ({ artifactStore, host, port, routeService: suppliedRouteService, missionService, ready }) => {
-  const server = http.createServer(createMissionHttpHandler({missionService,getStatus:() => getStatus(),ready}));
+const createRouteServer = ({ artifactStore, host, port, routeService: suppliedRouteService, missionService, warehouseService, ready }) => {
+  const missionHandler = createMissionHttpHandler({missionService,getStatus:() => getStatus(),ready});
+  const warehouseHandler = warehouseService && createWarehouseHttpHandler({warehouseService});
+  const server = http.createServer((request,response) => {
+    const pathname = (request.url || "/").split("?")[0];
+    return warehouseHandler && /^\/api\/warehouse(?:\/|$)/.test(pathname)
+      ? warehouseHandler(request,response) : missionHandler(request,response);
+  });
   const wss = new WebSocket.Server({ server, maxPayload: 1024 * 1024, verifyClient: verifyWebSocketOrigin });
   const uiClients = new Set();
   let controllerConnection = null;
@@ -71,6 +78,7 @@ const createRouteServer = ({ artifactStore, host, port, routeService: suppliedRo
     close: async () => {
       await pending;
       await missionService?.drain();
+      await warehouseService?.drain();
       for (const client of wss.clients) client.terminate();
       await new Promise(resolve => wss.close(resolve));
       await new Promise(resolve => server.close(resolve));
