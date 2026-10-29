@@ -289,10 +289,10 @@ static int prepare_departure(double x,double y,double yaw,const ControllerManipu
   if(!refresh_obstacles())return 0;
   if(delivery_safe(m,x,y))return 1;
   const auto &previous=object_transfer_runtime.service.state;
-  const double parked[]={0,1.57,-2.635,1.78,0};
+  const auto parked=controller_object_transfer_transport_pose();
   if((previous.status!=CONTROLLER_TRANSFER_COMPLETED && previous.status!=CONTROLLER_TRANSFER_CANCELLED) ||
       previous.attached || !previous.release_evidence)return 0;
-  for(int i=0;i<5;++i)if(fabs(sample->joints[i]-parked[i])>.05)return 0;
+  for(int i=0;i<5;++i)if(!isfinite(sample->joints[i]) || fabs(sample->joints[i]-parked.joints[i])>.05)return 0;
   for(int i=0;i<delivery_obstacle_count;++i) {
     const auto &o=delivery_obstacles[i];
     if(o.node!=object_transfer_runtime.object.node)continue;

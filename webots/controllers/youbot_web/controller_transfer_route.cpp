@@ -111,12 +111,25 @@ int controller_transfer_route_plan(const ZoneData *zones, double sx, double sy,
 }
 
 int controller_transfer_route_plan_dock(const ZoneData *zones, double sx, double sy,
-    double ox, double oy, double clearance, int pickup, RouteData *out) {
+    double ox, double oy, double clearance, int pickup, RouteData *out, double object_yaw) {
   if (!out) return 0;
   out->count = 0;
   const double preferred = std::atan2(oy-sy,ox-sx);
   const ControllerTransferObstacle object = {ox,oy,.38};
   const double pi = 3.14159265358979323846;
+  if(pickup) {
+    if(!std::isfinite(object_yaw)) return 0;
+    const double face=std::remainder(object_yaw,pi/2);
+    const double aligned=face+std::round((preferred-face)/(pi/2))*(pi/2);
+    for(double offset : {0.0,pi/2,-pi/2,pi}) {
+      const double heading=std::remainder(aligned+offset,2*pi);
+      if(controller_transfer_route_plan(zones,sx,sy,
+          ox-CONTROLLER_TRANSFER_DOCK_DISTANCE*std::cos(heading),
+          oy-CONTROLLER_TRANSFER_DOCK_DISTANCE*std::sin(heading),
+          clearance,out,heading,&object)) return 1;
+    }
+    return 0;
+  }
   for (double offset : {0.0, pi/4, -pi/4, pi/2, -pi/2, pi}) {
     const double heading = std::atan2(std::sin(preferred+offset),std::cos(preferred+offset));
     if (controller_transfer_route_plan(zones,sx,sy,ox-CONTROLLER_TRANSFER_DOCK_DISTANCE*std::cos(heading),oy-CONTROLLER_TRANSFER_DOCK_DISTANCE*std::sin(heading),
