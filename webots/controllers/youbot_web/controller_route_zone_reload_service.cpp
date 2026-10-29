@@ -1,6 +1,7 @@
 #include "controller_route_zone_reload_service.h"
 
 #include "controller_survey_lifecycle.h"
+#include "controller_io.h"
 
 #include <string.h>
 
@@ -74,6 +75,7 @@ void controller_route_zone_reload_service_apply_route_result(
     ControllerRouteZoneReloadService *service,
     const ControllerRouteZoneServiceResult *result) {
   if (!service || !service->runtime || !result) return;
+  if (service->motion_blocked && service->motion_blocked()) return;
   if (result->route_status == CONTROLLER_ROUTE_ZONE_STATUS_ROUTE_CANNOT_OPEN) {
     if (service->set_error) service->set_error("Cannot open route.csv");
     return;
@@ -116,6 +118,11 @@ void controller_route_zone_reload_service_reload_surface(ControllerRouteZoneRelo
 
 void controller_route_zone_reload_service_reload_route(ControllerRouteZoneReloadService *service) {
   if (!service || !service->route_zone_service || !service->runtime) return;
+  if (service->motion_blocked && service->motion_blocked()) {
+    // Ignore a foreign launch seen while the arm owns motion; do not replay it later.
+    service->route_zone_service->route_last_checked = get_file_mtime(service->paths.route_path);
+    return;
+  }
   const ControllerRouteZoneServiceReloadRequest request = {1, 0, 0};
   const ControllerRouteZoneServiceResult result = controller_route_zone_service_reload(
       service->route_zone_service, &service->paths, &request, &service->runtime->route,

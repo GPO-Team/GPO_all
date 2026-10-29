@@ -1,0 +1,176 @@
+{
+  "date": "2026-10-29",
+  "timezone": "Asia/Tomsk",
+  "test": "test:manipulator:contacts",
+  "mode": "fast",
+  "attempts": 10,
+  "successes": 10,
+  "destination": {
+    "x": 2,
+    "y": 0.6
+  },
+  "maximumFinalXYError_m": 0.0003728002145922883,
+  "controllerSHA256": "2157BF1BE80850977001395CF69AD77DB112ED63A21C9BCDA477A4A8EF9EBE26",
+  "runs": [
+    {
+      "attempt": 1,
+      "ok": true,
+      "exitCode": 0,
+      "controllerBootId": "webots-17932071184270736",
+      "status": "completed",
+      "attached": false,
+      "onPlatform": false,
+      "releaseEvidence": true,
+      "finalObjectPose": {
+        "x": 1.999649,
+        "y": 0.600094,
+        "z": 0.074951
+      },
+      "platformTravel_m": 0.7608829754962322
+    },
+    {
+      "attempt": 2,
+      "ok": true,
+      "exitCode": 0,
+      "controllerBootId": "webots-17932071783766627",
+      "status": "completed",
+      "attached": false,
+      "onPlatform": false,
+      "releaseEvidence": true,
+      "finalObjectPose": {
+        "x": 1.999642,
+        "y": 0.600104,
+        "z": 0.074951
+      },
+      "platformTravel_m": 0.7602971331788645
+    },
+    {
+      "attempt": 3,
+      "ok": true,
+      "exitCode": 0,
+      "controllerBootId": "webots-17932072107525167",
+      "status": "completed",
+      "attached": false,
+      "onPlatform": false,
+      "releaseEvidence": true,
+      "finalObjectPose": {
+        "x": 1.999642,
+        "y": 0.600104,
+        "z": 0.074951
+      },
+      "platformTravel_m": 0.7605367176178937
+    },
+    {
+      "attempt": 4,
+      "ok": true,
+      "exitCode": 0,
+      "controllerBootId": "webots-17932072471238747",
+      "status": "completed",
+      "attached": false,
+      "onPlatform": false,
+      "releaseEvidence": true,
+      "finalObjectPose": {
+        "x": 1.999649,
+        "y": 0.600094,
+        "z": 0.074951
+      },
+      "platformTravel_m": 0.7610920323278915
+    },
+    {
+      "attempt": 5,
+      "ok": true,
+      "exitCode": 0,
+      "controllerBootId": "webots-17932072785282490",
+      "status": "completed",
+      "attached": false,
+      "onPlatform": false,
+      "releaseEvidence": true,
+      "finalObjectPose": {
+        "x": 1.999649,
+        "y": 0.600094,
+        "z": 0.074951
+      },
+      "platformTravel_m": 0.7606469911384649
+    },
+    {
+      "attempt": 6,
+      "ok": true,
+      "exitCode": 0,
+      "controllerBootId": "webots-17932073086255832",
+      "status": "completed",
+      "attached": false,
+      "onPlatform": false,
+      "releaseEvidence": true,
+      "finalObjectPose": {
+        "x": 1.999658,
+        "y": 0.600091,
+        "z": 0.074951
+      },
+      "platformTravel_m": 0.7601324958452969
+    },
+    {
+      "attempt": 7,
+      "ok": true,
+      "exitCode": 0,
+      "controllerBootId": "webots-17932073465455003",
+      "status": "completed",
+      "attached": false,
+      "onPlatform": false,
+      "releaseEvidence": true,
+      "finalObjectPose": {
+        "x": 1.999657,
+        "y": 0.600091,
+        "z": 0.074951
+      },
+      "platformTravel_m": 0.7615351846690999
+    },
+    {
+      "attempt": 8,
+      "ok": true,
+      "exitCode": 0,
+      "controllerBootId": "webots-17932073823038187",
+      "status": "completed",
+      "attached": false,
+      "onPlatform": false,
+      "releaseEvidence": true,
+      "finalObjectPose": {
+        "x": 1.999691,
+        "y": 0.600036,
+        "z": 0.074951
+      },
+      "platformTravel_m": 0.7607745879785943
+    },
+    {
+      "attempt": 9,
+      "ok": true,
+      "exitCode": 0,
+      "controllerBootId": "webots-17932074129779632",
+      "status": "completed",
+      "attached": false,
+      "onPlatform": false,
+      "releaseEvidence": true,
+      "finalObjectPose": {
+        "x": 1.999657,
+        "y": 0.600091,
+        "z": 0.074951
+      },
+      "platformTravel_m": 0.7611434817122195
+    },
+    {
+      "attempt": 10,
+      "ok": true,
+      "exitCode": 0,
+      "controllerBootId": "webots-17932074444270294",
+      "status": "completed",
+      "attached": false,
+      "onPlatform": false,
+      "releaseEvidence": true,
+      "finalObjectPose": {
+        "x": 1.999657,
+        "y": 0.600091,
+        "z": 0.074951
+      },
+      "platformTravel_m": 0.7611484558967456
+    }
+  ]
+}

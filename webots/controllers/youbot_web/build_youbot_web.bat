@@ -32,6 +32,8 @@ if not exist "%WEBOTS_HOME%\include\controller\c\webots\robot.h" (
 )
 
 set "CONTROLLER_DIR=%~dp0"
+set "CONTROLLER_OUTPUT=%CONTROLLER_DIR%youbot_web.exe"
+if not "%~1"=="" set "CONTROLLER_OUTPUT=%~f1"
 pushd "%CONTROLLER_DIR%"
 if not exist "build" mkdir "build"
 if not exist "build\obj" mkdir "build\obj"
@@ -43,7 +45,7 @@ for /f "usebackq delims=" %%S in ("controller_sources.txt") do (
 
 cl /nologo /std:c++20 /EHsc /O2 /I"%WEBOTS_HOME%\include\controller\c" ^
   !SOURCE_ARGS! ^
-  /Fe:"youbot_web.exe" ^
+  /Fe:"%CONTROLLER_OUTPUT%" ^
   /Fo"build\obj\\" ^
   /link /LIBPATH:"%WEBOTS_HOME%\lib\controller" Controller.lib
 if errorlevel 1 (
@@ -51,5 +53,5 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo Built: "%CONTROLLER_DIR%youbot_web.exe"
+echo Built: "%CONTROLLER_OUTPUT%"
 popd

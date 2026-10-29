@@ -32,7 +32,7 @@ export const usePlannerMapExport = ({
     if (!selectedCells.length && !selectedFreeCells.length) {
       setStatus(
         normalizedVariant === "camera"
-          ? "Камерная карта пока пустая."
+          ? "Область обследования лидара пока пустая."
           : "Лидарная карта пока пустая."
       );
       return;
@@ -79,12 +79,12 @@ export const usePlannerMapExport = ({
     const link = document.createElement("a");
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     link.href = exportCanvas.toDataURL("image/png");
-    link.download = `${normalizedVariant === "camera" ? "camera-map" : "lidar-map"}-${timestamp}.png`;
+    link.download = `${normalizedVariant === "camera" ? "lidar-survey-map" : "lidar-map"}-${timestamp}.png`;
     link.click();
     setMapExportPromptOpen(false);
     setStatus(
       normalizedVariant === "camera"
-        ? `Камерная карта сохранена в PNG: ${link.download}`
+        ? `Область обследования лидара сохранена в PNG: ${link.download}`
         : `Лидарная карта сохранена в PNG: ${link.download}`
     );
   };

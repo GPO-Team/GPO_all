@@ -12,8 +12,10 @@ export const usePlannerRouteRebuild = ({
   setRouteEnergyStats,
   setStatus,
   surfaceZones,
+  editingLocked=false,
 }) => {
   useEffect(() => {
+    if(editingLocked)return;
     if (!routeSeed.length) {
       setOptimizedRoute([]);
       setEnergyWarning("");
@@ -49,6 +51,7 @@ export const usePlannerRouteRebuild = ({
     setRouteEnergyStats,
     setStatus,
     surfaceZones,
+    editingLocked,
   ]);
 
 };

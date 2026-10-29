@@ -2,9 +2,11 @@ export const findPointIndexAtCanvasPosition = (
   points,
   canvasPoint,
   toCanvas,
-  hitRadius
+  hitRadius,
+  isVisible = () => true
 ) => {
   for (let index = points.length - 1; index >= 0; index -= 1) {
+    if (!isVisible(points[index])) continue;
     const rendered = toCanvas(points[index]);
     if (
       Math.hypot(rendered.x - canvasPoint.x, rendered.y - canvasPoint.y) <=
@@ -33,12 +35,12 @@ export const appendPlannerPoint = (
     ...point,
     kind,
     zoneId: kind === "limit" ? activeLimitZoneId : null,
-    task: kind === "visit" ? defaultPointTask : null,
+    task: ["visit","free_visit"].includes(kind) ? defaultPointTask : null,
   },
 ];
 
 export const removePlannerPointsByKind = (points, kind) =>
-  kind ? points.filter((point) => point.kind !== kind) : [];
+  kind ? points.filter((point) => kind === "visit" ? !["visit","free_visit"].includes(point.kind) : point.kind !== kind) : [];
 
 export const removePlannerPoint = (points, pointIndex) =>
   points.filter((_, index) => index !== pointIndex);

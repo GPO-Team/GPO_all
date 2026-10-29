@@ -67,6 +67,24 @@ typedef struct {
 } ControllerTelemetryCamera;
 
 typedef struct {
+  int available;
+  const char *pose;
+  const char *state;
+  double joints[5];
+  double fingers[2];
+  double target_joints[5];
+  double target_finger_opening;
+  const char *mission_id;
+  const char *object_def;
+  const char *stage;
+  const char *error;
+  int active, load_held, cancel_pending;
+  int object_valid;
+  double object_position[3];
+  double contacts[2];
+} ControllerTelemetryManipulator;
+
+typedef struct {
   double simulation_time;
   double pose_x;
   double pose_y;
@@ -89,6 +107,11 @@ typedef struct {
   const Waypoint *route_waypoints;
   int route_waypoint_count;
   const ControllerObjectTransferState *object_transfer;
+  int object_position_available;
+  double object_x;
+  double object_y;
+  double object_z;
+  ControllerTelemetryManipulator manipulator;
 } ControllerTelemetrySnapshot;
 
 int controller_telemetry_write_snapshot(

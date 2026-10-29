@@ -143,14 +143,14 @@ int controller_webots_simulation_format_runtime_obstacle(
     double max_x,
     double min_y,
     double max_y) {
-  if (!buffer || buffer_size == 0 || !command || !command->has_spawn_obstacle) return 0;
+  if (!buffer || buffer_size == 0 || !command || (!command->has_spawn_obstacle && !command->has_update_obstacle)) return 0;
 
   const double x = clamp_value(command->x, min_x, max_x);
   const double y = clamp_value(command->y, min_y, max_y);
   const double size_x = clamp_value(command->size_x, 0.2, 3.5);
   const double size_y = clamp_value(command->size_y, 0.2, 3.5);
   const double height = clamp_value(command->height, 0.12, 2.8);
-  const long long compact_id = command->id >= 0 ? command->id : 0;
+  const long long compact_id = command->obstacle_id > 0 ? command->obstacle_id : command->id >= 0 ? command->id : 0;
   const int written = snprintf(
       buffer,
       buffer_size,

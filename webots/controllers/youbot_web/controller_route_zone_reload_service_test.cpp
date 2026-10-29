@@ -7,6 +7,7 @@ static char status[64];
 static char error[128];
 static int reset_metrics_calls;
 static int reset_navigation_calls;
+static int motion_blocked(void) { return 1; }
 
 static void set_status(const char *value) {
   strcpy(status, value);
@@ -59,6 +60,13 @@ int main(void) {
   assert(strcmp(status, "route_reloaded") == 0);
   assert(reset_metrics_calls == 1);
   assert(reset_navigation_calls == 1);
+  service.motion_blocked = motion_blocked;
+  strcpy(runtime.route.command_id, "arm-current");
+  strcpy(route_result.route.command_id, "foreign-route");
+  controller_route_zone_reload_service_apply_route_result(&service, &route_result);
+  assert(strcmp(runtime.route.command_id, "arm-current") == 0);
+  assert(reset_navigation_calls == 1);
+  service.motion_blocked = NULL;
 
   ControllerRouteZoneServiceResult invalid_surface = {0};
   invalid_surface.surface_zones_status = CONTROLLER_ROUTE_ZONE_STATUS_ZONE_INVALID_ENTRY;

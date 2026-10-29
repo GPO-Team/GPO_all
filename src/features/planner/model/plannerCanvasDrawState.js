@@ -5,6 +5,9 @@ export const createPlannerCanvasDrawState = ({
   telemetry,
   fallbackObstacleMap,
   fallbackCameraMap,
+  mapLayers,
+  runtimeObstacles,
+  activeRuntimeObstacleId,
 }) => ({
   visitEntries: plannerModel.visitEntries,
   chargeEntries: plannerModel.chargeEntries,
@@ -17,4 +20,7 @@ export const createPlannerCanvasDrawState = ({
   cameraMap: telemetry.cameraMap || fallbackCameraMap,
   routeBlocked: plannerModel.routeBlocked,
   hoveredPointIndex,
+  ...(mapLayers ? { mapLayers } : {}),
+  ...(runtimeObstacles ? { runtimeObstacles } : {}),
+  ...(activeRuntimeObstacleId ? { activeRuntimeObstacleId } : {}),
 });

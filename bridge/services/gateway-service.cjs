@@ -15,6 +15,8 @@ const createGatewayService = ({repository, adapter}) => {
     const task = pending.then(async () => {
       validateMissionId(requestId);
       if (!["submit", "update", "cancel"].includes(operation)) throw serviceError(400, "invalid_operation", "Unknown operation.");
+      if (operation === "submit" && payload?.commandId !== requestId) throw serviceError(400, "command_id_mismatch", "Submitted command ID must match the request ID.");
+      if (operation === "update" && ["start_mapping_survey", "pick_place"].includes(payload?.type)) throw serviceError(400,"mission_required","Movement commands must be submitted as missions.");
       const hash = fingerprint({operation, payload});
       const key = fingerprint({operation, requestId}).slice(0, 63);
       let record = await repository.get(key);
@@ -32,7 +34,10 @@ const createGatewayService = ({repository, adapter}) => {
         const feedback=await feedbackFor(active.commandId);
         if (!feedback || !["completed","failed","cancelled"].includes(feedback.status)) throw serviceError(409,"robot_busy","Robot has an active command.");
       }
-      if(operation === "submit") await repository.save({missionId:"gateway-active",commandId:requestId});
+      if(operation === "submit") {
+        await adapter.validateSubmit?.(payload);
+        await repository.save({missionId:"gateway-active",commandId:requestId});
+      }
       if (!record) {
         record = {missionId:key, fingerprint:hash, status:"prepared", operation, payload};
         await repository.save(record);

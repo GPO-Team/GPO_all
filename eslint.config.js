@@ -13,7 +13,7 @@ const nodeGlobals = {
 };
 
 export default defineConfig([
-  globalIgnores(["dist", "node_modules", "tmp", ".playwright-cli", "public/webots/wwi"]),
+  globalIgnores(["dist", "node_modules", "tmp", "output", ".playwright-cli", "public/webots/wwi"]),
   {
     files: ["src/**/*.{js,jsx}", "shared/**/*.js", "public/webots/*.js"],
     extends: [

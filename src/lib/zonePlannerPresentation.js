@@ -2,6 +2,7 @@ import { SURFACE_ZONE_PRESETS } from "./energyModel";
 
 export const POINT_KIND_META = {
   visit: { key: "visit", label: "Точки посещения", shortLabel: "V", color: "#dc2626", bg: "bg-rose-50", border: "border-rose-200", text: "text-rose-700" },
+  free_visit: { key: "free_visit", label: "Свободные точки без номера", shortLabel: "", color: "#7c3aed", bg: "bg-violet-50", border: "border-violet-200", text: "text-violet-700" },
   charge: { key: "charge", label: "Станция зарядки", shortLabel: "C", color: "#f59e0b", bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700" },
   limit: { key: "limit", label: "Ограничивающий контур", shortLabel: "Z", color: "#2563eb", bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700" },
   surface: { key: "surface", label: "Зона покрытия", shortLabel: "S", color: "#0f766e", bg: "bg-teal-50", border: "border-teal-200", text: "text-teal-700" },

@@ -1,10 +1,15 @@
-import PlannerMissionStatus from "./sections/PlannerMissionStatus";
 import PlannerEnergySection from "./sections/PlannerEnergySection";
 import PlannerSurfaceZonesSection from "./sections/PlannerSurfaceZonesSection";
 import PlannerRouteControlsSection from "./sections/PlannerRouteControlsSection";
+import PlannerRoutePointsSection from "./sections/PlannerRoutePointsSection";
+import PlannerLimitZonesSection from "./sections/PlannerLimitZonesSection";
+import PlannerConstraintsSection from "./sections/PlannerConstraintsSection";
 import PlannerImportSection from "./sections/PlannerImportSection";
 import PlannerSetupSection from "./sections/PlannerSetupSection";
+import PlannerMissionStatus from "./sections/PlannerMissionStatus";
 import PlannerObjectTransferSection from "./sections/PlannerObjectTransferSection";
+import HelpHint from "./HelpHint";
+import PlannerRuntimeObstaclesSection from "./sections/PlannerRuntimeObstaclesSection";
 
 
 export default function PlannerLeftSidebar({
@@ -12,16 +17,24 @@ export default function PlannerLeftSidebar({
   onImportFile,
   activePointKind,
   onActivePointKindChange,
+  visitEntries,
+  chargeEntries,
+  plannedVisitEntries,
+  expandedPoint,
+  hoveredPointIndex,
+  onToggleExpandedPoint,
+  onHoverPoint,
+  onDeletePoint,
+  onUpdatePointTask,
   onClearVisitPoints,
   onClearChargePoints,
   onClearLimitPoints,
-  routeTaskKey,
-  onRouteTaskChange,
-  algorithmKey,
-  onAlgorithmChange,
   status,
   mission,
   onCancelMission,
+  onResumeMission,
+  onStartObjectTransfer,
+  editingLocked=false,onExportCsv,hasPoints=false,
   energyWarning,
   routeBlocked,
   algorithmFields,
@@ -31,13 +44,27 @@ export default function PlannerLeftSidebar({
   onOptimizeRoute,
   onSendRoute,
   onAddRandomObstacle,
-  onStartObjectTransfer,
-  onClearAll,
+  runtimeObstacles,
+  activeRuntimeObstacleId,
+  onSelectRuntimeObstacle,
+  onEditRuntimeObstacle,
+  onDeleteRuntimeObstacle,
+  driveMode,
+  onDriveModeChange,
   hasRoute,
   routeLength,
   visitCount,
   chargeCount,
   zoneCount,
+  zoneEntries,
+  activeLimitZoneId,
+  activeZone,
+  onCreateZone,
+  onSelectZone,
+  onToggleZoneClosed,
+  onClearZone,
+  onRemoveZone,
+  visitsInsideLimitCount,
   polygonCount,
   adjustedVisitCount,
   activeZoneName,
@@ -57,9 +84,7 @@ export default function PlannerLeftSidebar({
   routeTiming,
   surfaceZones,
   activeSurfaceZoneId,
-  activeSurfaceZone,
-  activeSurfaceProfileKey,
-  onActiveSurfaceProfileChange,
+  onSurfaceProfileChange,
   onCreateSurfaceZone,
   onSelectSurfaceZone,
   onToggleSurfaceZoneClosed,
@@ -67,8 +92,12 @@ export default function PlannerLeftSidebar({
   onRemoveSurfaceZone,
   onClearAllSurfaceZones,
 }) {
+  const tab = { visit: "route", free_visit: "route", limit: "objects", surface: "surfaces", charge: "energy" }[activePointKind] || "route";
+  const selectTab = (key) => {
+    onActivePointKindChange({ route: "visit", objects: "limit", surfaces: "surface", energy: "charge" }[key]);
+  };
   return (
-    <aside className="flex h-full min-h-0 w-[310px] min-w-[310px] max-w-[310px] flex-none flex-col overflow-hidden border-r border-stone-200 bg-gradient-to-b from-stone-100 via-white to-slate-100 xl:w-[330px] xl:min-w-[330px] xl:max-w-[330px]">
+    <aside className="planner-sidebar planner-sidebar-left flex h-full min-h-0 w-[416px] min-w-[416px] max-w-[416px] flex-none flex-col overflow-hidden border-r border-stone-200 bg-gradient-to-b from-stone-100 via-white to-slate-100">
       <div className="flex shrink-0 items-start justify-between gap-2 border-b border-stone-200 bg-white px-3 py-2">
         <div className="min-w-0 pt-0.5">
           <div className="text-xs font-medium uppercase tracking-[0.16em] text-stone-700">
@@ -91,25 +120,112 @@ export default function PlannerLeftSidebar({
         ) : null}
       </div>
 
-      <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-4 space-y-4 [scrollbar-gutter:stable]">
-      <PlannerMissionStatus mission={mission} onCancel={onCancelMission} />
-      <PlannerObjectTransferSection onStartTransfer={onStartObjectTransfer} />
-      <PlannerSetupSection
+      <nav className="panel-tabs" aria-label="Разделы планировщика">
+        {[["route", "Маршрут"], ["objects", "Зоны"], ["surfaces", "Покрытия"], ["energy", "Энергия"]].map(([key, label]) => <button type="button" key={key} aria-pressed={tab === key} onClick={() => selectTab(key)}>{label}</button>)}
+      </nav>
+      <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-2 space-y-2">
+      {mission?.operationType === "object_transfer" && <PlannerMissionStatus mission={mission} onCancel={onCancelMission} onResume={onResumeMission} />}
+      {tab === "route" && <PlannerSetupSection
+        editingLocked={editingLocked}
+        kinds={["visit"]}
         activePointKind={activePointKind}
         activeZoneName={activeZoneName}
         adjustedVisitCount={adjustedVisitCount}
-        algorithmKey={algorithmKey}
         chargeCount={chargeCount}
         onActivePointKindChange={onActivePointKindChange}
-        onAlgorithmChange={onAlgorithmChange}
         onClearChargePoints={onClearChargePoints}
         onClearLimitPoints={onClearLimitPoints}
         onClearVisitPoints={onClearVisitPoints}
-        onRouteTaskChange={onRouteTaskChange}
         polygonCount={polygonCount}
         routeBlocked={routeBlocked}
-        routeTaskKey={routeTaskKey}
         status={status}
+        visitCount={visitCount}
+        zoneCount={zoneCount}
+      />}
+      {tab === "route" && <PlannerRouteControlsSection showParameters={false} showObstacle={false}
+        driveMode={driveMode}
+        onDriveModeChange={onDriveModeChange}
+        algorithmFields={algorithmFields}
+        hasRoute={hasRoute}
+        isOptimizing={isOptimizing}
+        onAddRandomObstacle={onAddRandomObstacle}
+        onAlgorithmParamChange={onAlgorithmParamChange}
+        onCancelMission={onCancelMission}
+        mission={mission}
+        onOptimizeRoute={onOptimizeRoute}
+        onSendRoute={onSendRoute}
+        routeLength={routeLength}
+        selectedAlgorithmParams={selectedAlgorithmParams}
+      />}
+      {tab === "route" && <PlannerRoutePointsSection
+        editingLocked={editingLocked}
+        showVisit
+        showCharge={false}
+        visitEntries={visitEntries || []}
+        chargeEntries={chargeEntries || []}
+        plannedVisitEntries={plannedVisitEntries || []}
+        expandedPoint={expandedPoint}
+        hoveredPointIndex={hoveredPointIndex}
+        onDeletePoint={onDeletePoint}
+        onHoverPoint={onHoverPoint}
+        onToggleExpandedPoint={onToggleExpandedPoint}
+        onUpdatePointTask={onUpdatePointTask}
+      />}
+      {tab === "objects" && <>
+        <PlannerSetupSection
+          kinds={["limit"]}
+          activePointKind={activePointKind}
+          activeZoneName={activeZoneName}
+          adjustedVisitCount={adjustedVisitCount}
+          chargeCount={chargeCount}
+          onActivePointKindChange={onActivePointKindChange}
+          onClearChargePoints={onClearChargePoints}
+          onClearLimitPoints={onClearLimitPoints}
+          onClearVisitPoints={onClearVisitPoints}
+          polygonCount={polygonCount}
+          routeBlocked={routeBlocked}
+          status={status}
+          visitCount={visitCount}
+          zoneCount={zoneCount}
+        />
+        <PlannerLimitZonesSection
+          activeLimitZoneId={activeLimitZoneId}
+          activeZone={activeZone}
+          activeZoneName={activeZoneName}
+          onClearZone={onClearZone}
+          onCreateZone={onCreateZone}
+          onRemoveZone={onRemoveZone}
+          onSelectZone={onSelectZone}
+          onToggleZoneClosed={onToggleZoneClosed}
+          zoneEntries={zoneEntries || []}
+        />
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={onAddRandomObstacle} disabled={isOptimizing} className="flex-1 rounded-xl bg-sky-600 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50">+ Препятствие в Webots</button>
+          <HelpHint label="Случайное препятствие">Запрашивает объёмный объект в Webots. На карте показан его контур в реальном масштабе, в списке — размеры и статус команды. «Команда принята» подтверждает отправку, создание в симуляции зависит от контроллера.</HelpHint>
+        </div>
+        <PlannerRuntimeObstaclesSection obstacles={runtimeObstacles}
+          activeObstacleId={activeRuntimeObstacleId} onSelect={onSelectRuntimeObstacle}
+          onApply={onEditRuntimeObstacle} onDelete={onDeleteRuntimeObstacle} />
+        <PlannerConstraintsSection
+          adjustedVisitCount={adjustedVisitCount}
+          polygonCount={polygonCount}
+          routeBlocked={routeBlocked}
+          visitsInsideLimitCount={visitsInsideLimitCount}
+        />
+      </>}
+      {tab === "energy" && <>
+      <PlannerSetupSection
+        kinds={["charge"]}
+        activePointKind={activePointKind}
+        activeZoneName={activeZoneName}
+        adjustedVisitCount={adjustedVisitCount}
+        chargeCount={chargeCount}
+        onActivePointKindChange={onActivePointKindChange}
+        onClearChargePoints={onClearChargePoints}
+        onClearLimitPoints={onClearLimitPoints}
+        onClearVisitPoints={onClearVisitPoints}
+        polygonCount={polygonCount}
+        routeBlocked={routeBlocked}
         visitCount={visitCount}
         zoneCount={zoneCount}
       />
@@ -128,14 +244,33 @@ export default function PlannerLeftSidebar({
         routeInfluenceRows={routeInfluenceRows}
         routeTiming={routeTiming}
       />
+      <PlannerRoutePointsSection
+        showVisit={false}
+        showCharge
+        visitEntries={visitEntries || []}
+        chargeEntries={chargeEntries || []}
+        plannedVisitEntries={plannedVisitEntries || []}
+        expandedPoint={expandedPoint}
+        hoveredPointIndex={hoveredPointIndex}
+        onDeletePoint={onDeletePoint}
+        onHoverPoint={onHoverPoint}
+        onToggleExpandedPoint={onToggleExpandedPoint}
+        onUpdatePointTask={onUpdatePointTask}
+      />
+      </>}
+      {tab === "surfaces" && <>
+      <PlannerSetupSection
+        kinds={["surface"]}
+        surfaceCount={surfaceZones?.length || 0}
+        activePointKind={activePointKind}
+        onActivePointKindChange={onActivePointKindChange}
+        onClearSurfaceZones={onClearAllSurfaceZones}
+      />
       <PlannerSurfaceZonesSection
-        activeSurfaceProfileKey={activeSurfaceProfileKey}
-        activeSurfaceZone={activeSurfaceZone}
         activeSurfaceZoneId={activeSurfaceZoneId}
         cruiseSpeedInput={cruiseSpeedInput}
         cruiseSpeedMps={cruiseSpeedMps}
-        onActiveSurfaceProfileChange={onActiveSurfaceProfileChange}
-        onClearAllSurfaceZones={onClearAllSurfaceZones}
+        onSurfaceProfileChange={onSurfaceProfileChange}
         onClearSurfaceZone={onClearSurfaceZone}
         onCreateSurfaceZone={onCreateSurfaceZone}
         onRemoveSurfaceZone={onRemoveSurfaceZone}
@@ -145,19 +280,12 @@ export default function PlannerLeftSidebar({
         payloadKg={payloadKg}
         surfaceZones={surfaceZones}
       />
-      <PlannerRouteControlsSection
-        algorithmFields={algorithmFields}
-        hasRoute={hasRoute}
-        isOptimizing={isOptimizing}
-        onAddRandomObstacle={onAddRandomObstacle}
-        onAlgorithmParamChange={onAlgorithmParamChange}
-        onClearAll={onClearAll}
-        onOptimizeRoute={onOptimizeRoute}
-        onSendRoute={onSendRoute}
-        routeLength={routeLength}
-        selectedAlgorithmParams={selectedAlgorithmParams}
-      />
-      <PlannerImportSection onImportFile={onImportFile} />
+      </>}
+      {tab === "route" && <details className="planner-disclosure rounded-xl border border-orange-200 bg-white p-3">
+        <summary className="disclosure-trigger text-sm font-semibold">Перенос объекта</summary>
+        <div className="mt-3"><PlannerObjectTransferSection onStartTransfer={onStartObjectTransfer} editingLocked={editingLocked} /></div>
+      </details>}
+      {tab === "route" && <PlannerImportSection onImportFile={onImportFile} onExportCsv={onExportCsv} hasPoints={hasPoints} editingLocked={editingLocked} />}
       </div>
     </aside>
   );

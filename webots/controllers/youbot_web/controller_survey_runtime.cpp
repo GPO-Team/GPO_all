@@ -183,12 +183,6 @@ void append_vertical_coverage_phase(
       &service, grid, route, route_count, room_zone_index);
 }
 
-void write_mapping_survey_route_file(const char *path, const SurveyPoint *route, int route_count) {
-  if (!controller_mapping_route_write(path, route, route_count, controller_runtime.mapping_survey.mode)) {
-    set_error("Cannot write mapping survey route to route.csv");
-  }
-}
-
 void mapping_survey_generator_clear_map(void *context) {
   (void)context;
   clear_persistent_map();
@@ -292,15 +286,21 @@ void mapping_survey_generator_append_vertical_coverage(
   append_vertical_coverage_phase(grid, route, route_count, room_zone_index);
 }
 
+typedef struct {
+  const char *mission_id;
+  int written;
+} SurveyWriteContext;
+
 void mapping_survey_generator_write_route(
     void *context,
     const char *path,
     MappingSurveyMode mode,
     const SurveyPoint *route,
     int route_count) {
-  (void)context;
-  (void)mode;
-  write_mapping_survey_route_file(path, route, route_count);
+  SurveyWriteContext *write_context = static_cast<SurveyWriteContext *>(context);
+  write_context->written = controller_mapping_route_write(
+      path, route, route_count, mode, write_context->mission_id);
+  if (!write_context->written) set_error("Cannot write mapping survey route to route.csv");
 }
 
 int generate_mapping_survey_route(
@@ -309,6 +309,8 @@ int generate_mapping_survey_route(
     const RuntimeCommand *command) {
   const MappingSurveyMode survey_mode =
       command ? command->survey_mode : controller_runtime.mapping_survey.mode;
+  SurveyWriteContext write_context = {
+      command ? command->mission_id : controller_runtime.route.command_id, 0};
   const ControllerMappingSurveyGeneratorCallbackOperations operations = {
       mapping_survey_generator_clear_map,
       mapping_survey_generator_prepare,
@@ -328,18 +330,19 @@ int generate_mapping_survey_route(
   controller_mapping_survey_generator_callbacks_adapter_init(
       &adapter,
       &operations,
-      NULL,
+      &write_context,
       path,
       command,
       MAPPING_SURVEY_INTERIOR_OFFSET * 0.45);
   const ControllerMappingSurveyRouteGenerationService service = {
       controller_mapping_survey_generator_callbacks_adapter_callbacks(&adapter), &adapter, set_error};
-  return controller_mapping_survey_route_generation_service_generate(
+  const int generated = controller_mapping_survey_route_generation_service_generate(
       &service,
       clear_map_before_start,
       survey_mode,
       &controller_runtime.mapping_survey.room_zone_index,
       &controller_runtime.mapping_survey.interior_start_index);
+  return generated && write_context.written;
 }
 
 void survey_integration_apply_speed(double speed_mps) {

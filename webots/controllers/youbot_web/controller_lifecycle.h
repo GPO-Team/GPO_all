@@ -9,6 +9,7 @@ typedef struct {
   int map_write_interval;
   int camera_capture_interval;
   int camera_write_interval;
+  int state_write_interval;
 } ControllerLifecycleScheduleConfig;
 
 typedef struct {
@@ -19,6 +20,7 @@ typedef struct {
   int write_maps;
   int capture_camera;
   int write_camera_frame;
+  int write_state;
 } ControllerLifecycleTasks;
 
 ControllerLifecycleTasks controller_lifecycle_tasks_for_step(

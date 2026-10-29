@@ -1,6 +1,7 @@
 #include "controller_webots_pose.h"
 
 #include <stddef.h>
+#include <cmath>
 
 void controller_webots_pose_init(ControllerWebotsPose *pose) {
   if (!pose) return;
@@ -39,11 +40,12 @@ int controller_webots_pose_read(
   if (!controller_webots_pose_is_ready(pose) || !x || !y || !heading) return 0;
 
   const double *translation = wb_supervisor_field_get_sf_vec3f(pose->translation_field);
-  const double *rotation = wb_supervisor_field_get_sf_rotation(pose->rotation_field);
-  if (!translation || !rotation) return 0;
+  const double *orientation = wb_supervisor_node_get_orientation(pose->self_node);
+  if (!translation || !orientation || !std::isfinite(orientation[0]) || !std::isfinite(orientation[3])) return 0;
 
   *x = translation[0];
   *y = translation[1];
-  *heading = rotation[3] * (rotation[2] >= 0.0 ? 1.0 : -1.0);
+  // Axis-angle includes pitch and roll caused by physical load on the base.
+  *heading = std::atan2(orientation[3], orientation[0]);
   return 1;
 }

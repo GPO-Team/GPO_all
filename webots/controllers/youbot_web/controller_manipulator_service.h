@@ -7,6 +7,9 @@ typedef enum {
   CONTROLLER_MANIPULATOR_GRASP,
   CONTROLLER_MANIPULATOR_LIFT,
   CONTROLLER_MANIPULATOR_PLACE,
+  CONTROLLER_MANIPULATOR_PLATFORM_PRE_GRASP,
+  CONTROLLER_MANIPULATOR_PLATFORM_GRASP,
+  CONTROLLER_MANIPULATOR_PLATFORM_LIFT,
 } ControllerManipulatorPose;
 
 typedef enum {
@@ -14,6 +17,7 @@ typedef enum {
   CONTROLLER_MANIPULATOR_MOVING,
   CONTROLLER_MANIPULATOR_REACHED,
   CONTROLLER_MANIPULATOR_TIMED_OUT,
+  CONTROLLER_MANIPULATOR_INVALID,
 } ControllerManipulatorStep;
 
 typedef struct {
@@ -29,15 +33,34 @@ typedef struct {
   double timeout_seconds;
   double joint_tolerance;
   double finger_tolerance;
+  ControllerManipulatorTarget origin;
+  double duration_seconds;
+  int trajectory_complete;
+  int joints_reached;
+  int fingers_reached;
+  int require_fingers;
 } ControllerManipulatorService;
 
 void controller_manipulator_service_init(ControllerManipulatorService *service);
 ControllerManipulatorTarget controller_manipulator_service_target(
     ControllerManipulatorPose pose);
+const char *controller_manipulator_pose_name(ControllerManipulatorPose pose);
+int controller_manipulator_pose_parse(
+    const char *name, ControllerManipulatorPose *pose);
+const char *controller_manipulator_step_name(ControllerManipulatorStep state);
 void controller_manipulator_service_start(
     ControllerManipulatorService *service,
     ControllerManipulatorPose pose,
     double now);
+int controller_manipulator_service_start_target(
+    ControllerManipulatorService *service,
+    const ControllerManipulatorTarget *target,
+    const double joints[5], const double fingers[2], double now);
+// Simulation-time cubic interpolation. target remains the final goal.
+// Custom motion completion concerns the arm; set require_fingers=1 when
+// opening must finish. Contact/holding confirmation belongs to the mission.
+ControllerManipulatorTarget controller_manipulator_service_sample(
+    const ControllerManipulatorService *service, double now);
 ControllerManipulatorStep controller_manipulator_service_step(
     ControllerManipulatorService *service,
     const double joints[5],

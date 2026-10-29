@@ -1,6 +1,7 @@
 import { planRouteWithCharging } from "./chargingPlanner.js";
 import { DEFAULT_ENERGY_OPTIONS } from "./energyModel.js";
 import { buildObstacleAwareRoute } from "./zonePlannerRouting.js";
+import { explainRouteFailure } from "./routeDiagnostics.js";
 
 const ENERGY_SHORTAGE_FALLBACK =
   "Запаса хода не хватает: добавьте станции зарядки или увеличьте запас.";
@@ -29,7 +30,7 @@ export const buildRouteWithEnergyStops = ({
     return {
       ok: false,
       reason: "obstacle_routing_failed",
-      error: "Не удалось безопасно провести маршрут через текущие ограничивающие зоны.",
+      error: explainRouteFailure(seedRoute,polygons),
     };
   }
 

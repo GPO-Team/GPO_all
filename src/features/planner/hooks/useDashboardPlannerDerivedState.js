@@ -23,6 +23,7 @@ export const useDashboardPlannerDerivedState = (state, runtime) => {
   const syncPayloads = buildPlannerSyncPayloads(plannerModel);
 
   usePlannerBridgeSync({
+    editingLocked:Boolean(route.isSubmitting || (runtime.mission?.state?.status && !["completed","failed","cancelled"].includes(runtime.mission.state.status))),
     batteryRangeMeters: energy.batteryRangeMeters,
     cruiseSpeedMps: energy.cruiseSpeedMps,
     payloadKg: energy.payloadKg,

@@ -14,10 +14,11 @@ int controller_runtime_command_load_next_file(
     long long after_id,
     RuntimeCommand *command) {
   if (!path || !limits || !command) return 0;
+  *command = RuntimeCommand{.id = -1};
   FILE *file = fopen(path, "r");
   if (!file) return 0;
 
-  RuntimeCommand parsed = {0};
+  RuntimeCommand parsed = {};
   parsed.id = -1;
   parsed.clear_map = 1;
   parsed.survey_mode = MAPPING_SURVEY_MODE_SNAKE;
@@ -43,13 +44,17 @@ int controller_runtime_command_load_next_file(
       continue;
     } else if (sscanf(line, " type %63s", token) == 1) {
       parsed.has_spawn_obstacle = strcmp(token, "spawn_obstacle") == 0;
+      parsed.has_update_obstacle = strcmp(token, "update_obstacle") == 0;
+      parsed.has_delete_obstacle = strcmp(token, "delete_obstacle") == 0;
       parsed.has_start_mapping_survey = strcmp(token, "start_mapping_survey") == 0;
       parsed.has_cancel_mission = strcmp(token, "cancel_mission") == 0;
+      parsed.has_pick_place = strcmp(token, "pick_place") == 0;
       parsed.has_transfer_object = strcmp(token, "transfer_object") == 0;
       parsed.has_recover_transfer = strcmp(token, "recover_transfer") == 0;
       parsed.has_resume_transfer = strcmp(token, "resume_transfer") == 0;
-    } else if (sscanf(line, " mission_id %63s", token) == 1) {
-      strcpy(parsed.mission_id, token);
+      parsed.has_manipulator_pose = strcmp(token, "set_manipulator_pose") == 0;
+    } else if (sscanf(line, " obstacle_id %lld", &id) == 1) {
+      parsed.obstacle_id = id;
     } else if (sscanf(line, " object_id %31s", token) == 1) {
       strcpy(parsed.object_id, token);
     } else if (sscanf(line, " scene_revision %63s", token) == 1) {
@@ -58,6 +63,21 @@ int controller_runtime_command_load_next_file(
       parsed.destination_x = numeric;
     } else if (sscanf(line, " destination_y %lf", &numeric) == 1) {
       parsed.destination_y = numeric;
+    } else if (sscanf(line, " object_def %63s", token) == 1) {
+      strcpy(parsed.object_def, token);
+    } else if (sscanf(line, " target_x %lf", &numeric) == 1) {
+      parsed.target_x = numeric;
+      parsed.target_fields |= 1;
+    } else if (sscanf(line, " target_y %lf", &numeric) == 1) {
+      parsed.target_y = numeric;
+      parsed.target_fields |= 2;
+    } else if (sscanf(line, " target_z %lf", &numeric) == 1) {
+      parsed.target_z = numeric;
+      parsed.target_fields |= 4;
+    } else if (sscanf(line, " mission_id %63s", token) == 1) {
+      strcpy(parsed.mission_id, token);
+    } else if (sscanf(line, " pose %23s", token) == 1) {
+      strcpy(parsed.manipulator_pose, token);
     } else if (sscanf(line, " clear_map %lf", &numeric) == 1) {
       parsed.clear_map = fabs(numeric) > CONTROLLER_RUNTIME_EPS;
     } else if (sscanf(line, " mode %63s", token) == 1) {
@@ -111,15 +131,28 @@ int controller_runtime_command_load_next_file(
     }
   }
 
+  // Preserve a rejected record's id so the consumer can advance past it.
+  *command = parsed;
   if (parsed.id < 0 ||
-      (!parsed.has_spawn_obstacle && !parsed.has_start_mapping_survey && !parsed.has_cancel_mission &&
-       !parsed.has_transfer_object && !parsed.has_recover_transfer && !parsed.has_resume_transfer)) {
+      (!parsed.has_spawn_obstacle && !parsed.has_update_obstacle && !parsed.has_delete_obstacle &&
+       !parsed.has_start_mapping_survey && !parsed.has_cancel_mission &&
+       !parsed.has_pick_place && !parsed.has_transfer_object && !parsed.has_recover_transfer &&
+       !parsed.has_resume_transfer && !parsed.has_manipulator_pose)) {
     return 0;
   }
   if (parsed.has_cancel_mission && !parsed.mission_id[0]) return 0;
-  if ((parsed.has_transfer_object || parsed.has_recover_transfer || parsed.has_resume_transfer) &&
-      !parsed.mission_id[0]) return 0;
-  if (parsed.has_transfer_object && !parsed.object_id[0]) return 0;
+  if ((parsed.has_update_obstacle || parsed.has_delete_obstacle) && parsed.obstacle_id <= 0) return 0;
+  if (parsed.has_update_obstacle &&
+      (!std::isfinite(parsed.x) || !std::isfinite(parsed.y) || !std::isfinite(parsed.size_x) ||
+       !std::isfinite(parsed.size_y) || !std::isfinite(parsed.height) ||
+       parsed.size_x < 0.2 || parsed.size_x > 3.5 || parsed.size_y < 0.2 || parsed.size_y > 3.5 ||
+       parsed.height < 0.12 || parsed.height > 2.8)) return 0;
+  if (parsed.has_pick_place && (!parsed.mission_id[0] || !parsed.object_def[0] || parsed.target_fields != 7 ||
+      !std::isfinite(parsed.target_x) || !std::isfinite(parsed.target_y) || !std::isfinite(parsed.target_z) ||
+      parsed.target_z < 0.015 || parsed.target_z > 1.0)) return 0;
+  if ((parsed.has_transfer_object || parsed.has_resume_transfer || parsed.has_recover_transfer) && !parsed.mission_id[0]) return 0;
+  if (parsed.has_transfer_object && (!parsed.object_id[0] || !std::isfinite(parsed.destination_x) || !std::isfinite(parsed.destination_y))) return 0;
+  if (parsed.has_manipulator_pose && !parsed.manipulator_pose[0]) return 0;
   *command = parsed;
   return 1;
 }

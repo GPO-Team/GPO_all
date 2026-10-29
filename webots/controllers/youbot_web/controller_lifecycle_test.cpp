@@ -1,25 +1,25 @@
 #include "controller_lifecycle.h"
 
 int main(void) {
-  const ControllerLifecycleScheduleConfig config = {10, 20, 20, 6, 60, 4, 12};
+  const ControllerLifecycleScheduleConfig config = {10, 20, 20, 6, 60, 4, 12, 4};
   ControllerLifecycleTasks tasks = controller_lifecycle_tasks_for_step(0, &config);
   if (!tasks.reload_zones || !tasks.reload_route || !tasks.reload_motion ||
       !tasks.reload_runtime_command || !tasks.write_maps ||
-      !tasks.capture_camera || !tasks.write_camera_frame) {
+      !tasks.capture_camera || !tasks.write_camera_frame || !tasks.write_state) {
     return 1;
   }
 
   tasks = controller_lifecycle_tasks_for_step(12, &config);
   if (tasks.reload_zones || tasks.reload_route || tasks.reload_motion ||
       !tasks.reload_runtime_command || tasks.write_maps ||
-      !tasks.capture_camera || !tasks.write_camera_frame) {
+      !tasks.capture_camera || !tasks.write_camera_frame || !tasks.write_state) {
     return 2;
   }
 
   tasks = controller_lifecycle_tasks_for_step(60, &config);
   if (!tasks.reload_zones || !tasks.reload_route || !tasks.reload_motion ||
       !tasks.reload_runtime_command || !tasks.write_maps ||
-      !tasks.capture_camera || !tasks.write_camera_frame) {
+      !tasks.capture_camera || !tasks.write_camera_frame || !tasks.write_state) {
     return 3;
   }
 

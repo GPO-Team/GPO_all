@@ -5,6 +5,7 @@
 
 #include <stdexcept>
 #include <utility>
+#include <cmath>
 
 namespace gpo {
 namespace {
@@ -24,6 +25,14 @@ tsp::AlgorithmRun run_algorithm(
 }  // namespace
 
 SolveOutput solve_route(const SolveConfig& config) {
+  if (config.points.size() > kMaxRoutePoints) {
+    throw std::runtime_error("At most 768 route points are supported.");
+  }
+  for (const auto& point : config.points) {
+    if (!std::isfinite(point.x) || !std::isfinite(point.y)) {
+      throw std::runtime_error("Route coordinates must be finite.");
+    }
+  }
   if (config.points.empty()) return SolveOutput{};
   if (config.points.size() == 1) {
     return SolveOutput{

@@ -20,5 +20,8 @@ tmp
 .playwright-cli
 .worktrees
 native/build-tests
-docs/audit-2026-09-05
+docs/audit-*
+docs/superpowers
+**/__pycache__
+webots/controllers/youbot_web/youbot_web
 public/webots/wwi

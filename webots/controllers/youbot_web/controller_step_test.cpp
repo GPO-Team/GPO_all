@@ -45,7 +45,7 @@ static const ControllerStepCallbacks callbacks = {
 int main(void) {
   int context = 0;
   expected_context = &context;
-  const ControllerLifecycleScheduleConfig schedule = {10, 20, 20, 6, 60, 4, 12};
+  const ControllerLifecycleScheduleConfig schedule = {10, 20, 20, 6, 60, 4, 12, 4};
   controller_step_run(60, &schedule, &callbacks, &context);
   call_log[call_count] = '\0';
   if (strcmp(call_log, "ZSRMCLTAPFBNEQ") != 0) return 1;
@@ -54,6 +54,11 @@ int main(void) {
   controller_step_run(12, &schedule, &callbacks, &context);
   call_log[call_count] = '\0';
   if (strcmp(call_log, "CLTPFNEQ") != 0) return 2;
+
+  call_count = 0;
+  controller_step_run(13, &schedule, &callbacks, &context);
+  call_log[call_count] = '\0';
+  if (strcmp(call_log, "LTNE") != 0) return 3;
 
   return 0;
 }

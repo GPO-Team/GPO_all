@@ -1,31 +1,62 @@
+import HelpHint from "../HelpHint";
 import {
   ROUTE_CLEARANCE_MARGIN,
   SAFE_POINT_MARGIN,
 } from "../../../lib/zonePlanner";
 
 const cardCls =
-  "rounded-2xl bg-white/95 backdrop-blur border border-stone-200 shadow-[0_18px_40px_rgba(15,23,42,0.06)] p-4";
+  "rounded-2xl bg-white/95 backdrop-blur border border-stone-200 shadow-[0_18px_40px_rgba(15,23,42,0.06)] p-3";
 const inputCls =
   "w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 shadow-sm transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100";
-const neutralButtonCls =
-  "rounded-xl border border-slate-300 bg-slate-800 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-900";
+const actionPaths = {
+  build: "M5 5h10a4 4 0 0 1 0 8H9a3 3 0 0 0 0 6h10M3 3h4v4H3zM17 17h4v4h-4z",
+  send: "m3 3 18 9-18 9 4-9-4-9Zm4 9h14",
+  stop: "M6 6h12v12H6z",
+  obstacle: "M12 3 2 21h20L12 3Zm0 6v5m0 3h.01",
+};
+const RouteActionIcon = ({ kind }) => <svg className="route-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={actionPaths[kind]} /></svg>;
+
+const missionStatusText = (mission) => {
+  if (!mission) return null;
+  if (mission.connectionError) return `Не удалось получить статус миссии: ${mission.connectionError}`;
+  if (mission.status === "cancelling") return "Ожидаем подтверждения остановки от контроллера…";
+  if (mission.feedbackFresh === false && !["completed", "cancelled", "failed"].includes(mission.status)) {
+    return "Нет подтверждения от контроллера. Если Webots перезапускался, нажмите «Остановить маршрут», дождитесь остановки и отправьте маршрут снова.";
+  }
+  return {
+    prepared: "Подготавливаем маршрут к отправке…",
+    persisted: "Маршрут сохранён. Ожидаем подтверждения контроллера…",
+    accepted: "Контроллер принял маршрут. Ожидаем начала движения…",
+    running: "Робот выполняет маршрут.",
+    cancelled: "Маршрут остановлен. Можно отправить новый.",
+    completed: "Робот завершил маршрут.",
+    failed: "Не удалось выполнить маршрут.",
+  }[mission.status] || null;
+};
 
 export default function PlannerRouteControlsSection({
+  showParameters = true,
+  showActions = true,
+  showObstacle = true,
+  driveMode = "optimized",
+  onDriveModeChange,
   algorithmFields,
   hasRoute,
   isOptimizing,
   onAddRandomObstacle,
   onAlgorithmParamChange,
-  onClearAll,
+  onCancelMission,
+  mission,
   onOptimizeRoute,
   onSendRoute,
   routeLength,
   selectedAlgorithmParams,
 }) {
+  const missionStatus = missionStatusText(mission);
   return (
     <>
-      <div className={cardCls}>
-        <h3 className="text-sm font-semibold mb-3">Параметры алгоритма</h3>
+      {showParameters && <details className={cardCls}>
+        <summary className="cursor-pointer text-xs font-semibold">Параметры алгоритма</summary>
         <div className="space-y-3">
           {algorithmFields.map((field) => (
             <label key={field.key}>
@@ -36,27 +67,43 @@ export default function PlannerRouteControlsSection({
             </label>
           ))}
         </div>
-      </div>
-      <div className={cardCls}>
-        <div className="mb-3 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs text-teal-800">
+      </details>}
+      {showActions && <div className="route-controls">
+        <div className="route-controls-title">Управление маршрутом <HelpHint label="Безопасный маршрут">
           Маршрут строится с зазором {ROUTE_CLEARANCE_MARGIN.toFixed(2)} м от контура,
           а целевые точки держатся минимум на {SAFE_POINT_MARGIN.toFixed(2)} м от запретной зоны.
+        </HelpHint></div>
+        <div className="route-actions"><button type="button" onClick={onOptimizeRoute} disabled={isOptimizing}
+          className="route-action route-action-primary" aria-busy={isOptimizing}>
+          <RouteActionIcon kind="build" /><span>{isOptimizing ? "Строим маршрут..." : "Построить маршрут"}</span>
+        </button>
+        <button type="button" onClick={onSendRoute} disabled={isOptimizing || !hasRoute}
+          className="route-action route-action-accent">
+          <RouteActionIcon kind="send" /><span>Отправить маршрут</span>
+        </button>
+        <button type="button" onClick={onCancelMission} disabled={!mission || ["completed", "cancelled", "failed", "cancelling"].includes(mission.status)}
+          className={`route-action route-action-danger ${showObstacle ? "" : "route-action-wide"}`}>
+          <RouteActionIcon kind="stop" /><span>{mission?.status === "cancelling" ? "Останавливаем…" : "Остановить маршрут"}</span>
+        </button>
+        {showObstacle && <button type="button" onClick={onAddRandomObstacle} disabled={isOptimizing}
+          className="route-action">
+          <RouteActionIcon kind="obstacle" /><span>+ Препятствие</span>
+        </button>}
         </div>
-        <button onClick={onOptimizeRoute} disabled={isOptimizing}
-          className={`w-full h-11 rounded-xl text-white font-semibold transition ${isOptimizing ? "bg-orange-400 cursor-wait" : "bg-orange-600 hover:bg-orange-700"}`}>
-          {isOptimizing ? "Строим маршрут..." : "Построить маршрут"}
-        </button>
-        <button onClick={onSendRoute} disabled={isOptimizing}
-          className={`mt-2 w-full h-11 rounded-xl text-white font-semibold transition ${isOptimizing ? "bg-emerald-400 cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-700"}`}>
-          Отправить маршрут
-        </button>
-        <button onClick={onAddRandomObstacle} disabled={isOptimizing}
-          className={`mt-2 w-full h-11 rounded-xl text-white font-semibold transition ${isOptimizing ? "bg-sky-400 cursor-not-allowed" : "bg-sky-600 hover:bg-sky-700"}`}>
-          Добавить случайное препятствие
-        </button>
-        <button onClick={onClearAll} className={`mt-2 w-full h-11 ${neutralButtonCls}`}>Очистить всё</button>
+        <label className="mt-3 block text-sm font-semibold text-stone-800">
+          Режим езды
+          <select aria-label="Режим езды" className={`${inputCls} mt-2`} value={driveMode}
+            disabled={isOptimizing} onChange={(event) => onDriveModeChange?.(event.target.value)}>
+            <option value="optimized">Оптимальный порядок</option>
+            <option value="ordered">По номерам: 1 → 2 → 3</option>
+          </select>
+        </label>
+        <p className="mt-2 text-xs leading-relaxed text-stone-500">{driveMode === "ordered"
+          ? "От первой точки к последней, без возврата к первой. Зоны и зарядки учитываются."
+          : "Порядок выбирает алгоритм построения маршрута."}</p>
+        {missionStatus && <p role="status" className="mt-2 text-xs leading-relaxed text-stone-700">{missionStatus}</p>}
         {hasRoute && <p className="mt-3 text-sm">Длина маршрута: <b>{routeLength.toFixed(2)} м</b></p>}
-      </div>
+      </div>}
     </>
   );
 }

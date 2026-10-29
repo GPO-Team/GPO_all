@@ -163,6 +163,7 @@ ControllerControlConfig controller_control_config_default(void) {
               .map_write_interval = 60,
               .camera_capture_interval = 4,
               .camera_write_interval = 12,
+              .state_write_interval = 4,
           },
       },
   };

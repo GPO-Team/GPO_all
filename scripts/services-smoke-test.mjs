@@ -95,7 +95,23 @@ try {
   });
   await writeFile(path.join(directory,"simulator","robot_state.json"),JSON.stringify({pose:{x:3.25,y:1,z:0,yaw:0},navigation:{missionId:"recover-mission",status:"mission_cancelled",finished:true}}));
   assert.equal((await telemetryReceived).type,"telemetry.event");
-  console.log("services smoke passed: independent processes, full planning, mission ACK, idempotency, matched feedback, restart");
+  const survey={type:"start_mapping_survey",requestId:"smoke-survey",mode:"snake",clearMap:true};
+  const surveyAck=await send(survey);
+  assert.equal(surveyAck.ok,true,JSON.stringify(surveyAck));
+  assert.equal(surveyAck.missionId,"smoke-survey");
+  assert.equal((await send(survey)).missionId,"smoke-survey");
+  const journal=await readFile(path.join(directory,"simulator","runtime_command.txt"),"utf8");
+  assert.equal(journal.match(/type start_mapping_survey/g)?.length,1);
+  assert.match(journal,/mission_id smoke-survey/);
+  const busy=await send(createRouteCommand({source:"services-smoke",requestId:"during-survey",payload:command.payload}));
+  assert.equal(busy.statusCode,409);
+  await writeFile(path.join(directory,"simulator","robot_state.json"),JSON.stringify({navigation:{missionId:"smoke-survey",status:"mapping_survey_started",finished:false}}));
+  await waitStatus("smoke-survey","running");
+  const cancelSurvey=await fetch(`http://127.0.0.1:${routePort}/api/missions/smoke-survey/cancel`,{method:"POST"});
+  assert.equal((await cancelSurvey.json()).status,"cancelling");
+  await writeFile(path.join(directory,"simulator","robot_state.json"),JSON.stringify({navigation:{missionId:"smoke-survey",status:"mission_cancelled",finished:true}}));
+  await waitStatus("smoke-survey","cancelled");
+  console.log("services smoke passed: independent processes, planning, route and survey missions, ACK, idempotency, exclusion, cancellation, matched feedback, restart");
 } finally {
   telemetrySocket?.terminate();socket?.terminate();await Promise.all(children.map(stop));
   await rm(directory,{recursive:true,force:true});

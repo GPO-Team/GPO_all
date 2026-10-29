@@ -1,10 +1,12 @@
 const {isAllowedOrigin}=require("../protocol/origin-policy.cjs");
 const {sendJson,sendError}=require("./service-http.cjs");
 const publicMission = mission => ({ok:true,missionId:mission.missionId,operationType:mission.operationType || "route",status:mission.status,
+  failureReason:mission.failureReason || null,
   sceneRevision:mission.command?.sceneRevision,createdAt:mission.createdAt,updatedAt:mission.updatedAt,
   feedbackFresh:mission.feedbackFresh,lastFeedbackAt:mission.lastFeedbackAt,connectionError:mission.connectionError,
-  stage:mission.stage,progress:mission.progress,errorCode:mission.errorCode,attached:mission.attached,
-  controllerBootId:mission.controllerBootId,objectPose:mission.objectPose});
+  stage:mission.stage,progress:mission.progress,errorCode:mission.errorCode,attached:mission.attached,onPlatform:mission.onPlatform,
+  recoveryEpoch:mission.recoveryEpoch,controllerRecoveryEpoch:mission.controllerRecoveryEpoch,resumeDelivered:mission.resumeDelivered,
+  controllerBootId:mission.controllerBootId,objectPose:mission.objectPose,manipulator:mission.manipulator});
 const createMissionHttpHandler = ({missionService,getStatus,ready=async()=>true}) => async(request,response)=>{
   if(!isAllowedOrigin(request.headers.origin))return sendJson(response,403,{ok:false,error:"Origin is not allowed."});
   if(request.headers.origin){response.setHeader("Access-Control-Allow-Origin",request.headers.origin);response.setHeader("Vary","Origin");}

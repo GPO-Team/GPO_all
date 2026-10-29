@@ -12,7 +12,7 @@ export {
 
 const normalizeRoutePoint = (point) => ({ x: Number(point?.x), y: Number(point?.y) });
 
-export const solveRouteWithNativeAlgorithm = async (points, algorithmKey, params, taskKey = "tsp", signal, {scene,anchor} = {}) => {
+export const solveRouteWithNativeAlgorithm = async (points, algorithmKey, params, taskKey = "tsp", signal, {scene,anchor,visitOrder} = {}) => {
   const response = await fetch(SOLVER_ROUTE_URL, {
     method: "POST",
     signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(35000)]) : AbortSignal.timeout(35000),
@@ -26,6 +26,7 @@ export const solveRouteWithNativeAlgorithm = async (points, algorithmKey, params
         task: taskKey,
         scene,
         anchor,
+        ...(visitOrder ? {visitOrder} : {}),
       },
     })),
   });

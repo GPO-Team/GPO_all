@@ -52,3 +52,11 @@ web_state/gateway-journal/
 
 web_state/runtime-project/
 public/webots/wwi/
+
+# Local review notes and generated test artifacts
+/.playwright-cli/
+/output/
+/tmp/
+/docs/audit-*/
+/docs/superpowers/
+__pycache__/

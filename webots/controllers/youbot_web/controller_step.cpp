@@ -30,5 +30,5 @@ void controller_step_run(
   if (tasks.write_maps) call_if_present(callbacks->write_camera_map, context);
   call_if_present(callbacks->navigate, context);
   call_if_present(callbacks->update_avoidance_metrics, context);
-  call_if_present(callbacks->write_snapshot, context);
+  if (tasks.write_state) call_if_present(callbacks->write_snapshot, context);
 }

@@ -18,12 +18,14 @@ export const useDashboardPlannerEditors = (input) => {
     setStatus: input.setStatus, setSurfaceZones: input.setSurfaceZones, surfaceZones: input.surfaceZones,
   });
   const points = usePlannerPointEditor({
+    isEditingLocked:input.isEditingLocked,
     activeLimitZoneId: input.activeLimitZoneId, activePointKind: input.activePointKind,
     activeSurfaceProfileKey: input.activeSurfaceProfileKey, activeSurfaceZone: input.activeSurfaceZone,
     activeZone: input.plannerModel.activeZone, activeZoneName: input.plannerModel.activeZoneName,
     canvasRef: input.canvasRef, clearRouteState: input.clearRouteState, points: input.points,
     resetZones: limit.resetZones, setPoints: input.setPoints, setStatus: input.setStatus,
     setSurfaceZones: input.setSurfaceZones,
+    mapLayers: input.mapLayers, setMapLayerVisible: input.setMapLayerVisible,
   });
   return { ...limit, ...surface, ...points };
 };

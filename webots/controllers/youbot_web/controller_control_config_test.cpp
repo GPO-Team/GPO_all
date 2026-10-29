@@ -42,10 +42,11 @@ int main(void) {
   if (config.schedule.lifecycle.map_write_interval != 60) return 27;
   if (config.schedule.lifecycle.camera_capture_interval != 4) return 28;
   if (config.schedule.lifecycle.camera_write_interval != 12) return 29;
+  if (config.schedule.lifecycle.state_write_interval != 4) return 30;
 
-  if (config.avoidance.start.initial_hold_steps != 18) return 30;
-  if (config.avoidance.progress.min_contour_steps != 18) return 31;
-  if (config.avoidance.lifecycle.max_steps != 360) return 32;
-  if (config.avoidance.command.stuck_steps_limit != 24) return 33;
+  if (config.avoidance.start.initial_hold_steps != 18) return 31;
+  if (config.avoidance.progress.min_contour_steps != 18) return 32;
+  if (config.avoidance.lifecycle.max_steps != 360) return 33;
+  if (config.avoidance.command.stuck_steps_limit != 24) return 34;
   return 0;
 }

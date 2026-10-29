@@ -22,6 +22,7 @@ export const INITIAL_TELEMETRY = {
     finished: false,
     currentWaypointIndex: 0,
   },
+  manipulator: null,
   obstacleTrace: [],
   obstacleMap: createMapState({
     cellSize: 0.06,

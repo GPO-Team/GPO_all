@@ -8,17 +8,16 @@
 #include "controller_io.h"
 #include "controller_lidar_runtime.h"
 #include "controller_mapping_runtime.h"
-#include "controller_mapping_survey_lifecycle_service.h"
 #include "controller_mapping_survey_safety_service.h"
 #include "controller_motion_profile_reload_service.h"
 #include "controller_navigation_runtime.h"
 #include "controller_object_transfer_runtime.h"
+#include "controller_transfer_route.h"
 #include "controller_paths.h"
 #include "controller_route_zone_reload_service.h"
 #include "controller_runtime.h"
 #include "controller_runtime_command_reload_service.h"
 #include "controller_step.h"
-#include "controller_survey_default_route.h"
 #include "controller_survey_runtime.h"
 #include "controller_telemetry_publisher.h"
 #include "controller_telemetry_service.h"
@@ -32,6 +31,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <cmath>
+#include "controller_navigation_route.h"
 #include <webots/robot.h>
 
 
@@ -152,6 +153,40 @@ static void write_state_snapshot(void) {
   };
   ControllerTelemetryPublisherOutput output = {0};
   controller_telemetry_publisher_build(&input, &output);
+  output.snapshot.object_position_available =
+      controller_webots_object_adapter_position(
+          &object_transfer_runtime.object,
+          &output.snapshot.object_x,
+          &output.snapshot.object_y,
+          &output.snapshot.object_z);
+  ControllerTelemetryManipulator *manipulator = &output.snapshot.manipulator;
+  manipulator->available = object_transfer_runtime.available;
+  manipulator->pose = controller_manipulator_pose_name(
+      object_transfer_runtime.manipulator.pose);
+  manipulator->state = controller_manipulator_step_name(
+      object_transfer_runtime.manipulator.state);
+  controller_webots_devices_read_manipulator(
+      &webots_devices, manipulator->joints, manipulator->fingers);
+  for (int index = 0; index < 5; ++index)
+    manipulator->target_joints[index] =
+        object_transfer_runtime.manipulator.target.joints[index];
+  manipulator->target_finger_opening =
+      object_transfer_runtime.manipulator.target.finger_opening;
+  const auto &pick = controller_app.manipulator;
+  manipulator->mission_id = pick.mission_id;
+  manipulator->object_def = pick.object_def;
+  manipulator->stage = controller_webots_manipulator_stage(&pick);
+  manipulator->error = pick.state.error;
+  manipulator->active = controller_webots_manipulator_active(&pick) || object_transfer_runtime.manual_active;
+  manipulator->load_held = pick.state.load_held;
+  manipulator->cancel_pending = pick.state.cancel_pending;
+  manipulator->object_valid = pick.sample.object_valid;
+  for(int i=0;i<2;++i) manipulator->contacts[i] = pick.sample.contacts[i];
+  for(int i=0;i<3;++i) manipulator->object_position[i] = pick.object_world[i];
+  if(pick.mission_id[0]) {
+    for(int i=0;i<5;++i) manipulator->target_joints[i] = pick.state.targets[i];
+    manipulator->target_finger_opening = pick.state.finger_target;
+  }
   controller_telemetry_write_snapshot(STATE_TEMP_PATH, STATE_PATH, &output.snapshot);
 }
 
@@ -159,17 +194,94 @@ static void merge_trace_for_controller_step(void) {
   merge_trace_into_map(wb_robot_get_time());
 }
 
+static int robot_motion_owned(void) {
+  const auto status = object_transfer_runtime.service.state.status;
+  return controller_webots_manipulator_busy() || object_transfer_runtime.manual_active || status == CONTROLLER_TRANSFER_RUNNING ||
+      status == CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY;
+}
+
 static void handle_transfer_command(const RuntimeCommand *command) {
+  if (controller_webots_manipulator_busy()) return;
+  if(command->has_transfer_object) {
+    reload_limit_zones_input(NULL);
+    reload_surface_zones_input(NULL);
+    controller_motion_profile_reload_service_run(&motion_profile_reload_service,0,1);
+  }
+  controller_object_transfer_runtime_set_speed_limits(&object_transfer_runtime,active_linear_speed_limit,active_angular_speed_limit);
   controller_object_transfer_runtime_command(
       &object_transfer_runtime, command, wb_robot_get_time());
 }
 
 static void run_control_cycle(void) {
+  if (controller_webots_manipulator_step((double)TIME_STEP / 1000.0)) return;
   double x = 0.0, y = 0.0, heading = 0.0;
   read_pose(&x, &y, &heading);
   controller_object_transfer_runtime_step(
       &object_transfer_runtime, wb_robot_get_time(), x, y, heading);
-  run_navigation_step();
+  const int transferring = object_transfer_runtime.service.state.status == CONTROLLER_TRANSFER_RUNNING;
+  if(!transferring) controller_webots_motion_state_apply(&motion_state);
+  if(!transferring || object_transfer_runtime.service.state.stage != CONTROLLER_TRANSFER_TRANSPORTING) {
+    webots_adapter.drive_config.acceleration_limit_rad_s2=control_config.drive.acceleration_limit_rad_s2;
+    webots_adapter.drive_config.deceleration_limit_rad_s2=control_config.drive.deceleration_limit_rad_s2;
+  }
+  control_config.navigation.runtime.position_tolerance = transferring ? 0.005 : 0.05;
+  control_config.navigation.runtime.heading_tolerance_rad = transferring ? 0.02 : 0.08;
+  control_config.navigation.tracking.position_tolerance = transferring ? 0.005 : 0.05;
+  control_config.navigation.tracking.heading_tolerance_rad = transferring ? 0.02 : 0.08;
+  if(transferring && (object_transfer_runtime.service.state.attached ||
+      object_transfer_runtime.service.state.on_platform)) {
+    active_linear_speed_limit = std::fmin(active_linear_speed_limit,0.08);
+    active_angular_speed_limit = std::fmin(active_angular_speed_limit,0.25);
+  }
+  if(transferring && (object_transfer_runtime.service.state.stage == CONTROLLER_TRANSFER_TRANSPORTING ||
+      object_transfer_runtime.service.state.stage == CONTROLLER_TRANSFER_APPROACHING_OBJECT)) {
+    if(!controller_object_transfer_runtime_allows_navigation(&object_transfer_runtime)) {
+      controller_object_transfer_runtime_hold(&object_transfer_runtime,"transport_pose_invalid");
+      return;
+    }
+    if(!perception_runtime.lidar.available || !controller_webots_sensors_lidar_ranges(&webots_sensors)) {
+      controller_object_transfer_runtime_hold(&object_transfer_runtime,"lidar_unavailable");
+      return;
+    }
+    ControllerNavigationRouteOutput route_output={};
+    const auto decision=controller_navigation_route_evaluate(&controller_runtime.route,
+        &controller_runtime.current_waypoint_index,&controller_runtime.route_finished,
+        x,y,heading,0.005,0.02,&route_output);
+    if(decision==CONTROLLER_NAVIGATION_ROUTE_COMPLETED || decision==CONTROLLER_NAVIGATION_ROUTE_FINISHED) {
+      controller_webots_devices_reset_wheels(&webots_devices); set_status("finished");
+    } else {
+      const auto &target=controller_runtime.route.waypoints[controller_runtime.current_waypoint_index];
+      const double dx=target.x-x,dy=target.z-y;
+      const double distance=std::hypot(dx,dy);
+      bool blocked=false;
+      const auto &cargo=object_transfer_runtime.service.state;
+      for(int i=0;i<perception_runtime.trace_count;++i) {
+        const auto &point=perception_runtime.trace[i];
+        if(wb_robot_get_time()-point.last_seen_time>2.0) continue;
+        if(std::hypot(point.x-cargo.object_pose[0],point.y-cargo.object_pose[1])<0.20) continue;
+        const double along=((point.x-x)*dx+(point.y-y)*dy)/std::fmax(distance,1e-9);
+        const double across=std::fabs((point.x-x)*dy-(point.y-y)*dx)/std::fmax(distance,1e-9);
+        if(along>0 && along<std::fmin(distance+0.5,0.75) &&
+            across<((cargo.attached || cargo.on_platform) ? 0.50 : 0.36)) {blocked=true;break;}
+      }
+      if(blocked) {
+        controller_object_transfer_runtime_hold(&object_transfer_runtime,"transport_obstacle");
+        return;
+      }
+      const bool carrying=cargo.attached || cargo.on_platform;
+      webots_adapter.drive_config.acceleration_limit_rad_s2=carrying ? 1.0 : 4.0;
+      webots_adapter.drive_config.deceleration_limit_rad_s2=carrying ? 2.0 : 8.0;
+      const auto velocity=controller_transfer_route_velocity(dx,dy,heading,target.heading_rad,
+          controller_runtime.current_waypoint_index+1==controller_runtime.route.count,
+          std::fmin(carrying ? 0.06 : 0.12,active_linear_speed_limit),
+          std::fmin(carrying ? 0.10 : 0.30,active_angular_speed_limit));
+      controller_webots_adapter_apply_velocity(&webots_adapter,velocity.vx,velocity.vy,velocity.omega);
+      set_status("transporting_object");
+    }
+  } else if (controller_object_transfer_runtime_allows_navigation(&object_transfer_runtime))
+    run_navigation_step();
+  else
+    controller_webots_devices_reset_wheels(&webots_devices);
 }
 
 #define STEP_CALLBACK(callback) \
@@ -339,6 +451,10 @@ int controller_app_lifecycle_run(int argc, char **argv) {
       spawn_runtime_obstacle);
   controller_runtime_command_reload_service_set_transfer_handler(
       &runtime_command_reload_service, handle_transfer_command);
+  runtime_command_reload_service.start_pick_place = controller_webots_manipulator_start;
+  runtime_command_reload_service.cancel_pick_place = controller_webots_manipulator_cancel;
+  runtime_command_reload_service.motion_blocked = robot_motion_owned;
+  route_zone_reload_service.motion_blocked = robot_motion_owned;
   runtime_command_reload_service.last_modified = get_file_mtime(RUNTIME_COMMAND_PATH);
   runtime_command_reload_service.last_processed_id = controller_runtime_command_latest_id(RUNTIME_COMMAND_PATH);
 
@@ -346,14 +462,7 @@ int controller_app_lifecycle_run(int argc, char **argv) {
     set_status("error");
     set_error("Supervisor fields are not available");
   } else {
-    const ControllerSurveyDefaultRouteConfig default_route_config{
-        SURVEY_X_MIN, SURVEY_X_MAX, SURVEY_Y_MIN, SURVEY_Y_MAX, SURVEY_STRIP};
-    controller_mapping_survey_lifecycle_service_ensure_default_route(
-        ROUTE_PATH,
-        get_file_mtime(ROUTE_PATH),
-        &default_route_config,
-        clear_persistent_map,
-        set_status);
+    // Creating route.csv here makes the reload loop launch an unrequested survey.
     wait_for_fresh_route();
   }
 

@@ -1,3 +1,4 @@
+import { normalizeMotionProfile } from "./telemetryMotion";
 import coordinateContract from "../../../shared/coordinate-contract.json";
 import { unwrapTelemetryEvent } from "../../../shared/contracts/index.js";
 import { INITIAL_TELEMETRY } from "./dashboardTelemetryState";
@@ -5,6 +6,7 @@ import { normalizeTelemetryMap } from "./telemetryMaps";
 import { normalizeNavigation } from "./telemetryNavigation";
 import { normalizeCamera, normalizeObstacleTrace } from "./telemetryPerception";
 import { pickNumber } from "./telemetryNumbers";
+import { normalizeManipulator } from "./manipulatorTelemetry";
 
 const TELEMETRY_MESSAGE_TYPE = coordinateContract.telemetry.messageType;
 const TELEMETRY_POSE_KEY = coordinateContract.telemetry.poseKey;
@@ -38,14 +40,14 @@ export const normalizeTelemetry = (raw, prev = INITIAL_TELEMETRY) => {
   if (x === null || y === null) return null;
   return {
     simulationTime,
+    objectTransfer: raw.objectTransfer ?? prev.objectTransfer ?? null,
+    motionProfile: normalizeMotionProfile(raw.motionProfile,prev.motionProfile),
     x,
     y,
     z,
     yaw,
     navigation,
-    ...((raw.objectTransfer ?? prev.objectTransfer)
-      ? { objectTransfer: raw.objectTransfer ?? prev.objectTransfer }
-      : {}),
+    manipulator: normalizeManipulator(raw.manipulator, prev.manipulator ?? null),
     obstacleTrace,
     obstacleMap,
     cameraMap,

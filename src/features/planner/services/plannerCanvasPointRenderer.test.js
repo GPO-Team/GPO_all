@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { renderPlannerPointLayer } from "./plannerCanvasPointRenderer";
+import { renderPlannerPointLayer, renderPlannerRobot } from "./plannerCanvasPointRenderer";
 
 describe("planner canvas point renderer", () => {
   it("renders charge and visit points with the robot marker", () => {
@@ -17,6 +17,9 @@ describe("planner canvas point renderer", () => {
 
     expect(ctx.fillText).toHaveBeenCalledWith("C1", expect.any(Number), expect.any(Number));
     expect(ctx.strokeText).toHaveBeenCalledWith("1", expect.any(Number), expect.any(Number));
-    expect(ctx.arc).toHaveBeenCalledTimes(3);
+    expect(ctx.arc).toHaveBeenCalledTimes(2);
+    renderPlannerRobot(ctx, { viewScale: 4 }, { x: 0, y: 0, yaw: 0 });
+    expect(ctx.arc).toHaveBeenLastCalledWith(expect.any(Number), expect.any(Number), 11, 0, Math.PI * 2);
+    expect(ctx.lineWidth).toBe(4);
   });
 });

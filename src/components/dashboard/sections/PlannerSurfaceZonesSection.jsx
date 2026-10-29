@@ -1,14 +1,14 @@
+import HelpHint from "../HelpHint";
 import {
   SURFACE_PROFILE_OPTIONS,
   describeSurfaceRuntime,
 } from "../../../lib/energyModel";
 
 const cardCls =
-  "rounded-2xl bg-white/95 backdrop-blur border border-stone-200 shadow-[0_18px_40px_rgba(15,23,42,0.06)] p-4";
-const inputCls =
-  "w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 shadow-sm transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100";
-const subtleButtonCls =
-  "rounded-xl border border-stone-300 bg-stone-100 px-3 py-2 text-sm font-semibold text-stone-800 shadow-sm transition hover:bg-stone-200 hover:border-stone-400";
+  "rounded-[18px] bg-white/97 backdrop-blur border border-sky-100 shadow-[0_12px_30px_rgba(14,165,233,0.10)] p-4";
+const primaryButtonCls = "rounded-md border border-sky-300 bg-sky-100 px-2.5 py-1.5 text-[11px] font-semibold text-sky-800 shadow-sm transition hover:bg-sky-200";
+const neutralButtonCls = "rounded-md border border-stone-300 bg-stone-100 px-2.5 py-1.5 text-[11px] font-semibold text-stone-800 shadow-sm transition hover:bg-stone-200";
+const dangerButtonCls = "rounded-md border border-rose-300 bg-rose-50 px-2.5 py-1.5 text-[11px] font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100";
 
 const parseLooseInput = (rawValue, fallback) => {
   const normalized = String(rawValue ?? "").trim().replace(",", ".");
@@ -18,13 +18,10 @@ const parseLooseInput = (rawValue, fallback) => {
 };
 
 export default function PlannerSurfaceZonesSection({
-  activeSurfaceProfileKey,
-  activeSurfaceZone,
   activeSurfaceZoneId,
   cruiseSpeedInput,
   cruiseSpeedMps,
-  onActiveSurfaceProfileChange,
-  onClearAllSurfaceZones,
+  onSurfaceProfileChange,
   onClearSurfaceZone,
   onCreateSurfaceZone,
   onRemoveSurfaceZone,
@@ -41,64 +38,58 @@ export default function PlannerSurfaceZonesSection({
 
   return (
     <div className={cardCls}>
-      <h3 className="text-sm font-semibold mb-3">Покрытия карты</h3>
-      <div className="mb-3 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs text-teal-900">
-        <div className="font-semibold">Редактируемые зоны: {closedSurfaceCount}</div>
-        <div className="mt-1 text-teal-800">
-          Выберите тип покрытия, включите режим «Зона покрытия» и кликайте по карте точками контура.
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">Покрытия карты</h3>
+          <div className="text-xs text-slate-500">Замкнутых контуров: {closedSurfaceCount} <HelpHint label="Покрытия карты">Выберите зону для добавления точек. Нажмите её название, чтобы изменить тип покрытия. Замкнутые контуры участвуют в расчёте маршрута.</HelpHint></div>
         </div>
+        <button type="button" onClick={onCreateSurfaceZone} className="shrink-0 rounded-xl bg-sky-700 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-sky-800">Новая зона</button>
       </div>
-      <label>
-        <div className="text-xs text-stone-600 mb-1">Тип активного покрытия</div>
-        <select className={inputCls} value={activeSurfaceProfileKey}
-          onChange={(event) => onActiveSurfaceProfileChange?.(event.target.value)}>
-          {SURFACE_PROFILE_OPTIONS.map((profile) => (
-            <option key={profile.key} value={profile.key}>{profile.label}</option>
-          ))}
-        </select>
-      </label>
-      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-        <button onClick={onCreateSurfaceZone} className={subtleButtonCls}>Новая зона</button>
-        <button onClick={() => activeSurfaceZone && onToggleSurfaceZoneClosed?.(activeSurfaceZone.id)}
-          className={subtleButtonCls} disabled={!activeSurfaceZone}>
-          {activeSurfaceZone?.closed ? "Открыть" : "Замкнуть"}
-        </button>
-        <button onClick={() => activeSurfaceZone && onClearSurfaceZone?.(activeSurfaceZone.id)}
-          className={subtleButtonCls} disabled={!activeSurfaceZone}>Очистить зону</button>
-        <button onClick={onClearAllSurfaceZones} className={subtleButtonCls}>Очистить все</button>
-      </div>
-      <div className="mt-3 max-h-44 space-y-2 overflow-auto pr-1 text-xs">
-        {surfaceZoneList.map((zone) => {
+      <details className="planner-disclosure">
+        <summary className="disclosure-trigger flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-slate-900">
+          <span className="min-w-0 flex-1">Покрытия</span><span className="shrink-0 text-xs font-normal text-slate-500">{surfaceZoneList.length} шт.</span><span className="disclosure-hint text-xs font-normal text-sky-700">Раскрыть</span>
+        </summary>
+      <div className="mt-3 space-y-2">
+        {surfaceZoneList.map((zone, index) => {
           const profile = SURFACE_PROFILE_OPTIONS.find((item) => item.key === zone.surfaceKey) || SURFACE_PROFILE_OPTIONS[0];
           const active = zone.id === activeSurfaceZoneId;
+          const pointCount = zone.points?.length || 0;
           return (
-            <div key={zone.id} className={`rounded-xl border px-3 py-2 ${active ? "border-teal-300 bg-teal-50" : "border-stone-200 bg-stone-50"}`}>
-              <button type="button" onClick={() => onSelectSurfaceZone?.(zone.id)}
-                className="flex w-full items-center justify-between gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-left transition hover:border-teal-200 hover:bg-teal-50">
-                <span className="flex items-center gap-2">
-                  <span className="inline-block h-3 w-3 rounded-full border border-stone-400" style={{ background: profile.fill }} />
-                  <span className="font-semibold text-stone-800">{zone.name}</span>
+            <div key={zone.id} className={`rounded-[16px] border p-3 shadow-[0_8px_20px_rgba(15,23,42,0.05)] ${active ? "border-sky-300 bg-sky-50" : "border-sky-100 bg-white"}`}>
+              <div className="rounded-xl border border-sky-100 bg-white px-3 py-2 text-left">
+                <label className="relative block cursor-pointer rounded-lg transition hover:bg-sky-50 focus-within:outline focus-within:outline-2 focus-within:outline-sky-500">
+                <span className="flex items-start gap-2">
+                  <span className="mt-1 h-3 w-3 shrink-0 rounded-full border border-stone-400" style={{ background: profile.fill }} />
+                  <span className="min-w-0 flex-1 break-words text-sm font-semibold text-slate-900">{index + 1}. {profile.label}</span>
+                  <span aria-hidden="true" className="text-lg leading-none text-sky-700">⌄</span>
                 </span>
-                <span className="text-stone-500">{zone.points?.length || 0} т.</span>
-              </button>
-              <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-white/70 px-2 py-1 text-stone-600">
-                <span>{profile.label}</span>
-                <span className={zone.closed ? "font-semibold text-emerald-700" : "font-semibold text-amber-700"}>
-                  {zone.closed ? "замкнута" : "черновик"}
+                <span className="mt-1 block text-xs text-sky-700">Изменить тип</span>
+                <select aria-label={`Тип покрытия зоны ${index + 1}`} value={zone.surfaceKey}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  onFocus={() => onSelectSurfaceZone?.(zone.id)}
+                  onChange={(event) => onSurfaceProfileChange?.(zone.id, event.target.value)}>
+                  {SURFACE_PROFILE_OPTIONS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
+                </select>
+                </label>
+                <span className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-500">
+                  <span>Точек: {pointCount}</span>
+                  <span className={`rounded-full px-2 py-0.5 font-semibold ${zone.closed ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{zone.closed ? "Замкнута" : "Открыта"}</span>
                 </span>
               </div>
-              {active && (
-                <button type="button" onClick={() => onRemoveSurfaceZone?.(zone.id)}
-                  className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[11px] font-semibold text-rose-700 hover:bg-rose-100">
-                  Удалить покрытие
-                </button>
-              )}
+              <div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2">
+                <button type="button" onClick={() => onToggleSurfaceZoneClosed?.(zone.id)} disabled={!zone.closed && pointCount < 3} className={primaryButtonCls}>{zone.closed ? "Открыть" : "Замкнуть"}</button>
+                <button type="button" onClick={() => onClearSurfaceZone?.(zone.id)} disabled={!pointCount} className={neutralButtonCls}>Очистить зону</button>
+                <button type="button" onClick={() => onRemoveSurfaceZone?.(zone.id)} className={dangerButtonCls}>Удалить</button>
+              </div>
+              {!zone.closed && pointCount < 3 && <p className="mt-2 text-xs text-slate-500">Для замыкания нужно минимум 3 точки.</p>}
             </div>
           );
         })}
       </div>
-      <div className="mt-4 border-t border-stone-200 pt-3" />
-      <div className="space-y-2 text-xs">
+      </details>
+      <details className="mt-4 border-t border-stone-200 pt-3">
+        <summary className="cursor-pointer text-xs font-semibold text-stone-700">Параметры покрытий</summary>
+      <div className="mt-3 space-y-2 text-xs">
         {SURFACE_PROFILE_OPTIONS.map((profile) => {
           const runtime = describeSurfaceRuntime(profile, {
             speedMps: parseLooseInput(cruiseSpeedInput, cruiseSpeedMps),
@@ -120,6 +111,7 @@ export default function PlannerSurfaceZonesSection({
           );
         })}
       </div>
+      </details>
     </div>
   );
 }

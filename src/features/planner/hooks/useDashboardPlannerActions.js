@@ -2,11 +2,47 @@ import { useDashboardPlannerEditors } from "./useDashboardPlannerEditors";
 import { useDashboardPlannerRouteLifecycle } from "./useDashboardPlannerRouteLifecycle";
 import { useDashboardPlannerRuntimeActions } from "./useDashboardPlannerRuntimeActions";
 import { usePlannerRouteSelection } from "./usePlannerRouteSelection";
+import { useEffect, useLayoutEffect } from "react";
+import { downloadGraphCsv } from "../model/graphExport";
 
 export const useDashboardPlannerActions = (state, runtime, derived) => {
-  const { algorithm, canvas, energy, interaction, limits, mapping, route, surfaces } = state;
+  const {
+    algorithm,
+    canvas,
+    energy,
+    interaction,
+    limits,
+    mapping,
+    route,
+    surfaces,
+  } = state;
   const { plannerModel, syncPayloads, viewModel } = derived;
+  const mission = runtime.mission?.state;
+  const missionActive = Boolean(
+    mission?.status &&
+    !["completed", "failed", "cancelled"].includes(mission.status),
+  );
+  const editingLocked = Boolean(
+    route.isSubmitting || missionActive || route.isOptimizing,
+  );
+  const { editingLockRef, setIsSubmitting } = route;
+  useLayoutEffect(() => {
+    if (editingLockRef) editingLockRef.current = editingLocked;
+  }, [editingLockRef, editingLocked]);
+  const isEditingLocked = () => editingLockRef?.current || editingLocked;
+  const refuseEdit = () =>
+    route.setStatus(
+      "Редактирование заблокировано: остановите текущую миссию и дождитесь подтверждения остановки. Линия маршрута сохранена.",
+    );
+  useEffect(() => {
+    if (mission?.missionId) setIsSubmitting?.(false);
+  }, [mission?.missionId, mission?.status, setIsSubmitting]);
   const routeLifecycle = useDashboardPlannerRouteLifecycle({
+    driveMode: algorithm.driveMode,
+    editingLocked,
+    isEditingLocked,
+    editingLockRef: route.editingLockRef,
+    setIsSubmitting: route.setIsSubmitting,
     plannerModel,
     optimizedRoute: route.optimizedRoute,
     onMissionSubmitted: runtime.mission?.track,
@@ -50,6 +86,8 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
   });
 
   const routeSelection = usePlannerRouteSelection({
+    setDriveMode: algorithm.setDriveMode,
+    isEditingLocked,
     algorithmKey: algorithm.algorithmKey,
     resetRouteTiming: runtime.routeTiming.reset,
     setAlgorithmKey: algorithm.setAlgorithmKey,
@@ -65,6 +103,9 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
   });
 
   const editors = useDashboardPlannerEditors({
+    isEditingLocked,
+    mapLayers: state.sidebar?.plannerUiState?.mapLayers,
+    setMapLayerVisible: state.sidebar?.setMapLayerVisible,
     activeLimitZoneId: limits.activeLimitZoneId,
     activePointKind: interaction.activePointKind,
     activeSurfaceProfileKey: surfaces.activeSurfaceProfileKey,
@@ -104,5 +145,43 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
     onMissionSubmitted: runtime.mission?.track,
   });
 
-  return { ...routeLifecycle, ...routeSelection, ...editors, ...runtimeActions };
+  const operations = {
+    ...routeLifecycle,
+    ...routeSelection,
+    ...editors,
+    ...runtimeActions,
+  };
+  const guarded = Object.fromEntries(
+    Object.entries(operations).map(([name, operation]) => [
+      name,
+      typeof operation !== "function" ? operation : (...args) => {
+        if (
+          isEditingLocked() &&
+          ![
+            "finishDragging",
+            "handleCanvasMouseMove",
+            "requestMapExport",
+            "exportMapImage",
+          ].includes(name)
+        ) {
+          refuseEdit();
+          return false;
+        }
+        return operation(...args);
+      },
+    ]),
+  );
+  return {
+    ...guarded,
+    editingLocked,
+    isEditingLocked,
+    exportGraphCsv: () => {
+      downloadGraphCsv({
+        points: route.points,
+        limitZones: limits.limitZones,
+        surfaceZones: surfaces.surfaceZones,
+      });
+      route.setStatus("Текущий граф сохранён в planner-graph.csv.");
+    },
+  };
 };

@@ -10,20 +10,21 @@ export const usePlannerBridgeSync = ({
   setStatus,
   surfaceSyncPayloadText,
   zoneSyncPayloadText,
+  editingLocked=false,
 }) => {
 
   useEffect(() => {
-    if (!routeConnected) return;
+    if (!routeConnected || editingLocked) return;
     sendRouteChannelPayload(routeSocketRef, JSON.parse(zoneSyncPayloadText), { onError: error => setStatus(`Зоны не сохранены: ${error.message}`) });
-  }, [setStatus, routeConnected, routeSocketRef, zoneSyncPayloadText]);
+  }, [editingLocked,setStatus, routeConnected, routeSocketRef, zoneSyncPayloadText]);
 
   useEffect(() => {
-    if (!routeConnected) return;
+    if (!routeConnected || editingLocked) return;
     sendRouteChannelPayload(routeSocketRef, JSON.parse(surfaceSyncPayloadText), { onError: error => setStatus(`Поверхности не сохранены: ${error.message}`) });
-  }, [setStatus, routeConnected, routeSocketRef, surfaceSyncPayloadText]);
+  }, [editingLocked,setStatus, routeConnected, routeSocketRef, surfaceSyncPayloadText]);
 
   useEffect(() => {
-    if (!routeConnected) return;
+    if (!routeConnected || editingLocked) return;
     sendRouteChannelPayload(routeSocketRef, {
       type: "motion_profile",
       motion: {
@@ -32,5 +33,5 @@ export const usePlannerBridgeSync = ({
         batteryRange: batteryRangeMeters,
       },
     }, { onError: error => setStatus(`Параметры движения не сохранены: ${error.message}`) });
-  }, [setStatus, routeConnected, batteryRangeMeters, cruiseSpeedMps, payloadKg, routeSocketRef]);
+  }, [editingLocked,setStatus, routeConnected, batteryRangeMeters, cruiseSpeedMps, payloadKg, routeSocketRef]);
 };

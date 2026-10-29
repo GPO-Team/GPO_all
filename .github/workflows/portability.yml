@@ -3,6 +3,8 @@ name: Service portability
 on:
   push:
   pull_request:
+  schedule:
+    - cron: '17 4 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -10,7 +12,11 @@ permissions:
 
 jobs:
   linux:
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -32,3 +38,20 @@ jobs:
       - run: npm run test:services
       - name: Build and exercise independent Docker services
         run: npm run test:docker
+
+  simulator:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.19.0'
+          cache: npm
+      - run: npm ci
+      - name: Build complete Linux simulator stack
+        run: docker compose -f compose.yaml -f compose.simulator.yaml build
+      - name: Verify physics, streaming and recovery through real services
+        run: npm run test:container

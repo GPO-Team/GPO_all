@@ -2,11 +2,16 @@ import {spawn} from "node:child_process";
 import {once} from "node:events";
 import assert from "node:assert/strict";
 import WebSocket from "ws";
+import {createRequire} from "node:module";
+import {mkdir,writeFile} from "node:fs/promises";
 import {createRouteCommand} from "../shared/contracts/index.js";
 
+const require = createRequire(import.meta.url);
+const {normalizeScene, sceneRevision} = require("../bridge/protocol/scene-validation.cjs");
 const project=`gpo-full-test-${Date.now()}`;
 const root=new URL("../",import.meta.url);
 const sockets=[];
+let telemetry;
 const simulatorFiles=process.env.SIMULATOR_GPU === "1" ? ["-f","compose.simulator.gpu-wslg.yaml"] : [];
 const compose=(...args)=>new Promise((resolve,reject)=>{
   const child=spawn("docker",["compose","-p",project,"-f","compose.yaml","-f","compose.simulator.yaml",...simulatorFiles,...args],{cwd:root,windowsHide:true,stdio:"inherit"});
@@ -22,14 +27,17 @@ const mission=async id=>(await fetch(`http://127.0.0.1:9002/api/missions/${id}`)
 async function connect(url) {
   const socket=new WebSocket(url);sockets.push(socket);await once(socket,"open");return socket;
 }
-async function send(socket,id,route) {
-  const command=createRouteCommand({source:"full-container-test",requestId:id,payload:{type:"route",route,scene:{polygons:[],surfaceZones:[],chargingStations:[],motion:{cruiseSpeedMps:0.22,payloadKg:0,batteryRange:100}}}});
+async function send(socket,id,route,transfer = false) {
+  const scene = normalizeScene({polygons:[],surfaceZones:[],chargingStations:[],motion:{cruiseSpeedMps:0.22,payloadKg:0,batteryRange:100}});
+  const payload = transfer === true ? {type:"transfer_object",objectId:"demo-box",destination:{x:2,y:0.6},scene,sceneRevision:sceneRevision(scene)} : transfer || {type:"route",route,scene};
+  const command=payload.type === "pick_place" ? {...payload,requestId:id}
+    : createRouteCommand({source:"full-container-test",requestId:id,payload});
   const reply=new Promise((resolve,reject)=>{
     const timer=setTimeout(()=>{socket.off("message",receive);reject(new Error("ACK timeout"));},15000);
     function receive(data){const ack=JSON.parse(data);if(ack.requestId===id){clearTimeout(timer);socket.off("message",receive);resolve(ack);}}
     socket.on("message",receive);
   });
-  socket.send(JSON.stringify(command));assert.equal((await reply).ok,true);
+  socket.send(JSON.stringify(command));const ack=await reply;assert.equal(ack.ok,true,JSON.stringify(ack));
 }
 try {
   await compose("up","-d","--no-build","--wait","--wait-timeout","180");
@@ -38,7 +46,13 @@ try {
     body:JSON.stringify({points:[{x:0,y:0},{x:1,y:0}],task:"tsp"}),
   })).json();
   assert.equal(plan.ok,true,JSON.stringify(plan));
-  let telemetry;
+  const mixed = await (await fetch("http://127.0.0.1:9003/api/solve-route", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({points:[{x:4,y:0},{x:9,y:0},{x:7,y:0},{x:2,y:0}],
+      visitOrder:["ordered","ordered","free","free"],anchor:{x:0,y:0},task:"hamiltonian_chain"}),
+  })).json();
+  assert.equal(mixed.ok,true,JSON.stringify(mixed));
+  assert.deepEqual(mixed.order,[3,0,2,1],"current mixed-visit policy must run inside the planning image");
   const telemetrySocket=await connect("ws://127.0.0.1:9001");
   telemetrySocket.on("message",data=>{const event=JSON.parse(data);if(event.type==="telemetry.event")telemetry=event.payload;});
   await until(()=>telemetry?.perception?.camera?.frameDataUrl,"robot camera");
@@ -59,7 +73,9 @@ try {
   assert.equal(response.status,200);
   assert.deepEqual(Buffer.from(await response.arrayBuffer()).subarray(0,4),Buffer.from([0,97,115,109]));
   const socket=await connect("ws://127.0.0.1:9002/ui");
-  await send(socket,"complete",[{x:0,y:0},{x:1,y:0}]);
+  // Keep navigation clear of PICK_BOX at (0.4,-0.1). A straight +X route
+  // physically pushes that small fixture into the later grasp approach.
+  await send(socket,"complete",[{x:0,y:0},{x:0,y:1}]);
   streaming.send("fast:-1");
   await until(()=>simulationMode === "fast","fast mode acknowledgement",10000);
   streaming.send("real-time:-1");
@@ -72,13 +88,80 @@ try {
   assert.equal((await mission("complete")).status,"completed");
   const nextSocket=await connect("ws://127.0.0.1:9002/ui");
   await compose("stop","simulator");
-  await send(nextSocket,"restart-cancel",[{x:0,y:0},{x:2,y:0}]);
+  await send(nextSocket,"restart-cancel",[{x:0,y:0},{x:0,y:2}]);
   await fetch("http://127.0.0.1:9002/api/missions/restart-cancel/cancel",{method:"POST"});
   await compose("up","-d","--wait","simulator");
   await until(async()=>(await mission("restart-cancel")).status==="cancelled","cancel after simulator restart");
-  await send(nextSocket,"after-restart",[{x:0,y:0},{x:1,y:0}]);
+  await send(nextSocket,"after-restart",[{x:0,y:0},{x:0,y:1}]);
   await until(async()=>(await mission("after-restart")).status==="completed","route after simulator restart");
-  console.log("PASS: six containers, camera, W3D through nginx, local WASM, speed controls, physical missions, route crash and simulator cancellation recovery");
+  const initialHeight = telemetry.objectTransfer.objectPose.z;
+  const initialJoints = telemetry.objectTransfer.manipulator.jointPositions;
+  let peakHeight = initialHeight, jointMotion = 0, gripSeen = false;
+  const observeTransfer = data => {
+    const event = JSON.parse(data);
+    const transfer = event.payload?.objectTransfer;
+    if (transfer?.missionId !== "physical-transfer") return;
+    peakHeight = Math.max(peakHeight, transfer.objectPose.z);
+    transfer.manipulator.jointPositions.forEach((joint, index) => {
+      jointMotion = Math.max(jointMotion, Math.abs(joint - initialJoints[index]));
+    });
+    gripSeen ||= transfer.manipulator.gripEvidence === true;
+  };
+  telemetrySocket.on("message", observeTransfer);
+  console.log(JSON.stringify({beforeLargeTransfer:telemetry.pose}));
+  await send(nextSocket,"physical-transfer",null,true);
+  await until(async () => {
+    const state = await mission("physical-transfer");
+    assert.ok(!["failed","holding_for_recovery"].includes(state.status), JSON.stringify(state));
+    return state.status === "completed";
+  }, "physical manipulator transfer", 240000);
+  await until(() => telemetry.objectTransfer?.status === "completed", "transfer telemetry");
+  const delivered = telemetry.objectTransfer;
+  assert.ok(gripSeen, "contact grip must be observed");
+  assert.ok(jointMotion > 0.5, "arm must physically move");
+  assert.ok(peakHeight > initialHeight + 0.04, "object must physically lift");
+  assert.ok(Math.hypot(delivered.objectPose.x - 2, delivered.objectPose.y - 0.6) < 0.035, "delivery position");
+  assert.equal(delivered.manipulator.releaseEvidence, true);
+  console.log(JSON.stringify({jointMotion, lift:peakHeight-initialHeight, delivered:delivered.objectPose}));
+  const trace=[];
+  const observeSmall = data => {
+    const event=JSON.parse(data), state=event.payload;
+    if (state?.manipulator?.missionId === "pick-after-demo") trace.push({
+      pose:state.pose,manipulator:{stage:state.manipulator.stage},
+      navigation:{currentWaypointIndex:state.navigation.currentWaypointIndex,distanceToTarget:state.navigation.distanceToTarget},
+    });
+  };
+  telemetrySocket.on("message",observeSmall);
+  await send(nextSocket,"pick-after-demo",null,{type:"pick_place",objectDef:"PICK_BOX",destination:{x:2,y:2,z:0.04}});
+  await until(async()=>{
+    const state=await mission("pick-after-demo");
+    assert.ok(!["failed","holding_for_recovery"].includes(state.status),JSON.stringify(state));
+    return state.status === "completed";
+  },"PICK_BOX after large cargo",300000);
+  await until(()=>telemetry.manipulator?.stage === "completed","small cargo telemetry");
+  const small=telemetry.manipulator.objectPosition;
+  assert.ok(Math.hypot(small.x-2,small.y-2)<0.035,JSON.stringify(small));
+  let forwardSamples=0;
+  for(let i=1;i<trace.length;i++) {
+    const a=trace[i-1],b=trace[i],dx=b.pose.x-a.pose.x,dy=b.pose.y-a.pose.y;
+    const turn=Math.atan2(Math.sin(b.pose.yaw-a.pose.yaw),Math.cos(b.pose.yaw-a.pose.yaw));
+    if(a.manipulator.stage!=="carrying" || b.manipulator.stage!=="carrying" ||
+      a.navigation.currentWaypointIndex!==b.navigation.currentWaypointIndex ||
+      Math.min(a.navigation.distanceToTarget,b.navigation.distanceToTarget)<0.2 ||
+      Math.abs(turn)>0.05 || Math.hypot(dx,dy)<0.005)continue;
+    const heading=a.pose.yaw+turn/2;
+    const error=Math.atan2(Math.sin(Math.atan2(dy,dx)-heading),Math.cos(Math.atan2(dy,dx)-heading));
+    assert.ok(Math.abs(error)<0.45,`Cargo cruise went sideways: ${error}`);
+    forwardSamples++;
+  }
+  assert.ok(forwardSamples>0,"must observe forward motion while carrying PICK_BOX");
+  console.log(JSON.stringify({smallDelivered:small,forwardSamples}));
+  console.log("PASS: six containers, mixed visit order, camera, W3D through nginx, local WASM, speed controls, physical large and small cargo delivery, forward cargo motion, physical missions, route crash and simulator cancellation recovery");
+} catch(error) {
+  await mkdir(new URL("../output/",import.meta.url),{recursive:true});
+  await writeFile(new URL("../output/container-smoke-failure.json",import.meta.url),JSON.stringify({error:error.message,telemetry},null,2));
+  await compose("logs","--tail","50");
+  throw error;
 } finally {
   for(const socket of sockets)socket.terminate();
   // The unique project above is owned solely by this test; its volumes are disposable.

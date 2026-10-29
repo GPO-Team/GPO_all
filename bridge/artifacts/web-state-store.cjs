@@ -2,6 +2,7 @@ const { validateMissionId } = require("../protocol/mission-contract.cjs");
 const fs = require("fs");
 const path = require("path");
 const { randomUUID } = require("crypto");
+const { fingerprint } = require("../protocol/service-contract.cjs");
 const {
   createMotionProfileText,
   createRuntimeCommandText,
@@ -143,6 +144,10 @@ const createWebStateStore = ({ coordinateContract, stateDir }) => {
     });
     // A retry after a lost gateway reply must not append another runtime effect.
     if (payload.requestKey && previous.includes(`# request ${payload.requestKey}\n`)) return;
+    // Include commands published by earlier versions, before request keys existed.
+    if (payload.type === "transfer_object" && previous.includes(
+      `type transfer_object\nmission_id ${validateMissionId(payload.missionId || payload.commandId)}\n`
+    )) return;
     const latestId = [...previous.matchAll(/^id (\d+)$/gm)].reduce((max, match) => Math.max(max, Number(match[1])), 0);
     const requestedId = Number(payload?.commandId);
     const commandId = Math.max(latestId + 1, Number.isSafeInteger(requestedId) && requestedId > 0 ? requestedId : Date.now());
@@ -156,8 +161,11 @@ const createWebStateStore = ({ coordinateContract, stateDir }) => {
     await ensureStateDir();
     await writeLimitZones({zones:payload.scene?.polygons || []});
     await writeSurfaceZones({zones:payload.scene?.surfaceZones || []});
+    await writeMotionProfile(payload.scene?.motion);
     await atomicWrite(paths.sceneRevision, `${payload.sceneRevision}\n`);
-    await writeRuntimeCommand({...payload,missionId:payload.missionId || payload.commandId});
+    const missionId = payload.missionId || payload.commandId;
+    await writeRuntimeCommand({...payload,missionId,
+      requestKey:fingerprint({transfer:missionId}).slice(0,63)});
   };
 
   return {

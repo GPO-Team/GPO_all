@@ -6,6 +6,8 @@ import {
   worldToCanvas,
 } from "../../../lib/zonePlanner";
 import { DRAG_HIT_RADIUS } from "../../../lib/plannerModel";
+import { getCanvasEventPosition } from "../model/plannerViewport";
+import { isPointLayerVisible } from "../model/mapLayers";
 import {
   appendPlannerPoint,
   findPointIndexAtCanvasPosition,
@@ -14,14 +16,6 @@ import {
   removePlannerPointsByKind,
   updatePlannerPointTask,
 } from "../model/pointEditor";
-
-const getCanvasEventPosition = (canvas, event) => {
-  const rect = canvas.getBoundingClientRect();
-  return {
-    x: (event.clientX - rect.left) * (canvas.width / rect.width),
-    y: (event.clientY - rect.top) * (canvas.height / rect.height),
-  };
-};
 
 export const usePlannerPointEditor = ({
   activeLimitZoneId,
@@ -37,7 +31,15 @@ export const usePlannerPointEditor = ({
   setPoints,
   setStatus,
   setSurfaceZones,
+  mapLayers,
+  setMapLayerVisible,
+  isEditingLocked = () => false,
 }) => {
+  const blocked = () => {
+    if (!isEditingLocked()) return false;
+    setStatus("Маршрут выполняется или ожидает подтверждения. Чтобы изменить точки, остановите миссию и дождитесь остановки робота.");
+    return true;
+  };
   const dragStateRef = useRef({
     pointIndex: null,
     moved: false,
@@ -45,24 +47,27 @@ export const usePlannerPointEditor = ({
   });
 
   const movePoint = (pointIndex, nextPoint) => {
+    if (blocked()) return false;
     if (!isInsideMap(nextPoint)) return false;
     const currentPoint = points[pointIndex];
     if (!currentPoint) return false;
 
     setPoints((previous) => movePlannerPoint(previous, pointIndex, nextPoint));
-    if (currentPoint.kind === "visit") clearRouteState();
+    if (["visit","free_visit"].includes(currentPoint.kind)) clearRouteState();
     else clearRouteState({ dropSolvedRoute: false });
     return true;
   };
 
   const handleCanvasMouseDown = (event) => {
+    if (blocked()) return;
     if (!canvasRef.current) return;
     const canvasPoint = getCanvasEventPosition(canvasRef.current, event);
     const pointIndex = findPointIndexAtCanvasPosition(
       points,
       canvasPoint,
       (point) => worldToCanvas(point.x, point.y),
-      DRAG_HIT_RADIUS
+      DRAG_HIT_RADIUS / (canvasRef.current.plannerViewport?.scale || 1),
+      (point) => isPointLayerVisible(point, mapLayers)
     );
     if (pointIndex < 0) return;
 
@@ -74,6 +79,7 @@ export const usePlannerPointEditor = ({
   };
 
   const handleCanvasMouseMove = (event) => {
+    if (isEditingLocked()) return;
     if (!canvasRef.current) return;
     const { pointIndex } = dragStateRef.current;
     if (pointIndex === null) return;
@@ -87,16 +93,17 @@ export const usePlannerPointEditor = ({
   };
 
   const finishDragging = () => {
-    const { pointIndex, moved } = dragStateRef.current;
+    const { pointIndex } = dragStateRef.current;
     if (pointIndex === null) return;
     dragStateRef.current = {
       pointIndex: null,
       moved: false,
-      preventClick: moved,
+      preventClick: true,
     };
   };
 
   const addPointFromCanvas = (event) => {
+    if (blocked()) return;
     if (!canvasRef.current) return;
     if (dragStateRef.current.preventClick) {
       dragStateRef.current.preventClick = false;
@@ -109,6 +116,9 @@ export const usePlannerPointEditor = ({
       setStatus("Кликните внутри рабочей карты.");
       return;
     }
+    // Reveal the edited layer so newly added points never disappear.
+    const layerKey = { visit: "visits", free_visit: "visits", charge: "charges", limit: "zones", surface: "surfaces" }[activePointKind];
+    if (mapLayers?.[layerKey] === false) setMapLayerVisible?.(layerKey, true);
     if (activePointKind === "limit" && activeZone?.closed) {
       setStatus(
         "Зона уже замкнута. Нажмите «Открыть», чтобы добавлять или менять точки."
@@ -149,10 +159,10 @@ export const usePlannerPointEditor = ({
         DEFAULT_POINT_TASK
       )
     );
-    if (activePointKind === "visit") clearRouteState();
+    if (["visit","free_visit"].includes(activePointKind)) clearRouteState();
     else clearRouteState({ dropSolvedRoute: false });
     setStatus(
-      activePointKind === "visit"
+      activePointKind === "free_visit" ? "Добавлена свободная точка без номера. Порядок выберет планировщик." : activePointKind === "visit"
         ? "Добавлена точка посещения."
         : activePointKind === "charge"
           ? "Добавлена станция зарядки."
@@ -161,6 +171,7 @@ export const usePlannerPointEditor = ({
   };
 
   const clearPoints = (kind = null) => {
+    if (blocked()) return;
     if (kind === "limit") resetZones();
     setPoints((previous) => removePlannerPointsByKind(previous, kind));
     if (kind === "visit") clearRouteState();
@@ -181,13 +192,15 @@ export const usePlannerPointEditor = ({
   };
 
   const deletePoint = (pointIndex) => {
+    if (blocked()) return;
     const targetPoint = points[pointIndex];
     setPoints((previous) => removePlannerPoint(previous, pointIndex));
-    if (targetPoint?.kind === "visit") clearRouteState();
+    if (["visit","free_visit"].includes(targetPoint?.kind)) clearRouteState();
     else clearRouteState({ dropSolvedRoute: false });
   };
 
   const updatePointTask = (pointIndex, task) => {
+    if (blocked()) return;
     setPoints((previous) => updatePlannerPointTask(previous, pointIndex, task));
     clearRouteState();
   };

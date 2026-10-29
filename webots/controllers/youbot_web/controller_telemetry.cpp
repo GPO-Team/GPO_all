@@ -3,6 +3,7 @@
 #include "controller_io.h"
 
 #include <stdio.h>
+#include <cmath>
 
 #define CONTROLLER_TELEMETRY_PI 3.14159265358979323846
 
@@ -37,7 +38,10 @@ static const char *transfer_status(ControllerObjectTransferStatus status) {
 
 static const char *transfer_stage(ControllerObjectTransferStage stage) {
   static const char *names[] = {"none", "approaching_object", "aligning", "lowering_arm",
-      "grasping", "lifting", "transporting", "placing", "releasing", "returning_arm"};
+      "grasping", "lifting", "placing_on_platform", "releasing_on_platform",
+      "returning_arm_for_transport", "transporting", "picking_from_platform",
+      "grasping_from_platform", "lifting_from_platform", "placing", "releasing",
+      "returning_arm"};
   return stage >= CONTROLLER_TRANSFER_STAGE_NONE && stage <= CONTROLLER_TRANSFER_RETURNING_ARM
       ? names[stage] : "none";
 }
@@ -141,9 +145,63 @@ int controller_telemetry_write_snapshot(
   fprintf(file, "    \"stage\": \"%s\",\n", transfer_stage(transfer ? transfer->stage : CONTROLLER_TRANSFER_STAGE_NONE));
   fprintf(file, "    \"progress\": %d,\n", transfer ? transfer->progress : 0);
   fprintf(file, "    \"attached\": %s,\n", json_bool(transfer && transfer->attached));
+  fprintf(file, "    \"onPlatform\": %s,\n", json_bool(transfer && transfer->on_platform));
   fprintf(file, "    \"destination\": {\"x\": %.6f, \"y\": %.6f},\n",
       transfer ? transfer->destination_x : 0.0, transfer ? transfer->destination_y : 0.0);
-  fprintf(file, "    \"errorCode\": \"%s\"\n  },\n", transfer ? transfer->error_code : "");
+  if (snapshot->object_position_available) {
+    fprintf(file, "    \"position\": {\"x\": %.6f, \"y\": %.6f, \"z\": %.6f},\n",
+        snapshot->object_x, snapshot->object_y, snapshot->object_z);
+  } else {
+    fprintf(file, "    \"position\": null,\n");
+  }
+  fprintf(file, "    \"errorCode\": \"%s\",\n", transfer ? transfer->error_code : "");
+  fprintf(file, "    \"controllerBootId\": \"%s\",\n", transfer ? safe_command_id(transfer->controller_boot_id) : "");
+  fprintf(file, "    \"recoveryEpoch\": %u,\n", transfer ? transfer->recovery_epoch : 0);
+  fprintf(file, "    \"objectPose\": {\"x\": %.6f, \"y\": %.6f, \"z\": %.6f},\n",
+      transfer ? transfer->object_pose[0] : 0, transfer ? transfer->object_pose[1] : 0, transfer ? transfer->object_pose[2] : 0);
+  fprintf(file, "    \"objectUp\": {\"x\": %.6f, \"y\": %.6f, \"z\": %.6f},\n",
+      transfer ? transfer->object_up[0] : 0, transfer ? transfer->object_up[1] : 0, transfer ? transfer->object_up[2] : 0);
+  fprintf(file, "    \"manipulator\": {\"mode\": \"physical_contacts\", \"jointPositions\": [");
+  for(int i=0;i<5;++i) fprintf(file,"%s%.6f",i ? "," : "",transfer ? transfer->joint_positions[i] : 0);
+  fprintf(file, "], \"jointTargets\": [");
+  for(int i=0;i<5;++i) fprintf(file,"%s%.6f",i ? "," : "",transfer ? transfer->joint_targets[i] : 0);
+  fprintf(file, "], \"fingerPositions\": [%.6f,%.6f], \"motorEfforts\": [",
+      transfer ? transfer->finger_positions[0] : 0, transfer ? transfer->finger_positions[1] : 0);
+  for(int i=0;i<7;++i) fprintf(file,"%s%.6f",i ? "," : "",transfer ? transfer->motor_efforts[i] : 0);
+  fprintf(file, "], \"fingerContacts\": [%.6f,%.6f], \"tcpPose\": {\"x\": %.6f,\"y\": %.6f,\"z\": %.6f}, \"sensorValidity\": %s, \"gripEvidence\": %s, \"releaseEvidence\": %s, \"attachmentEvidence\": %s}\n  },\n",
+      transfer ? transfer->finger_contacts[0] : 0, transfer ? transfer->finger_contacts[1] : 0,
+      transfer ? transfer->tcp_pose[0] : 0, transfer ? transfer->tcp_pose[1] : 0, transfer ? transfer->tcp_pose[2] : 0,
+      json_bool(transfer && transfer->sensors_valid),json_bool(transfer && transfer->grip_evidence),
+      json_bool(transfer && transfer->release_evidence),json_bool(transfer && transfer->attached && transfer->grip_evidence));
+  const ControllerTelemetryManipulator *manipulator = &snapshot->manipulator;
+  fprintf(file, "  \"manipulator\": {\n");
+  fprintf(file, "    \"available\": %s,\n", json_bool(manipulator->available));
+  fprintf(file, "    \"missionId\": \"%s\", \"objectDef\": \"%s\",\n",
+      safe_command_id(manipulator->mission_id), safe_command_id(manipulator->object_def));
+  fprintf(file, "    \"stage\": \"%s\", \"error\": \"%s\",\n",
+      manipulator->stage ? manipulator->stage : "idle", safe_text(manipulator->error));
+  fprintf(file, "    \"active\": %s, \"loadHeld\": %s, \"cancelPending\": %s,\n",
+      json_bool(manipulator->active), json_bool(manipulator->load_held), json_bool(manipulator->cancel_pending));
+  if(std::isfinite(manipulator->contacts[0]) && std::isfinite(manipulator->contacts[1]))
+    fprintf(file, "    \"contacts\": [%.6f, %.6f],\n", manipulator->contacts[0], manipulator->contacts[1]);
+  else fprintf(file, "    \"contacts\": null,\n");
+  if(manipulator->object_valid)
+    fprintf(file, "    \"objectPosition\": {\"x\": %.6f, \"y\": %.6f, \"z\": %.6f},\n",
+        manipulator->object_position[0], manipulator->object_position[1], manipulator->object_position[2]);
+  else fprintf(file, "    \"objectPosition\": null,\n");
+  fprintf(file, "    \"pose\": \"%s\",\n", safe_text(manipulator->pose));
+  fprintf(file, "    \"state\": \"%s\",\n", safe_text(manipulator->state));
+  fprintf(file, "    \"joints\": [%.6f, %.6f, %.6f, %.6f, %.6f],\n",
+      manipulator->joints[0], manipulator->joints[1], manipulator->joints[2],
+      manipulator->joints[3], manipulator->joints[4]);
+  fprintf(file, "    \"fingers\": [%.6f, %.6f],\n",
+      manipulator->fingers[0], manipulator->fingers[1]);
+  fprintf(file, "    \"targetJoints\": [%.6f, %.6f, %.6f, %.6f, %.6f],\n",
+      manipulator->target_joints[0], manipulator->target_joints[1],
+      manipulator->target_joints[2], manipulator->target_joints[3],
+      manipulator->target_joints[4]);
+  fprintf(file, "    \"targetFingerOpening\": %.6f\n  },\n",
+      manipulator->target_finger_opening);
   fprintf(file, "  \"route\": {\n    \"source\": \"route.csv\",\n    \"waypoints\": [\n");
   for (int i = 0; i < snapshot->route_waypoint_count; ++i) {
     const Waypoint *waypoint = &snapshot->route_waypoints[i];

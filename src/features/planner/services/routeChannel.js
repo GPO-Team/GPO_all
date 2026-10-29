@@ -8,6 +8,7 @@ export const sendRouteChannelPayload = (routeSocketRef, payload, { onSent, onErr
     const temporary = shared?.readyState !== WebSocket.OPEN;
     const socket = temporary ? new WebSocket(ROUTE_WS_URL) : shared;
     let settled = false;
+    let sent=false;
     const finish = (error, acknowledgement) => {
       if (settled) return;
       settled = true;
@@ -17,19 +18,22 @@ export const sendRouteChannelPayload = (routeSocketRef, payload, { onSent, onErr
       socket.removeEventListener("error", fail);
       socket.removeEventListener("close", fail);
       if (temporary) socket.close();
-      if (error) onError?.(error);
+      if (error) {error.mayHaveReachedRobot=sent && !acknowledgement;onError?.(error);}
       else onSent?.(acknowledgement);
       resolve(!error);
     };
     const send = () => {
-      try { socket.send(JSON.stringify({ ...payload, requestId })); }
+      try { socket.send(JSON.stringify({ ...payload, requestId }));sent=true; }
       catch (error) { finish(error); }
     };
     const receive = (event) => {
       let response;
       try { response = JSON.parse(event.data); } catch { return; }
       if (response.type !== "route.ack" || response.requestId !== requestId) return;
-      finish(response.ok ? null : new Error(response.error || "Bridge отклонил команду."), response);
+      const message = response.code === "mission_active"
+        ? "Предыдущая миссия ещё активна. Нажмите «Остановить маршрут», дождитесь подтверждения остановки и отправьте маршрут снова."
+        : response.error || "Bridge отклонил команду.";
+      finish(response.ok ? null : new Error(message), response);
     };
     const fail = () => finish(new Error("Соединение прервано до подтверждения команды."));
     const timer = setTimeout(() => finish(new Error("Bridge не подтвердил сохранение команды.")), timeoutMs);

@@ -10,6 +10,7 @@ describe("bridge telemetry normalizer", () => {
     const telemetry = normalizeTelemetry({
       pose: { x: 1, y: 2, z: 0.5, yaw: 0.25 },
       navigation: { status: "moving" },
+      manipulator: { stage: "lifting", active: true },
       perception: {
         lidar: { ranges: [1, 2] },
         obstacleTrace: [{ x: 3, y: 4, confidence: 5 }],
@@ -20,6 +21,7 @@ describe("bridge telemetry normalizer", () => {
       type: coordinateContract.telemetry.messageType,
       pose: { x: 1, y: 2, z: 0.5, yaw: 0.25 },
       navigation: { status: "moving" },
+      manipulator: { stage: "lifting", active: true },
     });
     expect(telemetry.obstacleTrace[0].confidence).toBe(1);
   });
@@ -45,4 +47,9 @@ describe("bridge telemetry normalizer", () => {
     });
     expect(resolveCameraFrameMimeType("frame.bmp")).toBe("image/bmp");
   });
+});
+
+it("preserves object transfer measured diagnostics", () => {
+ const objectTransfer={missionId:"transfer",status:"running",manipulator:{jointPositions:[0,1,2,3,4]}};
+ expect(normalizeTelemetry({pose:{x:0,y:0,z:0,yaw:0},objectTransfer}).objectTransfer).toEqual(objectTransfer);
 });

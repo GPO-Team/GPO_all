@@ -1,7 +1,7 @@
 import { getSurfaceProfileByKey } from "../../../lib/energyModel";
 import {
   CANVAS_HEIGHT, CANVAS_WIDTH, DRAWING_HEIGHT, DRAWING_LEFT, DRAWING_TOP,
-  DRAWING_WIDTH, HALF_HEIGHT, HALF_WIDTH, worldToCanvas,
+  DRAWING_WIDTH, HALF_HEIGHT, HALF_WIDTH, SCALE, worldToCanvas,
 } from "../../../lib/zonePlannerCoordinates";
 import { DEFAULT_SURFACE_ZONES } from "../../../lib/zonePlannerPresentation";
 
@@ -82,8 +82,15 @@ const drawSurfaceZones = (ctx, surfaceZones = DEFAULT_SURFACE_ZONES) => {
   }
 };
 
+export const getAxisTickStep = (viewScale = 1) => {
+  const desiredStep = Math.max(1, 48 / (SCALE * viewScale));
+  const magnitude = 10 ** Math.floor(Math.log10(desiredStep));
+  return [1, 2, 5, 10].find((step) => step * magnitude >= desiredStep) * magnitude;
+};
+
 export const drawPlannerBackground = (ctx, surfaceZones = DEFAULT_SURFACE_ZONES, options = {}) => {
-  const { annotate = true } = options;
+  const { annotate = true, axisLabels = true, border = true, grid = true, viewScale = 1 } = options;
+  const annotationScale = Number.isFinite(viewScale) && viewScale > 0 ? viewScale : 1;
   const gradient = ctx.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   gradient.addColorStop(0, "#fafafa");
   gradient.addColorStop(1, "#e5e7eb");
@@ -93,31 +100,33 @@ export const drawPlannerBackground = (ctx, surfaceZones = DEFAULT_SURFACE_ZONES,
   ctx.fillRect(DRAWING_LEFT, DRAWING_TOP, DRAWING_WIDTH, DRAWING_HEIGHT);
   ctx.strokeStyle = "#0f172a";
   ctx.lineWidth = 2;
-  ctx.strokeRect(DRAWING_LEFT, DRAWING_TOP, DRAWING_WIDTH, DRAWING_HEIGHT);
+  if (border) ctx.strokeRect(DRAWING_LEFT, DRAWING_TOP, DRAWING_WIDTH, DRAWING_HEIGHT);
   drawSurfaceZones(ctx, surfaceZones);
-  ctx.strokeStyle = "rgba(148, 163, 184, 0.18)";
-  ctx.lineWidth = 1;
-  for (let x = -HALF_WIDTH; x <= HALF_WIDTH; x += 1) {
-    const from = worldToCanvas(x, -HALF_HEIGHT);
-    const to = worldToCanvas(x, HALF_HEIGHT);
-    ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
-  }
-  for (let y = -HALF_HEIGHT; y <= HALF_HEIGHT; y += 1) {
-    const from = worldToCanvas(-HALF_WIDTH, y);
-    const to = worldToCanvas(HALF_WIDTH, y);
-    ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
-  }
-  ctx.strokeStyle = "rgba(100, 116, 139, 0.28)";
-  ctx.lineWidth = 1.5;
-  for (let x = -HALF_WIDTH; x <= HALF_WIDTH; x += 4) {
-    const from = worldToCanvas(x, -HALF_HEIGHT);
-    const to = worldToCanvas(x, HALF_HEIGHT);
-    ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
-  }
-  for (let y = -HALF_HEIGHT; y <= HALF_HEIGHT; y += 4) {
-    const from = worldToCanvas(-HALF_WIDTH, y);
-    const to = worldToCanvas(HALF_WIDTH, y);
-    ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+  if (grid) {
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.18)";
+    ctx.lineWidth = 1;
+    for (let x = -HALF_WIDTH; x <= HALF_WIDTH; x += 1) {
+      const from = worldToCanvas(x, -HALF_HEIGHT);
+      const to = worldToCanvas(x, HALF_HEIGHT);
+      ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+    }
+    for (let y = -HALF_HEIGHT; y <= HALF_HEIGHT; y += 1) {
+      const from = worldToCanvas(-HALF_WIDTH, y);
+      const to = worldToCanvas(HALF_WIDTH, y);
+      ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(100, 116, 139, 0.28)";
+    ctx.lineWidth = 1.5;
+    for (let x = -HALF_WIDTH; x <= HALF_WIDTH; x += 4) {
+      const from = worldToCanvas(x, -HALF_HEIGHT);
+      const to = worldToCanvas(x, HALF_HEIGHT);
+      ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+    }
+    for (let y = -HALF_HEIGHT; y <= HALF_HEIGHT; y += 4) {
+      const from = worldToCanvas(-HALF_WIDTH, y);
+      const to = worldToCanvas(HALF_WIDTH, y);
+      ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+    }
   }
   if (!annotate) return;
   const verticalAxisTop = worldToCanvas(0, HALF_HEIGHT);
@@ -125,18 +134,39 @@ export const drawPlannerBackground = (ctx, surfaceZones = DEFAULT_SURFACE_ZONES,
   const horizontalAxisLeft = worldToCanvas(-HALF_WIDTH, 0);
   const horizontalAxisRight = worldToCanvas(HALF_WIDTH, 0);
   ctx.strokeStyle = "rgba(15, 23, 42, 0.6)";
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1 / annotationScale;
   ctx.beginPath();
   ctx.moveTo(verticalAxisTop.x, verticalAxisTop.y);
   ctx.lineTo(verticalAxisBottom.x, verticalAxisBottom.y);
   ctx.moveTo(horizontalAxisLeft.x, horizontalAxisLeft.y);
   ctx.lineTo(horizontalAxisRight.x, horizontalAxisRight.y);
   ctx.stroke();
+  if (!axisLabels) return;
   ctx.fillStyle = "#334155";
-  ctx.font = "600 12px 'Segoe UI', sans-serif";
+  ctx.font = `500 ${12 / annotationScale}px 'Segoe UI', sans-serif`;
+  const tickSize = 4 / annotationScale;
+  const labelOffset = 9 / annotationScale;
+  const step = getAxisTickStep(annotationScale);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  for (let x = Math.ceil(-HALF_WIDTH / step) * step; x <= HALF_WIDTH; x += step) {
+    const point = worldToCanvas(x, 0);
+    ctx.beginPath(); ctx.moveTo(point.x, point.y - tickSize); ctx.lineTo(point.x, point.y + tickSize); ctx.stroke();
+    ctx.fillText(String(x), point.x, point.y + labelOffset);
+  }
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  for (let y = Math.ceil(-HALF_HEIGHT / step) * step; y <= HALF_HEIGHT; y += step) {
+    if (y === 0) continue;
+    const point = worldToCanvas(0, y);
+    ctx.beginPath(); ctx.moveTo(point.x - tickSize, point.y); ctx.lineTo(point.x + tickSize, point.y); ctx.stroke();
+    ctx.fillText(String(y), point.x - labelOffset, point.y);
+  }
+  ctx.font = `600 ${13 / annotationScale}px 'Segoe UI', sans-serif`;
   ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText("Y", verticalAxisTop.x + 8, verticalAxisTop.y + 18);
-  ctx.fillText("X", horizontalAxisRight.x - 18, horizontalAxisRight.y - 8);
-  ctx.fillText("Routing grid with surface map", DRAWING_LEFT + 14, DRAWING_TOP - 14);
+  ctx.textBaseline = "top";
+  ctx.fillText("Y, м", verticalAxisTop.x + labelOffset, verticalAxisTop.y + labelOffset);
+  ctx.textAlign = "right";
+  ctx.textBaseline = "bottom";
+  ctx.fillText("X, м", horizontalAxisRight.x - labelOffset, horizontalAxisRight.y - labelOffset);
 };

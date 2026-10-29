@@ -18,5 +18,6 @@ ControllerLifecycleTasks controller_lifecycle_tasks_for_step(
       .write_maps = task_is_due(step, config->map_write_interval),
       .capture_camera = task_is_due(step, config->camera_capture_interval),
       .write_camera_frame = task_is_due(step, config->camera_write_interval),
+      .write_state = task_is_due(step, config->state_write_interval),
   };
 }

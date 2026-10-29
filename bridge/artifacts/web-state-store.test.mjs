@@ -23,6 +23,17 @@ const createStore = async () => {
 };
 
 describe("web state store", () => {
+  it("preserves stable obstacle IDs even when command sequence IDs collide", async () => {
+    const { store } = await createStore();
+    const obstacle = { x: 2, y: 3, sizeX: 1, sizeY: 0.8, height: 0.6 };
+    await store.writeRuntimeCommand({ type: "spawn_random_obstacle", commandId: 10, obstacleId: 42, obstacle });
+    await store.writeRuntimeCommand({ type: "update_runtime_obstacle", commandId: 10, obstacleId: 42, obstacle: { ...obstacle, x: 4 } });
+    await store.writeRuntimeCommand({ type: "delete_runtime_obstacle", commandId: 10, obstacleId: 42 });
+    const text = await fs.readFile(store.paths.runtimeCommand, "utf8");
+    expect([...text.matchAll(/^id (\d+)$/gm)].map(match => Number(match[1]))).toEqual([10, 11, 12]);
+    expect([...text.matchAll(/^obstacle_id (\d+)$/gm)].map(match => Number(match[1]))).toEqual([42, 42, 42]);
+    expect(text).toContain("type delete_obstacle");
+  });
   it("preserves an explicit mission command id across delivery retries", async () => {
     const {store} = await createStore();
     const command = {commandId:"mission-42",route:[{x:0,y:0},{x:1,y:0}]};
@@ -117,4 +128,16 @@ describe("web state store", () => {
     expect(await fs.readFile(store.paths.sceneRevision,"utf8")).toBe("rev-1\n");
     expect(await fs.readFile(store.paths.runtimeCommand,"utf8")).toContain("scene_revision rev-1");
   });
+});
+
+it("writes the transfer scene motion profile and does not publish when it fails", async () => {
+  const {store}=await createStore();
+  const transfer={commandId:"motion-transfer",type:"transfer_object",objectId:"demo-box",destination:{x:1,y:2},sceneRevision:"revision",scene:{motion:{cruiseSpeedMps:0.23,payloadKg:0.5}}};
+  await store.writeTransfer(transfer);
+  expect(await fs.readFile(store.paths.motionProfile,"utf8")).toContain("cruise_speed_mps 0.23");
+  const previous=await fs.readFile(store.paths.runtimeCommand,"utf8");
+  await fs.unlink(store.paths.motionProfile);
+  await fs.mkdir(store.paths.motionProfile);
+  await expect(store.writeTransfer({...transfer,commandId:"next-transfer"})).rejects.toThrow();
+  expect(await fs.readFile(store.paths.runtimeCommand,"utf8")).toBe(previous);
 });

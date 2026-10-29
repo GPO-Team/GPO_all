@@ -7,6 +7,7 @@ export const usePlannerRouteSelection = ({
   resetRouteTiming,
   setAlgorithmKey,
   setAlgorithmParams,
+  setDriveMode,
   setEnergyWarning,
   setExpandedPoint,
   setHoveredPointIndex,
@@ -15,8 +16,10 @@ export const usePlannerRouteSelection = ({
   setRouteSeed,
   setRouteTaskKey,
   setStatus,
+  isEditingLocked=()=>false,
 }) => {
   const clearRouteState = useCallback(({ dropSolvedRoute = true } = {}) => {
+    if(isEditingLocked())return;
     setExpandedPoint(null);
     setHoveredPointIndex(null);
     if (!dropSolvedRoute) return;
@@ -25,7 +28,7 @@ export const usePlannerRouteSelection = ({
     setEnergyWarning("");
     setRouteEnergyStats(createEmptyRouteEnergyStats());
     resetRouteTiming();
-  }, [resetRouteTiming, setEnergyWarning, setExpandedPoint, setHoveredPointIndex, setOptimizedRoute, setRouteEnergyStats, setRouteSeed]);
+  }, [isEditingLocked,resetRouteTiming, setEnergyWarning, setExpandedPoint, setHoveredPointIndex, setOptimizedRoute, setRouteEnergyStats, setRouteSeed]);
 
   const updateAlgorithmParam = useCallback((field, rawValue) => {
     const parsed = field.integer ? parseInt(rawValue, 10) : parseFloat(rawValue);
@@ -48,5 +51,12 @@ export const usePlannerRouteSelection = ({
     setEnergyWarning("");
   }, [clearRouteState, setAlgorithmKey, setEnergyWarning, setStatus]);
 
-  return { clearRouteState, handleAlgorithmChange, handleRouteTaskChange, updateAlgorithmParam };
+  const handleDriveModeChange = useCallback((nextMode) => {
+    if (!["optimized", "ordered"].includes(nextMode)) return;
+    setDriveMode(nextMode);
+    clearRouteState();
+    setStatus("Режим изменён. Постройте и отправьте маршрут заново.");
+  }, [clearRouteState, setDriveMode, setStatus]);
+
+  return { clearRouteState, handleDriveModeChange, handleAlgorithmChange, handleRouteTaskChange, updateAlgorithmParam };
 };

@@ -1,57 +1,45 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
-
+import { describe, expect, it } from "vitest";
 import PlannerTelemetrySection from "./PlannerTelemetrySection";
+import { normalizeTelemetry } from "../../../lib/dashboardTelemetry";
+import bridgeNormalizer from "../../../../bridge/telemetry/normalizer.cjs";
+import coordinateContract from "../../../../shared/coordinate-contract.json";
 
-describe("PlannerTelemetrySection", () => {
-  it("renders telemetry, camera, map controls and connection states", () => {
-    const html = renderToStaticMarkup(
-      <PlannerTelemetrySection
-        mapExportPromptOpen
-        mappingSurveyMode="double"
-        mappingSurveyModes={[{ key: "double", label: "Двойной" }]}
-        onCancelMapExport={vi.fn()}
-        onExportMapVariant={vi.fn()}
-        onMappingSurveyModeChange={vi.fn()}
-        onRequestMapExport={vi.fn()}
-        onStartMappingSurvey={vi.fn()}
-        routeWsUp={false}
-        solverApiUp
-        telemetry={{
-          x: 1,
-          y: 2,
-          z: 3,
-          yaw: 4,
-          perception: {
-            lidar: { enabled: true },
-            camera: {
-              enabled: true,
-              mode: "virtual_lidar",
-              obstacleVisible: true,
-              obstacleRange: 1.25,
-              obstacleScore: 0.8,
-              detectionCount: 2,
-              frameDataUrl: "data:image/png;base64,frame",
-            },
-          },
-          obstacleTrace: [{ x: 0, y: 0 }],
-          obstacleMap: { cells: [{ x: 0, y: 0 }], cellSize: 0.1 },
-          cameraMap: { cells: [{ x: 0, y: 0 }], freeCells: [{ x: 1, y: 1 }] },
-          navigation: { avoidanceTimeSec: 12.4 },
-        }}
-        telemetryWsUp
-      />,
-    );
+describe("robot telemetry", () => {
+  it("carries controller motion and navigation through normalization into sensor readings", () => {
+    const bridgePacket = bridgeNormalizer.createTelemetryNormalizer(coordinateContract)({
+      type: "telemetry", simulationTime: 42.5, pose: { x: 1.25, y: 2, z: 0.1, yaw: 0.4 },
+      navigation: { status: "tracking_path", currentWaypointIndex: 2, distanceToTarget: "3.5",
+        target: { x: "4", y: "5", headingDeg: "90" }, avoidanceActive: false, offRouteActive: false, avoidanceTimeSec: 12.4 },
+      motionProfile: { cruiseSpeedMps: "0.8", payloadKg: "2", batteryRange: "120",
+        batterySpeedFactor: "0.75", runtimeLinearLimitMps: "0.6", runtimeAngularLimitRad: "1.2" },
+      perception: { lidar: { enabled: true, frontMinRange: 1.6 },
+        camera: { enabled: true, frameDataUrl: "data:image/png;base64,frame" } },
+    });
+    const telemetry = normalizeTelemetry(bridgePacket);
+    const html = renderToStaticMarkup(<PlannerTelemetrySection telemetry={telemetry} telemetryWsUp routeWsUp solverApiUp />);
+    expect(html).toContain("Телеметрия робота");
+    expect(html).not.toContain("<details open");
+    for (const reading of ["1.25 м", "Следование маршруту", "3.50 м", "4.00 / 5.00 м", "90.00 °", "0.80 м/с", "120.0 энерго-ед.", "0.60 м/с", "1.20 рад/с", "1.60 м", "12.4 с"]) {
+      expect(html).toContain(reading);
+    }
+    expect(html.indexOf("Показания датчиков")).toBeLessThan(html.indexOf("Камера робота"));
+    expect(html).toContain("Камера робота");
+    expect(html).not.toContain("Режим обследования");
+  });
 
-    expect(html).toContain("Телеметрия");
-    expect(html).toContain("camera: virtual");
-    expect(html).toContain("cam dist: 1.25 m");
-    expect(html).toContain("Время объезда вне маршрута:");
-    expect(html).toContain("Кадр с камеры робота");
-    expect(html).toContain("Двойной объезд");
-    expect(html).toContain("Какую карту сохранить?");
-    expect(html).toContain("WS Telemetry:");
-    expect(html).toContain("Native Solver:");
+  it("retains omitted controller fields and clears a completed target", () => {
+    const previous = normalizeTelemetry({ type: "telemetry", pose: { x: 1, y: 2 },
+      motionProfile: { cruiseSpeedMps: 0.8 }, navigation: { target: { x: 3, y: 4 }, error: "" } });
+    const updated = normalizeTelemetry({ type: "telemetry", pose: { x: 2, y: 3 },
+      navigation: { finished: true, target: null }, motionProfile: { payloadKg: "2", batteryRange: "bad" } }, previous);
+    expect(updated.navigation.target).toBeNull();
+    expect(updated.motionProfile).toMatchObject({ cruiseSpeedMps: 0.8, payloadKg: 2, batteryRange: null });
+    const html = renderToStaticMarkup(<PlannerTelemetrySection telemetry={updated} />);
+    expect(html).toContain("Нет соединения с телеметрией");
+    expect(html).toContain("Маршрут завершён");
+    expect(html).not.toContain("NaN");
+    expect(html).not.toContain("null");
   });
 });

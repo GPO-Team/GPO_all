@@ -8,6 +8,8 @@ const selectCls =
   "w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 shadow-sm transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100";
 
 export default function PlannerRoutePointsSection({
+  showVisit = true,
+  showCharge = true,
   chargeEntries,
   expandedPoint,
   hoveredPointIndex,
@@ -17,17 +19,19 @@ export default function PlannerRoutePointsSection({
   onUpdatePointTask,
   plannedVisitEntries,
   visitEntries,
+  editingLocked=false,
 }) {
   const plannedVisitLookup = new Map(plannedVisitEntries.map((entry) => [entry.index, entry]));
 
   return (
     <>
-      <div className={zonePanelCardCls}>
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <h3 className="text-sm font-semibold">Точки посещения</h3>
-          <span className="text-xs text-stone-500">{visitEntries.length} шт.</span>
-        </div>
-        <div className="space-y-2">
+      {showVisit && <details className={`planner-disclosure ${zonePanelCardCls}`}>
+        <summary className="disclosure-trigger flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2 py-2 text-sm font-semibold">
+          <span>Точки посещения</span>
+          <span className="ml-auto text-xs text-stone-500">{visitEntries.length} шт.</span>
+          <span className="disclosure-hint text-xs font-normal text-sky-700">Раскрыть</span>
+        </summary>
+        <div className="mt-3 space-y-2">
           {visitEntries.map((entry) => {
             const expanded = expandedPoint === entry.index;
             const hovered = hoveredPointIndex === entry.index;
@@ -37,16 +41,27 @@ export default function PlannerRoutePointsSection({
               <div key={entry.index}>
                 <div
                   className={`${rowCls} ${hovered ? "border-sky-300 bg-sky-50 shadow-sm" : ""}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={expanded}
+                  aria-label={`${entry.order===null ? "Свободная точка" : `Точка посещения V${entry.order}`}: ${expanded ? "свернуть" : "раскрыть"}`}
                   onClick={() => onToggleExpandedPoint(expanded ? null : entry.index)}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onToggleExpandedPoint(expanded ? null : entry.index);
+                    }
+                  }}
                   onMouseEnter={() => onHoverPoint(entry.index)}
                   onMouseLeave={() => onHoverPoint(null)}
                 >
                   <div className="min-w-0">
                     <div className="text-sm font-medium">
-                      V{entry.order} ({entry.point.x.toFixed(2)}, {entry.point.y.toFixed(2)})
+                      {entry.order===null ? "Без номера" : `V${entry.order}`} ({entry.point.x.toFixed(2)}, {entry.point.y.toFixed(2)})
                     </div>
                     <div className="inline-flex mt-1 px-2 py-0.5 rounded-full border text-[11px] bg-rose-50 border-rose-200 text-rose-700">
-                      {POINT_KIND_META.visit.label}
+                      {POINT_KIND_META[entry.point.kind]?.label || POINT_KIND_META.visit.label}
                     </div>
                     {plannedEntry?.adjusted && (
                       <div className="inline-flex mt-1 ml-2 px-2 py-0.5 rounded-full border text-[11px] bg-amber-50 border-amber-200 text-amber-700">
@@ -54,7 +69,11 @@ export default function PlannerRoutePointsSection({
                       </div>
                     )}
                   </div>
+                  <span className="ml-auto text-sky-700" aria-hidden="true">{expanded ? "⌄" : "›"}</span>
                   <button
+                    type="button"
+                    aria-label={entry.order===null ? "Удалить свободную точку" : `Удалить точку V${entry.order}`}
+                    disabled={editingLocked}
                     onClick={(event) => {
                       event.stopPropagation();
                       onDeletePoint(entry.index);
@@ -98,9 +117,9 @@ export default function PlannerRoutePointsSection({
             <div className="text-sm text-stone-500">Добавьте на карте точки, которые нужно посетить.</div>
           )}
         </div>
-      </div>
+      </details>}
 
-      <div className={zonePanelCardCls}>
+      {showCharge && <div className={zonePanelCardCls}>
         <div className="flex items-center justify-between gap-3 mb-3">
           <h3 className="text-sm font-semibold">Станции зарядки</h3>
           <span className="text-xs text-stone-500">{chargeEntries.length} шт.</span>
@@ -140,7 +159,7 @@ export default function PlannerRoutePointsSection({
             </div>
           )}
         </div>
-      </div>
+      </div>}
     </>
   );
 }

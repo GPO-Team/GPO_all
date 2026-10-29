@@ -37,13 +37,29 @@ describe("object transfer validation", () => {
   });
 
   it.each([
-    [{ x: -22.01, y: 0 }],
-    [{ x: 22.01, y: 0 }],
-    [{ x: 0, y: -17.01 }],
-    [{ x: 0, y: 17.01 }],
+    [{ x: -21.9, y: 0 }],
+    [{ x: 21.9, y: 0 }],
+    [{ x: 0, y: -16.9 }],
+    [{ x: 0, y: 16.9 }],
   ])("rejects destinations outside the map", destination => {
     expect(() => validateTransferCommand(createCommand({ destination })))
       .toThrow(/map bounds/);
+  });
+
+  it("rejects a destination too close to a restricted polygon", () => {
+    const scene = normalizeScene({
+      polygons: [{ id: "blocked", name: "Blocked", points: [
+        { x: 1, y: 1 }, { x: 3, y: 1 }, { x: 3, y: 3 }, { x: 1, y: 3 },
+      ] }],
+      surfaceZones: [],
+      chargingStations: [],
+      motion: {},
+    });
+    expect(() => validateTransferCommand(createCommand({
+      destination: { x: 3.1, y: 2 },
+      scene,
+      sceneRevision: sceneRevision(scene),
+    }))).toThrow(/too close/);
   });
 
   it("rejects a destination inside a restricted polygon", () => {
@@ -66,4 +82,8 @@ describe("object transfer validation", () => {
     expect(() => validateTransferCommand(createCommand({ sceneRevision: "stale" })))
       .toThrow(/scene revision/);
   });
+});
+
+it.each([null, undefined, {}, {x:null,y:0}, {x:0,y:null}, {x:"",y:0}, {x:false,y:0}])("rejects missing or nonnumeric destination coordinates %j", destination => {
+  expect(() => validateTransferCommand(createCommand({destination}))).toThrow();
 });

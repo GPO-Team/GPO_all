@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { usePlannerRouteOptimization } from "./usePlannerRouteOptimization";
 import { usePlannerBridgeSync } from "./usePlannerBridgeSync";
 import { usePlannerRouteRebuild } from "./usePlannerRouteRebuild";
+import { usePlannerRouteSender } from "./usePlannerRouteSender";
 import { solveRouteWithNativeAlgorithm } from "../../../lib/routeAlgorithms";
 import { sendRouteChannelPayload } from "../services/routeChannel";
 
@@ -23,6 +24,86 @@ const routeProps = () => ({
 });
 
 describe("planner lifecycle regressions", () => {
+  it("sends projected safe visit coordinates to the planning service", async () => {
+    const props = routeProps();
+    props.plannerModel.visitEntries = [
+      { point: { x: 0, y: 0 } },
+      { point: { x: 3, y: 0 } },
+    ];
+    props.plannerModel.visitPoints = [
+      { x: 1.45, y: 0 },
+      { x: 3, y: 0 },
+    ];
+    solveRouteWithNativeAlgorithm.mockResolvedValue({
+      seedRoute: props.plannerModel.visitPoints,
+      planning: { ok: true, route: props.plannerModel.visitPoints },
+    });
+    let optimize;
+    function Harness() {
+      const action = usePlannerRouteOptimization(props);
+      React.useEffect(() => { optimize = action; });
+      return null;
+    }
+
+    await act(async () => root.render(<Harness />));
+    await act(async () => optimize());
+
+    expect(solveRouteWithNativeAlgorithm.mock.calls[0][0]).toEqual(props.plannerModel.visitPoints);
+  });
+
+  it("submits the numbered seed unchanged for server safety validation", async () => {
+    const seed = [{ x: 4, y: 3 }, { x: -3, y: 2 }, { x: 2, y: 1 }];
+    const props = { ...routeProps(), driveMode: "ordered", optimizedRoute: seed,
+      routeSeed: seed, routeSocketRef: { current: null } };
+    let send;
+    function Harness() {
+      const action = usePlannerRouteSender(props);
+      React.useEffect(() => { send = action; });
+      return null;
+    }
+    await act(async () => root.render(<Harness />));
+    await act(async () => send());
+    const command = sendRouteChannelPayload.mock.calls[0][1];
+    expect(command.payload.seedRoute).toEqual(seed);
+    expect(command.payload.algorithm.task).toBe("hamiltonian_chain");
+  });
+  it("preserves numbered visit order with obstacle detours without calling the optimizer", async () => {
+    const props = routeProps();
+    props.driveMode = "ordered";
+    props.plannerModel.visitPoints = [{ x: -4, y: 0 }, { x: 4, y: 0 }, { x: 2, y: 2 }];
+    props.plannerModel.previewPolygons = [{ points: [{ x: -1, y: -1 }, { x: 1, y: -1 }, { x: 1, y: 1 }, { x: -1, y: 1 }] }];
+    let optimize;
+    function Harness() {
+      const action = usePlannerRouteOptimization(props);
+      React.useEffect(() => { optimize = action; });
+      return null;
+    }
+    await act(async () => root.render(<Harness />));
+    await act(async () => optimize());
+    expect(solveRouteWithNativeAlgorithm).not.toHaveBeenCalled();
+    expect(props.setRouteSeed).toHaveBeenCalledWith(props.plannerModel.visitPoints);
+    const route = props.setOptimizedRoute.mock.calls[0][0];
+    expect(route.length).toBeGreaterThan(3);
+    const positions = props.plannerModel.visitPoints.map((visit) => route.findIndex((point) => point.x === visit.x && point.y === visit.y));
+    expect(positions[0]).toBe(0);
+    expect(positions[1]).toBeGreaterThan(positions[0]);
+    expect(positions[2]).toBe(route.length - 1);
+  });
+
+  it("rejects an ordered route with insufficient energy", async () => {
+    const props = { ...routeProps(), driveMode: "ordered", batteryRangeMeters: 0.01 };
+    let optimize;
+    function Harness() {
+      const action = usePlannerRouteOptimization(props);
+      React.useEffect(() => { optimize = action; });
+      return null;
+    }
+    await act(async () => root.render(<Harness />));
+    await act(async () => optimize());
+    expect(props.setOptimizedRoute).toHaveBeenCalledWith([]);
+    expect(props.setStatus.mock.calls.at(-1)[0]).toMatch(/запас|достижим/i);
+    expect(solveRouteWithNativeAlgorithm).not.toHaveBeenCalled();
+  });
   it("aborts a stale solve and does not restore deleted points", async () => {
     const pending = Promise.withResolvers();
     solveRouteWithNativeAlgorithm.mockReturnValue(pending.promise);

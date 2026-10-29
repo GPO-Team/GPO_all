@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <vector>
+#include <stdexcept>
 
 int main() {
   const std::vector<gpo::InputPoint> points{{0, 0}, {3, 4}};
@@ -19,4 +20,8 @@ int main() {
       std::vector<int>{1, 0}));
   assert((gpo::orient_fixed_endpoints({1, 0}, 0, 1) == std::vector<int>{0, 1}));
   assert(gpo::calculate_route_length(points, false) == 5.0);
+  bool rejected = false;
+  try { (void)gpo::build_euclidean_problem({{0, 0}, {1e100, 0}}); }
+  catch (const std::runtime_error&) { rejected = true; }
+  assert(rejected);
 }
