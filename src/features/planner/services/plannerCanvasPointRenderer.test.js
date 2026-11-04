@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { FIRST_VISIT_COLOR, renderPlannerPointLayer, renderPlannerRobot } from "./plannerCanvasPointRenderer";
+import { renderPlannerPointLayer, renderPlannerRobot } from "./plannerCanvasPointRenderer";
 
 describe("planner canvas point renderer", () => {
   it("renders charge and visit points with the robot marker", () => {
@@ -23,7 +23,7 @@ describe("planner canvas point renderer", () => {
     expect(ctx.lineWidth).toBe(4);
   });
 
-  it("keeps visit numbers and colours the first visit differently", () => {
+  it("keeps visit numbers without making the first visit look selected", () => {
     const fills = [];
     const ctx = {
       arc: vi.fn(), beginPath: vi.fn(), fill: vi.fn(() => fills.push(ctx.fillStyle)), fillText: vi.fn(), lineTo: vi.fn(),
@@ -42,6 +42,7 @@ describe("planner canvas point renderer", () => {
     });
 
     expect(ctx.strokeText).toHaveBeenCalledWith("2", expect.any(Number), expect.any(Number));
-    expect(fills).toEqual(["#dc2626", FIRST_VISIT_COLOR]);
+    expect(fills).toEqual(["#dc2626", "#dc2626"]);
+    expect(ctx.arc).toHaveBeenCalledTimes(2);
   });
 });

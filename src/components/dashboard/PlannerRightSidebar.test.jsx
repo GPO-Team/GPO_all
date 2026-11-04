@@ -15,34 +15,24 @@ beforeEach(() => {
   root = createRoot(container);
 });
 afterEach(async () => { await act(async () => root.unmount()); });
-function Harness({ onStartMappingSurvey, onExportMapVariant, onAlgorithmPrecisionChange }) {
+function Harness() {
   const { plannerUiState, setMapLayerVisible } = usePlannerSidebarState();
   return <PlannerRightSidebar telemetry={{ ...INITIAL_TELEMETRY, obstacleMap: { cells: [{ x: 1, y: 2 }] } }}
     telemetryWsUp mapLayers={plannerUiState.mapLayers} onMapLayerChange={setMapLayerVisible}
-    routeTaskKey="tsp" algorithmKey="ga_tabu" onRouteTaskChange={vi.fn()} onAlgorithmChange={vi.fn()}
-    algorithmPrecision="medium" onAlgorithmPrecisionChange={onAlgorithmPrecisionChange} mappingSurveyMode="double" mappingSurveyModes={[{ key: "double", label: "Двойной" }]}
-    onMappingSurveyModeChange={vi.fn()} onStartMappingSurvey={onStartMappingSurvey} mapExportPromptOpen
-    onExportMapVariant={onExportMapVariant} onRequestMapExport={vi.fn()} onCancelMapExport={vi.fn()} />;
+    status="Маршрут построен: длинное техническое описание" />;
 }
-it("separates robot readings from map controls, persists visibility, and keeps survey/export actions working", async () => {
-  const survey = vi.fn(), exportMap = vi.fn(), precision = vi.fn();
-  await act(async () => root.render(<Harness onStartMappingSurvey={survey} onExportMapVariant={exportMap} onAlgorithmPrecisionChange={precision} />));
+it("keeps only telemetry and map controls without task or route description", async () => {
+  await act(async () => root.render(<Harness />));
   const telemetryPanel = container.querySelector("#planner-right-telemetry");
   const mapPanel = container.querySelector("#planner-right-map");
   expect(telemetryPanel.hidden).toBe(false);
   expect(mapPanel.hidden).toBe(true);
-  const taskPanel = container.querySelector("#planner-right-task");
-  expect(taskPanel.hidden).toBe(true);
+  expect(container.querySelector("#planner-right-task")).toBeNull();
+  expect(container.textContent).not.toContain("Задача");
+  expect(container.textContent).not.toContain("Маршрут построен");
   expect(telemetryPanel.textContent).toContain("Манипулятор · перенос объекта");
   expect(telemetryPanel.textContent).not.toContain("Алгоритм");
   expect(mapPanel.textContent).not.toContain("Алгоритм");
-  expect(taskPanel.textContent).toContain("Задача маршрута");
-  expect(taskPanel.textContent).toContain("Алгоритм");
-  expect(taskPanel.textContent).not.toContain("Размер популяции");
-  const precisionButton = text => [...taskPanel.querySelectorAll('[aria-label="Точность расчёта"] button')].find(button => button.textContent === text);
-  expect(precisionButton("Средняя").getAttribute("aria-pressed")).toBe("true");
-  await act(async () => precisionButton("Большая").click());
-  expect(precision).toHaveBeenCalledWith("high");
   expect(mapPanel.textContent).not.toContain("Камера");
   expect(mapPanel.textContent).toContain("Карта лидара");
   expect(mapPanel.textContent).toContain("След лидара");
@@ -50,7 +40,6 @@ it("separates robot readings from map controls, persists visibility, and keeps s
   expect(mapPanel.textContent).not.toContain("Скрытые зоны и покрытия");
   expect(mapPanel.textContent).not.toContain("Отметки препятствий");
   expect(mapPanel.textContent).not.toContain("Карта препятствий");
-  expect(taskPanel.textContent).toContain("Карта препятствий");
   expect(mapPanel.querySelectorAll(".map-layer-group summary")).toHaveLength(3);
   await act(async () => [...container.querySelectorAll("nav button")].find(button => button.textContent === "Карта").click());
   expect(mapPanel.hidden).toBe(false);
@@ -59,11 +48,6 @@ it("separates robot readings from map controls, persists visibility, and keeps s
   await act(async () => zones.click());
   expect(zones.checked).toBe(false);
   expect(loadPlannerUiState().mapLayers.zones).toBe(false);
-  const mapButton = text => [...taskPanel.querySelectorAll("button")].find(button => button.textContent === text);
-  await act(async () => mapButton("Двойной объезд").click());
-  await act(async () => mapButton("Лидар").click());
-  expect(survey).toHaveBeenCalledOnce();
-  expect(exportMap).toHaveBeenCalledWith("lidar");
   await act(async () => root.unmount());
   root = createRoot(container);
   await act(async () => root.render(<Harness />));

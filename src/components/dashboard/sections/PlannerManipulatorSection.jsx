@@ -131,15 +131,6 @@ export default function PlannerManipulatorSection({
     arm?.error ||
     (mission?.status === "failed" ? mission.failureReason : "") ||
     "";
-  const objectPosition =
-    connected &&
-    observedArm?.objectDef === objectDef &&
-    observedArm.objectPosition &&
-    ["x", "y", "z"].every((axis) =>
-      Number.isFinite(observedArm.objectPosition[axis]),
-    )
-      ? observedArm.objectPosition
-      : null;
   const submit = async (event) => {
     event.preventDefault();
     if (sending || busy || editingLocked || !connected) return;
@@ -176,27 +167,6 @@ export default function PlannerManipulatorSection({
       <h3 className="mb-2 text-sm font-semibold">
         Манипулятор · перенос объекта
       </h3>
-      <p className="mb-3 text-xs text-stone-600">
-        Автоматическая доставка небольших объектов: база подъезжает, рука
-        захватывает груз, робот перевозит и размещает его. Цель — координаты
-        центра объекта в мире, в метрах.
-      </p>
-      <p className="mb-3 text-xs text-stone-600">
-        Введите абсолютные координаты назначения, не смещение объекта. Например,
-        X=1 и Y=1 — точка в метре по каждой оси, а не перемещение на сантиметр.
-      </p>
-      {objectPosition && (
-        <p className="mb-3 text-xs text-stone-600">
-          Текущее положение {objectDef}:{" "}
-          {["x", "y", "z"]
-            .map(
-              (axis) =>
-                `${axis.toUpperCase()}=${objectPosition[axis].toFixed(3)}`,
-            )
-            .join(", ")}{" "}
-          м.
-        </p>
-      )}
       <form onSubmit={submit}>
         <fieldset
           disabled={sending || busy || editingLocked}

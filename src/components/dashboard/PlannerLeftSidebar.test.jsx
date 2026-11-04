@@ -4,13 +4,15 @@ import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
 import PlannerLeftSidebar from "./PlannerLeftSidebar";
 
-it("activates point placement directly from each menu section and has no transfer or surface controls", async () => {
+it("keeps task controls with zones and energy in the left sidebar", async () => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   const changed = vi.fn();
   function Harness() {
     const [kind, setKind] = useState("visit");
     return <PlannerLeftSidebar activePointKind={kind} onActivePointKindChange={(next) => { changed(next); setKind(next); }}
       routeLength={0}
+      routeTaskKey="tsp" algorithmKey="ga_tabu" algorithmPrecision="medium"
+      mappingSurveyMode="double" mappingSurveyModes={[{ key: "double", label: "Двойной" }]}
       zoneEntries={[]} activeZoneName="Зона 1" visitCount={4} chargeCount={2} zoneCount={1}
       routeEnergyStats={{ routeEnergy: 0, limitingMaxSpeedMps: 0, averageSlipRisk: 0 }} />;
   }
@@ -26,6 +28,12 @@ it("activates point placement directly from each menu section and has no transfe
     expect(container.textContent).toContain("Без номера · короткий путь");
     expect(container.textContent).toContain("Сохранить граф в CSV");
     expect(container.textContent).not.toContain("Добавить на карту");
+    const taskButton = [...container.querySelectorAll("nav button")].find((item) => item.textContent === "Задача");
+    await act(async () => taskButton.click());
+    expect(taskButton.getAttribute("aria-pressed")).toBe("true");
+    expect(container.textContent).toContain("Задача маршрута");
+    expect(container.textContent).toContain("Алгоритм");
+    expect(container.textContent).toContain("Карта препятствий");
     for (const [label, kind] of [["Зоны", "limit"], ["Энергия", "charge"], ["Маршрут", "visit"]]) {
       const button = [...container.querySelectorAll("nav button")].find((item) => item.textContent === label);
       await act(async () => button.click());

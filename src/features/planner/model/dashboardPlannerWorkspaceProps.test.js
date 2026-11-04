@@ -26,8 +26,9 @@ describe("dashboard planner workspace props", () => {
 
   it("creates point-specific clear handlers for the left sidebar", () => {
     const clearPoints = vi.fn();
+    const setMapExportPromptOpen = vi.fn();
     const props = createLeftSidebarProps({
-      state: { route: { optimizedRoute: [] }, surfaces: { surfaceZones: [] } },
+      state: { route: { optimizedRoute: [] }, interaction: { setMapExportPromptOpen }, surfaces: { surfaceZones: [] } },
       runtime: {},
       derived: { plannerModel: { visitEntries: [], chargeEntries: [], zoneEntries: [], polygons: [], adjustedVisits: [] } },
       actions: { clearPoints },
@@ -36,20 +37,19 @@ describe("dashboard planner workspace props", () => {
     props.onClearVisitPoints();
     props.onClearChargePoints();
     props.onClearLimitPoints();
+    props.onCancelMapExport();
     expect(clearPoints.mock.calls).toEqual([["visit"], ["charge"], ["limit"]]);
+    expect(setMapExportPromptOpen).toHaveBeenCalledWith(false);
   });
 
   it("adapts runtime status and right-sidebar actions", () => {
-    const setMapExportPromptOpen = vi.fn();
     const props = createRightSidebarProps({
-      state: { interaction: { setMapExportPromptOpen } },
+      state: { interaction: {} },
       runtime: { telemetryWsUp: true, routeWsUp: false, solverApiUp: true },
       derived: { plannerModel: { zoneEntries: [], visitEntries: [], chargeEntries: [], plannedVisitEntries: [], visitsInsideLimit: [], polygons: [], adjustedVisits: [] } },
       actions: {},
     });
 
     expect(props).toMatchObject({ telemetryWsUp: true, routeWsUp: false, solverApiUp: true });
-    props.onCancelMapExport();
-    expect(setMapExportPromptOpen).toHaveBeenCalledWith(false);
   });
 });

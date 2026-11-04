@@ -1,3 +1,4 @@
+import { useState } from "react";
 import PlannerEnergySection from "./sections/PlannerEnergySection";
 import PlannerRouteControlsSection from "./sections/PlannerRouteControlsSection";
 import PlannerRoutePointsSection from "./sections/PlannerRoutePointsSection";
@@ -6,6 +7,8 @@ import PlannerImportSection from "./sections/PlannerImportSection";
 import PlannerSetupSection from "./sections/PlannerSetupSection";
 import HelpHint from "./HelpHint";
 import PlannerRuntimeObstaclesSection from "./sections/PlannerRuntimeObstaclesSection";
+import PlannerMapSurveySection from "./sections/PlannerMapSurveySection";
+import PlannerTaskAlgorithmSection from "./sections/PlannerTaskAlgorithmSection";
 
 
 export default function PlannerLeftSidebar({
@@ -70,9 +73,28 @@ export default function PlannerLeftSidebar({
   routeEnergyStats,
   routeInfluenceRows,
   routeTiming,
+  telemetry = {},
+  mappingSurveyMode,
+  mappingSurveyModes = [],
+  onMappingSurveyModeChange,
+  mapExportPromptOpen,
+  onStartMappingSurvey,
+  onRequestMapExport,
+  onExportMapVariant,
+  onCancelMapExport,
+  routeTaskKey,
+  onRouteTaskChange,
+  algorithmKey,
+  onAlgorithmChange,
+  algorithmPrecision,
+  onAlgorithmPrecisionChange,
 }) {
-  const tab = { visit: "route", free_visit: "route", limit: "objects", charge: "energy" }[activePointKind] || "route";
+  const pointTab = { visit: "route", free_visit: "route", limit: "objects", charge: "energy" }[activePointKind] || "route";
+  const [taskOpen, setTaskOpen] = useState(false);
+  const tab = taskOpen ? "task" : pointTab;
   const selectTab = (key) => {
+    setTaskOpen(key === "task");
+    if (key === "task") return;
     onActivePointKindChange({ route: visitPointMode, objects: "limit", energy: "charge" }[key]);
   };
   return (
@@ -100,7 +122,7 @@ export default function PlannerLeftSidebar({
       </div>
 
       <nav className="panel-tabs" aria-label="Разделы планировщика">
-        {[["route", "Маршрут"], ["objects", "Зоны"], ["energy", "Энергия"]].map(([key, label]) => {
+        {[["route", "Маршрут"], ["objects", "Зоны"], ["energy", "Энергия"], ["task", "Задача"]].map(([key, label]) => {
           const alert = key === "energy" && Boolean(energyWarning);
           return <button type="button" key={key} aria-pressed={tab === key} data-alert={alert || undefined}
             title={alert ? energyWarning : undefined} onClick={() => selectTab(key)}>
@@ -232,6 +254,29 @@ export default function PlannerLeftSidebar({
         onToggleExpandedPoint={onToggleExpandedPoint}
         onUpdatePointTask={onUpdatePointTask}
       />
+      </>}
+      {tab === "task" && <>
+        <fieldset disabled={editingLocked} className="min-w-0">
+          <PlannerTaskAlgorithmSection
+            routeTaskKey={routeTaskKey}
+            onRouteTaskChange={onRouteTaskChange}
+            algorithmKey={algorithmKey}
+            onAlgorithmChange={onAlgorithmChange}
+            algorithmPrecision={algorithmPrecision}
+            onAlgorithmPrecisionChange={onAlgorithmPrecisionChange}
+          />
+        </fieldset>
+        <PlannerMapSurveySection
+          telemetry={telemetry}
+          mappingSurveyMode={mappingSurveyMode}
+          mappingSurveyModes={mappingSurveyModes}
+          onMappingSurveyModeChange={onMappingSurveyModeChange}
+          onStartMappingSurvey={onStartMappingSurvey}
+          onRequestMapExport={onRequestMapExport}
+          mapExportPromptOpen={mapExportPromptOpen}
+          onExportMapVariant={onExportMapVariant}
+          onCancelMapExport={onCancelMapExport}
+        />
       </>}
       {tab === "route" && <PlannerImportSection onImportFile={onImportFile} onExportCsv={onExportCsv} hasPoints={hasPoints} editingLocked={editingLocked} />}
       </div>

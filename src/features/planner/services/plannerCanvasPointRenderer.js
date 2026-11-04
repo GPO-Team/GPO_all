@@ -1,7 +1,5 @@
 import { POINT_KIND_META, worldToCanvas } from "../../../lib/zonePlanner";
 
-export const FIRST_VISIT_COLOR = "#0891b2";
-
 export const renderPlannerPointLayer = (ctx, state) => {
   const markerScale = state.markerScale || 1;
   state.chargeEntries.forEach((entry) => {
@@ -77,22 +75,10 @@ export const renderPlannerPointLayer = (ctx, state) => {
       ctx.textBaseline = "bottom";
       ctx.fillText(label, point.x + 14 / markerScale, point.y - 12 / markerScale);
     }
-    if (first) {
-      ctx.strokeStyle = FIRST_VISIT_COLOR;
-      ctx.lineWidth = 3 / markerScale;
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, 19 / markerScale, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    ctx.fillStyle = first ? FIRST_VISIT_COLOR : POINT_KIND_META.visit.color;
+    ctx.fillStyle = POINT_KIND_META.visit.color;
     ctx.beginPath();
     ctx.arc(point.x, point.y, 13 / markerScale, 0, Math.PI * 2);
     ctx.fill();
-    if (first) {
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 2.5 / markerScale;
-      ctx.stroke();
-    }
     ctx.font = `700 ${12 / markerScale}px 'Segoe UI', sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";

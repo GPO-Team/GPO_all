@@ -49,6 +49,17 @@ export const createLeftSidebarProps = ({ state, runtime, derived, actions }) => 
     onRouteTaskChange: actions.handleRouteTaskChange,
     algorithmKey: algorithm.algorithmKey,
     onAlgorithmChange: actions.handleAlgorithmChange,
+    algorithmPrecision: derived.viewModel?.algorithmPrecision,
+    onAlgorithmPrecisionChange: actions.updateAlgorithmPrecision,
+    telemetry: derived.telemetryForSidebar,
+    mappingSurveyMode: state.mapping?.mappingSurveyMode,
+    mappingSurveyModes: MAPPING_SURVEY_MODES,
+    onMappingSurveyModeChange: state.mapping?.setMappingSurveyMode,
+    mapExportPromptOpen: interaction.mapExportPromptOpen,
+    onStartMappingSurvey: actions.startMappingSurvey,
+    onRequestMapExport: actions.requestMapExport,
+    onExportMapVariant: actions.exportMapImage,
+    onCancelMapExport: () => interaction.setMapExportPromptOpen?.(false),
     status: route.status,
     mission: runtime.mission?.state,
     onCancelMission: runtime.mission?.cancel,
@@ -98,9 +109,8 @@ export const createLeftSidebarProps = ({ state, runtime, derived, actions }) => 
 };
 
 export const createRightSidebarProps = ({ state, runtime, derived, actions }) => {
-  const { algorithm = {}, interaction = {}, limits = {}, mapping = {} } = state;
+  const { interaction = {}, limits = {} } = state;
   const plannerModel = derived.plannerModel || {};
-  const viewModel = derived.viewModel || {};
 
   return {
     activeZone: plannerModel.activeZone,
@@ -120,29 +130,14 @@ export const createRightSidebarProps = ({ state, runtime, derived, actions }) =>
     telemetryWsUp: runtime.telemetryWsUp,
     mapLayers: state.sidebar?.plannerUiState?.mapLayers,
     onMapLayerChange: state.sidebar?.setMapLayerVisible,
-    status: state.route?.status,
     routeWsUp: runtime.routeWsUp,
     solverApiUp: runtime.solverApiUp,
-    mappingSurveyMode: mapping.mappingSurveyMode,
-    mappingSurveyModes: MAPPING_SURVEY_MODES,
-    onMappingSurveyModeChange: mapping.setMappingSurveyMode,
-    mapExportPromptOpen: interaction.mapExportPromptOpen,
-    onStartMappingSurvey: actions.startMappingSurvey,
     onStartPickPlace: actions.startPickPlace,
     onStartObjectTransfer: actions.startObjectTransfer,
     onResumeMission: runtime.mission?.resume,
     editingLocked:actions.editingLocked,
     mission: runtime.mission?.state,
     onCancelMission: runtime.mission?.cancel,
-    onRequestMapExport: actions.requestMapExport,
-    onExportMapVariant: actions.exportMapImage,
-    onCancelMapExport: () => interaction.setMapExportPromptOpen?.(false),
-    routeTaskKey: algorithm.routeTaskKey,
-    onRouteTaskChange: actions.handleRouteTaskChange,
-    algorithmKey: algorithm.algorithmKey,
-    onAlgorithmChange: actions.handleAlgorithmChange,
-    algorithmPrecision: viewModel.algorithmPrecision,
-    onAlgorithmPrecisionChange: actions.updateAlgorithmPrecision,
     onCreateZone: actions.createZone,
     onSelectZone: actions.selectZone,
     onToggleZoneClosed: actions.toggleZoneClosed,
