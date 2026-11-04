@@ -39,10 +39,6 @@ export const useDashboardPlannerDerivedState = (state, runtime) => {
     [energy.cruiseSpeedMps, energy.payloadKg]
   );
   const presentation = useDashboardPlannerPresentation({
-    optimizedRoute: route.optimizedRoute,
-    plannerModel,
-    payloadKg: energy.payloadKg,
-    cruiseSpeedMps: energy.cruiseSpeedMps,
     routeEnergyStats: energy.routeEnergyStats,
     routeTimingDisplay: runtime.routeTiming.display,
     routeAvoidanceTimeSec: runtime.routeTiming.avoidanceTimeSec,

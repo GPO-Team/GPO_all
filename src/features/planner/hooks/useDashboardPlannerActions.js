@@ -38,7 +38,6 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
     if (mission?.missionId) setIsSubmitting?.(false);
   }, [mission?.missionId, mission?.status, setIsSubmitting]);
   const routeLifecycle = useDashboardPlannerRouteLifecycle({
-    driveMode: algorithm.driveMode,
     editingLocked,
     isEditingLocked,
     editingLockRef: route.editingLockRef,
@@ -50,6 +49,7 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
     resetRouteTiming: runtime.routeTiming.reset,
     setActiveLimitZoneId: limits.setActiveLimitZoneId,
     setActivePointKind: interaction.setActivePointKind,
+    setVisitPointMode: interaction.setVisitPointMode,
     setActiveSurfaceProfileKey: surfaces.setActiveSurfaceProfileKey,
     setActiveSurfaceZoneId: surfaces.setActiveSurfaceZoneId,
     setAlgorithmKey: algorithm.setAlgorithmKey,
@@ -86,9 +86,7 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
   });
 
   const routeSelection = usePlannerRouteSelection({
-    setDriveMode: algorithm.setDriveMode,
     isEditingLocked,
-    algorithmKey: algorithm.algorithmKey,
     resetRouteTiming: runtime.routeTiming.reset,
     setAlgorithmKey: algorithm.setAlgorithmKey,
     setAlgorithmParams: algorithm.setAlgorithmParams,
@@ -145,7 +143,15 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
     onMissionSubmitted: runtime.mission?.track,
   });
 
+  // The mode only picks the kind of the next placed point; existing points keep their kind.
+  const changeVisitPointMode = (kind) => {
+    if (!["visit", "free_visit"].includes(kind)) return;
+    interaction.setVisitPointMode?.(kind);
+    (interaction.activatePointPlacement || interaction.setActivePointKind)?.(kind);
+  };
+
   const operations = {
+    changeVisitPointMode,
     ...routeLifecycle,
     ...routeSelection,
     ...editors,

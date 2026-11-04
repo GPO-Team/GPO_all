@@ -23,6 +23,27 @@ const createStore = async () => {
 };
 
 describe("web state store", () => {
+  it("retries the atomic rename while another process holds the target open", async () => {
+    const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "gpo-state-"));
+    temporaryDirectories.push(stateDir);
+    let failures = 2;
+    const renameFile = async (from, to) => {
+      if (failures-- > 0) throw Object.assign(new Error("operation not permitted"), { code: "EPERM" });
+      return fs.rename(from, to);
+    };
+    const store = createWebStateStore({ coordinateContract, stateDir, renameFile });
+    await store.writeLimitZones({ zones: [{ points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }] }] });
+    expect(await fs.readFile(store.paths.limitZonesTxt, "utf8")).toContain("zone_count 1");
+    expect((await fs.readdir(stateDir)).filter((name) => name.endsWith(".tmp"))).toEqual([]);
+  });
+  it("gives up on persistent rename errors without leaving temporary files", async () => {
+    const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "gpo-state-"));
+    temporaryDirectories.push(stateDir);
+    const renameFile = async () => { throw Object.assign(new Error("denied"), { code: "EACCES" }); };
+    const store = createWebStateStore({ coordinateContract, stateDir, renameFile });
+    await expect(store.writeMotionProfile({})).rejects.toMatchObject({ code: "EACCES" });
+    expect((await fs.readdir(stateDir)).filter((name) => name.endsWith(".tmp"))).toEqual([]);
+  });
   it("preserves stable obstacle IDs even when command sequence IDs collide", async () => {
     const { store } = await createStore();
     const obstacle = { x: 2, y: 3, sizeX: 1, sizeY: 0.8, height: 0.6 };

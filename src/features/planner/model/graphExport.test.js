@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { buildGraphCsv } from "./graphExport.js";
-import { parsePlannerTableRows } from "../services/plannerFileImport.js";
+import { parsePlannerTableRows } from "../../../../shared/planning/graphImport.js";
 import { normalizeImportedGraph } from "./graphImport.js";
 
 it("round-trips point types, creation order, zone identity and metadata", () => {

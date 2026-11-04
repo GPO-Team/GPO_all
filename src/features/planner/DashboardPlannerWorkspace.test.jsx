@@ -24,15 +24,15 @@ function Harness({ cancel = vi.fn() }) {
 }
 const click = async (text) => act(async () => [...container.querySelectorAll("button")].find(button => button.textContent.includes(text)).click());
 
-it("leaves only arrow rails when both panels are collapsed and restores each panel", async () => {
+it("shows labelled openers when both panels are collapsed and restores each panel", async () => {
   await act(async () => root.render(<Harness />));
   expect(container.querySelector("#planner-right-panel:not([hidden])")).toBeNull();
   await click("Закрыть слева");
   expect(container.querySelectorAll(".workspace-panel:not([hidden])")).toHaveLength(0);
-  expect([...container.querySelectorAll("button")].some(button => button.textContent === ">" || button.textContent === "<")).toBe(true);
-  await act(async () => container.querySelector('button[title="Открыть левое меню"]').click());
+  expect(container.querySelectorAll('button[aria-controls^="planner-"][aria-expanded="false"]')).toHaveLength(2);
+  await act(async () => container.querySelector('button[aria-controls="planner-left-panel"]').click());
   expect(container.querySelector("#planner-left-panel:not([hidden])")).not.toBeNull();
-  await act(async () => container.querySelector('button[title="Открыть правое меню"]').click());
+  await act(async () => container.querySelector('button[aria-controls="planner-right-panel"]').click());
   expect(container.querySelector("#planner-right-panel:not([hidden])")).not.toBeNull();
 });
 
@@ -40,7 +40,7 @@ it("switches panels on narrow screens without shrinking the map to zero", async 
   window.matchMedia.mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
   await act(async () => root.render(<Harness />));
   expect(container.querySelectorAll(".workspace-panel:not([hidden])")).toHaveLength(1);
-  await act(async () => container.querySelector('button[title="Открыть правое меню"]').click());
+  await act(async () => container.querySelector('button[aria-controls="planner-right-panel"]').click());
   expect(container.querySelector("#planner-left-panel:not([hidden])")).toBeNull();
   expect(container.querySelector("#planner-right-panel:not([hidden])")).not.toBeNull();
 });

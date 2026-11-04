@@ -162,7 +162,15 @@ const createPlanningService = ({ nativeSolver, maxConcurrentRuns = 2 }) => {
     }
   };
 
-  return { solve };
+  // Re-plans an already ordered route against a changed scene (zones, chargers,
+  // motion settings) without running the solver again.
+  const prepare = async (payload) => {
+    if (payload?.scene === undefined)
+      throw Object.assign(new Error("Scene snapshot is required."), { statusCode: 400 });
+    return { ok: true, ...(await prepareRoute({ seedRoute: payload?.seedRoute, scene: payload.scene })) };
+  };
+
+  return { solve, prepare };
 };
 
 module.exports = { createPlanningService };

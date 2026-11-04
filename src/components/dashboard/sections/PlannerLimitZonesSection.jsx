@@ -44,7 +44,7 @@ export default function PlannerLimitZonesSection({
           </div>
           <button onClick={onCreateZone} className="rounded-xl bg-sky-700 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-sky-800">Новая зона</button>
         </div>
-        <details className="planner-disclosure">
+        <details open className="planner-disclosure">
           <summary className="disclosure-trigger flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-semibold text-slate-900">
             <span className="min-w-0 flex-1">Зоны</span><span className="shrink-0 text-xs font-normal text-slate-500">{zoneEntries.length} шт.</span><span className="disclosure-hint text-xs font-normal text-sky-700">Раскрыть</span>
           </summary>

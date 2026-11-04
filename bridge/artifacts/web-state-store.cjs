@@ -21,8 +21,24 @@ const {
 
 const toDegrees = (radians) => (radians * 180) / Math.PI;
 
-const createWebStateStore = ({ coordinateContract, stateDir }) => {
+// On Windows a rename over a file fails while another process (the Webots
+// controller polling the state files, antivirus, indexer) has it open.
+const RENAME_RETRY_CODES = new Set(["EPERM", "EACCES", "EBUSY"]);
+const RENAME_RETRY_DELAYS_MS = [10, 20, 40, 80, 160, 320];
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const createWebStateStore = ({ coordinateContract, stateDir, renameFile = fs.promises.rename }) => {
   const fsp = fs.promises;
+  const renameWithRetry = async (from, to) => {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await renameFile(from, to);
+      } catch (error) {
+        if (!RENAME_RETRY_CODES.has(error?.code) || attempt >= RENAME_RETRY_DELAYS_MS.length) throw error;
+        await sleep(RENAME_RETRY_DELAYS_MS[attempt]);
+      }
+    }
+  };
   const paths = {
     routeJson: path.join(stateDir, "route.json"),
     routeCsv: path.join(stateDir, "route.csv"),
@@ -46,7 +62,7 @@ const createWebStateStore = ({ coordinateContract, stateDir }) => {
     const temporary = `${target}.${randomUUID()}.tmp`;
     try {
       await fsp.writeFile(temporary, text);
-      await fsp.rename(temporary, target);
+      await renameWithRetry(temporary, target);
     } finally {
       await fsp.unlink(temporary).catch(() => {});
     }

@@ -1,11 +1,9 @@
 import { useRef, useState } from "react";
 import { INITIAL_ZONE } from "../../../lib/plannerModel";
-import { DEFAULT_SURFACE_ZONES } from "../../../lib/zonePlanner";
 import { createDashboardAlgorithmParams } from "../model/dashboardAlgorithmParams";
 import { createEmptyRouteEnergyStats } from "../model/routeEnergy";
 import { MAPPING_SURVEY_MODES } from "../model/runtimeCommands";
 import {
-  createInitialSurfaceZones,
   DEFAULT_SURFACE_PROFILE_KEY,
 } from "../model/surfaceZones";
 import { usePlannerEnergySettings } from "./usePlannerEnergySettings";
@@ -22,27 +20,28 @@ export const useDashboardPlannerState = () => {
   const [isSubmitting,setIsSubmitting]=useState(false);
   const editingLockRef=useRef(false);
   const [routeTaskKey, setRouteTaskKey] = useState("hamiltonian_chain");
-  const [driveMode, setDriveMode] = useState("optimized");
   const [algorithmKey, setAlgorithmKey] = useState("ga_tabu");
   const [algorithmParams, setAlgorithmParams] = useState(createDashboardAlgorithmParams);
   const [expandedPoint, setExpandedPoint] = useState(null);
   const [hoveredPointIndex, setHoveredPointIndex] = useState(null);
   const [activePointKind, setActivePointKind] = useState("visit");
+  const [visitPointMode, setVisitPointMode] = useState("visit");
   const [pointPlacementRevision, setPointPlacementRevision] = useState(0);
   const activatePointPlacement = (kind) => {
     setActivePointKind(kind);
     setPointPlacementRevision((previous) => previous + 1);
   };
   const [mapExportPromptOpen, setMapExportPromptOpen] = useState(false);
-  const [surfaceZones, setSurfaceZones] = useState(createInitialSurfaceZones);
+  // Surfaces are no longer edited in the UI; the planner runs without them.
+  const [surfaceZones, setSurfaceZones] = useState(() => []);
   const [activeSurfaceZoneId, setActiveSurfaceZoneId] = useState(
-    () => `surface-zone-${DEFAULT_SURFACE_ZONES.length + 1}`
+    ""
   );
   const [activeSurfaceProfileKey, setActiveSurfaceProfileKey] = useState(
     DEFAULT_SURFACE_PROFILE_KEY
   );
   const [nextSurfaceZoneNumber, setNextSurfaceZoneNumber] = useState(
-    () => DEFAULT_SURFACE_ZONES.length + 2
+    1
   );
   const [limitZones, setLimitZones] = useState([INITIAL_ZONE]);
   const [activeLimitZoneId, setActiveLimitZoneId] = useState(INITIAL_ZONE.id);
@@ -51,7 +50,6 @@ export const useDashboardPlannerState = () => {
   const [mappingSurveyMode, setMappingSurveyMode] = useState(MAPPING_SURVEY_MODES[0].key);
   const { plannerUiState, setSidebarCollapsed, setMapLayerVisible } = usePlannerSidebarState();
   const energySettings = usePlannerEnergySettings({
-    setEnergyWarning,
     setExpandedPoint,
     setHoveredPointIndex,
     setRouteEnergyStats,
@@ -65,13 +63,12 @@ export const useDashboardPlannerState = () => {
       isSubmitting,setIsSubmitting,editingLockRef,
     },
     algorithm: {
-      driveMode, setDriveMode,
       routeTaskKey, setRouteTaskKey, algorithmKey, setAlgorithmKey,
       algorithmParams, setAlgorithmParams,
     },
     interaction: {
       expandedPoint, setExpandedPoint, hoveredPointIndex, setHoveredPointIndex,
-      activePointKind, setActivePointKind, mapExportPromptOpen, setMapExportPromptOpen,
+      activePointKind, setActivePointKind, visitPointMode, setVisitPointMode, mapExportPromptOpen, setMapExportPromptOpen,
       pointPlacementRevision, activatePointPlacement,
     },
     surfaces: {

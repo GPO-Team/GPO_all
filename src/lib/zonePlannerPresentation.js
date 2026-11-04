@@ -2,7 +2,7 @@ import { SURFACE_ZONE_PRESETS } from "./energyModel";
 
 export const POINT_KIND_META = {
   visit: { key: "visit", label: "Точки посещения", shortLabel: "V", color: "#dc2626", bg: "bg-rose-50", border: "border-rose-200", text: "text-rose-700" },
-  free_visit: { key: "free_visit", label: "Свободные точки без номера", shortLabel: "", color: "#7c3aed", bg: "bg-violet-50", border: "border-violet-200", text: "text-violet-700" },
+  free_visit: { key: "free_visit", label: "Точки без номера", shortLabel: "", color: "#dc2626", bg: "bg-rose-50", border: "border-rose-200", text: "text-rose-700" },
   charge: { key: "charge", label: "Станция зарядки", shortLabel: "C", color: "#f59e0b", bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700" },
   limit: { key: "limit", label: "Ограничивающий контур", shortLabel: "Z", color: "#2563eb", bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700" },
   surface: { key: "surface", label: "Зона покрытия", shortLabel: "S", color: "#0f766e", bg: "bg-teal-50", border: "border-teal-200", text: "text-teal-700" },
@@ -10,10 +10,7 @@ export const POINT_KIND_META = {
 
 export const POINT_KIND_OPTIONS = Object.values(POINT_KIND_META);
 export const DEFAULT_SURFACE_ZONES = SURFACE_ZONE_PRESETS;
-export const POINT_TASKS = [
-  "Ожидание 2 сек", "Сканирование", "Забрать объект", "Сбросить объект", "Сделать фото",
-];
-export const DEFAULT_POINT_TASK = POINT_TASKS[0];
+export { DEFAULT_POINT_TASK, POINT_TASKS } from "../../shared/planning/graphImport.js";
 
 const ZONE_COLORS = [
   { stroke: "#2563eb", fill: "rgba(37, 99, 235, 0.12)", badge: "bg-blue-500" },

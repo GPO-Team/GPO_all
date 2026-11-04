@@ -70,6 +70,7 @@ export const createEmptyRouteEnergyStats = () => ({
   limitingMaxSpeedMps: DEFAULT_ENERGY_OPTIONS.speedMps,
   averageSlipRisk: 0,
   stationStopCount: 0,
+  influenceRows: [],
 });
 
 export const buildRouteEnergyStats = (routeResult) => ({
@@ -79,4 +80,5 @@ export const buildRouteEnergyStats = (routeResult) => ({
   limitingMaxSpeedMps: routeResult.limitingMaxSpeedMps,
   averageSlipRisk: routeResult.averageSlipRisk,
   stationStopCount: routeResult.stationStopCount || 0,
+  influenceRows: Array.isArray(routeResult.influenceRows) ? routeResult.influenceRows : [],
 });
