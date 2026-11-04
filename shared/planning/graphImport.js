@@ -244,7 +244,7 @@ export const normalizeImportedGraph = (rawGraph) => {
 const VISIT_KINDS = ["visit", "free_visit"];
 
 // Checks an imported graph against editor rules: a closed limit zone needs at
-// least three points, and the visit order mode applies to all visit points.
+// least three points. Numbered and unnumbered visit points may be mixed.
 export const validateImportedGraph = (graph) => {
   const warnings = [];
   const zonePointCounts = new Map();
@@ -258,9 +258,5 @@ export const validateImportedGraph = (graph) => {
   });
   const visitKinds = new Set(graph.points.filter((point) => VISIT_KINDS.includes(point.kind)).map((point) => point.kind));
   const visitPointMode = visitKinds.size === 1 && visitKinds.has("free_visit") ? "free_visit" : "visit";
-  if (visitKinds.size > 1) warnings.push("В файле были точки с номерами и без: все точки пронумерованы по порядку.");
-  const points = visitKinds.size > 1
-    ? graph.points.map((point) => point.kind === "free_visit" ? { ...point, kind: "visit" } : point)
-    : graph.points;
-  return { graph: { ...graph, points, limitZones }, warnings, visitPointMode };
+  return { graph: { ...graph, limitZones }, warnings, visitPointMode };
 };

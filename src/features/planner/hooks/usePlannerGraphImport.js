@@ -1,10 +1,6 @@
 import { ALGORITHM_OPTIONS, TASK_OPTIONS } from "../../../lib/routeAlgorithms";
 import { INITIAL_ZONE } from "../../../lib/plannerModel";
 import {
-  DEFAULT_SURFACE_PROFILE_KEY,
-  deriveNextSurfaceZoneNumber,
-} from "../model/surfaceZones";
-import {
   buildImportedGraphStatus,
   deriveNextZoneNumber,
 } from "../model/graphImport";
@@ -15,14 +11,11 @@ export const usePlannerGraphImport = ({
   resetRouteTiming,
   setActiveLimitZoneId,
   setActivePointKind,
-  setActiveSurfaceProfileKey,
-  setActiveSurfaceZoneId,
   setAlgorithmKey,
   setEnergyWarning,
   setExpandedPoint,
   setHoveredPointIndex,
   setLimitZones,
-  setNextSurfaceZoneNumber,
   setNextZoneNumber,
   setOptimizedRoute,
   setPoints,
@@ -30,7 +23,6 @@ export const usePlannerGraphImport = ({
   setRouteSeed,
   setRouteTaskKey,
   setStatus,
-  setSurfaceZones,
   setVisitPointMode,
   isEditingLocked=()=>false,
 }) => {
@@ -41,14 +33,6 @@ export const usePlannerGraphImport = ({
     const importedZones = imported.limitZones.length ? imported.limitZones : [INITIAL_ZONE];
     setPoints(imported.points);
     setLimitZones(importedZones);
-    if (imported.surfaceZones) {
-      setSurfaceZones(imported.surfaceZones);
-      setActiveSurfaceZoneId(imported.surfaceZones[0]?.id || "");
-      setActiveSurfaceProfileKey(
-        imported.surfaceZones[0]?.surfaceKey || DEFAULT_SURFACE_PROFILE_KEY
-      );
-      setNextSurfaceZoneNumber(deriveNextSurfaceZoneNumber(imported.surfaceZones));
-    }
     setActiveLimitZoneId(
       importedZones.some((zone) => zone.id === imported.activeLimitZoneId)
         ? imported.activeLimitZoneId

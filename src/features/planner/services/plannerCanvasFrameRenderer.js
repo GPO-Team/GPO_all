@@ -7,7 +7,7 @@ import { renderPlannerRuntimeObstacles } from "./plannerCanvasObstacleRenderer";
 
 export const renderPlannerCanvasScene = (ctx, state) => {
   const layers = state.mapLayers || {};
-  drawPlannerBackground(ctx, layers.surfaces === false ? [] : state.surfaceZones, {
+  drawPlannerBackground(ctx, [], {
     annotate: layers.axes === true, border: false, grid: layers.grid !== false,
     axisLabels: layers.axisLabels !== false,
     viewScale: state.viewScale,

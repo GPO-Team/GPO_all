@@ -3,7 +3,6 @@ export const MAP_LAYER_OPTIONS = [
   { key: "charges", label: "Станции зарядки" },
   { key: "zones", label: "Запретные зоны" },
   { key: "runtimeObstacles", label: "Препятствия Webots" },
-  { key: "surfaces", label: "Покрытия" },
   { key: "route", label: "Маршрут" },
   { key: "robot", label: "Робот" },
   { key: "lidar", label: "Карта лидара" },

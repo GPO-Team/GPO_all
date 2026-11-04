@@ -1,11 +1,11 @@
 import { useState } from "react";
-import PlannerManipulatorSection from "./sections/PlannerManipulatorSection";
 import PlannerTelemetrySection from "./sections/PlannerTelemetrySection";
 import PlannerMapSection from "./sections/PlannerMapSection";
+import PlannerMapSurveySection from "./sections/PlannerMapSurveySection";
 import PlannerTaskAlgorithmSection from "./sections/PlannerTaskAlgorithmSection";
 
 export default function PlannerRightSidebar({
-  onStartPickPlace,onStartObjectTransfer, mission, onCancelMission, onResumeMission,editingLocked=false,
+  editingLocked=false,
   onCollapse, telemetry, telemetryWsUp, routeWsUp, solverApiUp,
   mappingSurveyMode, mappingSurveyModes, onMappingSurveyModeChange,
   mapExportPromptOpen, onStartMappingSurvey, onRequestMapExport,
@@ -26,25 +26,27 @@ export default function PlannerRightSidebar({
       </button>}
     </div>
     <nav className="panel-tabs" aria-label="Разделы правой панели">
-      {[["telemetry", "Телеметрия"], ["map", "Карта"]].map(([key, label]) =>
+      {[["telemetry", "Телеметрия"], ["map", "Карта"], ["task", "Задача"]].map(([key, label]) =>
         <button type="button" key={key} aria-pressed={tab === key}
           aria-controls={`planner-right-${key}`} onClick={() => setTab(key)}>{label}</button>
       )}
     </nav>
     <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-3">
       <div id="planner-right-telemetry" hidden={tab !== "telemetry"} className="space-y-3">
-        <PlannerManipulatorSection telemetry={telemetry} connected={telemetryWsUp} mission={mission} onStart={onStartPickPlace} onStartTransfer={onStartObjectTransfer} onCancel={onCancelMission} onResume={onResumeMission} editingLocked={editingLocked} />
-      <PlannerTelemetrySection telemetry={telemetry} telemetryWsUp={telemetryWsUp} routeWsUp={routeWsUp} solverApiUp={solverApiUp} />
+        <PlannerTelemetrySection telemetry={telemetry} telemetryWsUp={telemetryWsUp} routeWsUp={routeWsUp} solverApiUp={solverApiUp} />
       </div>
       <div id="planner-right-map" hidden={tab !== "map"} className="space-y-3">
-        <PlannerMapSection telemetry={telemetry} mapLayers={mapLayers} onMapLayerChange={onMapLayerChange}
+        <PlannerMapSection mapLayers={mapLayers} onMapLayerChange={onMapLayerChange} />
+      </div>
+      <div id="planner-right-task" hidden={tab !== "task"} className="space-y-3">
+        <fieldset disabled={editingLocked} className="min-w-0"><PlannerTaskAlgorithmSection routeTaskKey={routeTaskKey} onRouteTaskChange={onRouteTaskChange}
+          algorithmKey={algorithmKey} onAlgorithmChange={onAlgorithmChange}
+          algorithmPrecision={algorithmPrecision} onAlgorithmPrecisionChange={onAlgorithmPrecisionChange} /></fieldset>
+        <PlannerMapSurveySection telemetry={telemetry}
           mappingSurveyMode={mappingSurveyMode} mappingSurveyModes={mappingSurveyModes}
           onMappingSurveyModeChange={onMappingSurveyModeChange} onStartMappingSurvey={onStartMappingSurvey}
           onRequestMapExport={onRequestMapExport} mapExportPromptOpen={mapExportPromptOpen}
           onExportMapVariant={onExportMapVariant} onCancelMapExport={onCancelMapExport} />
-        <fieldset disabled={editingLocked}><PlannerTaskAlgorithmSection routeTaskKey={routeTaskKey} onRouteTaskChange={onRouteTaskChange}
-          algorithmKey={algorithmKey} onAlgorithmChange={onAlgorithmChange}
-          algorithmPrecision={algorithmPrecision} onAlgorithmPrecisionChange={onAlgorithmPrecisionChange} /></fieldset>
       </div>
     </div>
     {status && <p role="status" className="shrink-0 border-t border-sky-100 bg-white px-3 py-2 text-xs text-slate-700">{status}</p>}

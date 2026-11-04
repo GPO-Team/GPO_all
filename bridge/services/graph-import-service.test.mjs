@@ -61,7 +61,7 @@ describe("planner file import service", () => {
     ]);
   });
 
-  it("opens closed zones without a contour and unifies mixed visit kinds", async () => {
+  it("opens closed zones without a contour and keeps mixed visit kinds", async () => {
     const result = await importFile("graph.json", JSON.stringify({
       limitZones: [{ id: "zone-1", name: "Зона 1", closed: true }],
       points: [
@@ -71,8 +71,8 @@ describe("planner file import service", () => {
       ],
     }));
     expect(result.graph.limitZones[0].closed).toBe(false);
-    expect(result.graph.points.filter((point) => point.kind === "visit")).toHaveLength(2);
-    expect(result.warnings).toHaveLength(2);
+    expect(result.graph.points.map((point) => point.kind)).toEqual(["limit", "visit", "free_visit"]);
+    expect(result.warnings).toHaveLength(1);
   });
 
   it("keeps the no-number mode when every visit point is free", async () => {

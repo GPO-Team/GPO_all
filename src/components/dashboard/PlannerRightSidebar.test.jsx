@@ -31,10 +31,14 @@ it("separates robot readings from map controls, persists visibility, and keeps s
   const mapPanel = container.querySelector("#planner-right-map");
   expect(telemetryPanel.hidden).toBe(false);
   expect(mapPanel.hidden).toBe(true);
+  const taskPanel = container.querySelector("#planner-right-task");
+  expect(taskPanel.hidden).toBe(true);
   expect(telemetryPanel.textContent).not.toContain("Алгоритм");
-  expect(mapPanel.textContent).toContain("Алгоритм");
-  expect(mapPanel.textContent).not.toContain("Размер популяции");
-  const precisionButton = text => [...mapPanel.querySelectorAll('[aria-label="Точность расчёта"] button')].find(button => button.textContent === text);
+  expect(mapPanel.textContent).not.toContain("Алгоритм");
+  expect(taskPanel.textContent).toContain("Задача маршрута");
+  expect(taskPanel.textContent).toContain("Алгоритм");
+  expect(taskPanel.textContent).not.toContain("Размер популяции");
+  const precisionButton = text => [...taskPanel.querySelectorAll('[aria-label="Точность расчёта"] button')].find(button => button.textContent === text);
   expect(precisionButton("Средняя").getAttribute("aria-pressed")).toBe("true");
   await act(async () => precisionButton("Большая").click());
   expect(precision).toHaveBeenCalledWith("high");
@@ -44,6 +48,8 @@ it("separates robot readings from map controls, persists visibility, and keeps s
   expect(mapPanel.textContent).toContain("Разметка осей");
   expect(mapPanel.textContent).not.toContain("Скрытые зоны и покрытия");
   expect(mapPanel.textContent).not.toContain("Отметки препятствий");
+  expect(mapPanel.textContent).not.toContain("Карта препятствий");
+  expect(taskPanel.textContent).toContain("Карта препятствий");
   expect(mapPanel.querySelectorAll(".map-layer-group summary")).toHaveLength(3);
   await act(async () => [...container.querySelectorAll("nav button")].find(button => button.textContent === "Карта").click());
   expect(mapPanel.hidden).toBe(false);
@@ -52,7 +58,7 @@ it("separates robot readings from map controls, persists visibility, and keeps s
   await act(async () => zones.click());
   expect(zones.checked).toBe(false);
   expect(loadPlannerUiState().mapLayers.zones).toBe(false);
-  const mapButton = text => [...mapPanel.querySelectorAll("button")].find(button => button.textContent === text);
+  const mapButton = text => [...taskPanel.querySelectorAll("button")].find(button => button.textContent === text);
   await act(async () => mapButton("Двойной объезд").click());
   await act(async () => mapButton("Лидар").click());
   expect(survey).toHaveBeenCalledOnce();

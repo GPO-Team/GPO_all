@@ -1,11 +1,9 @@
 import PlannerEnergySection from "./sections/PlannerEnergySection";
-import PlannerSurfaceZonesSection from "./sections/PlannerSurfaceZonesSection";
 import PlannerRouteControlsSection from "./sections/PlannerRouteControlsSection";
 import PlannerRoutePointsSection from "./sections/PlannerRoutePointsSection";
 import PlannerLimitZonesSection from "./sections/PlannerLimitZonesSection";
 import PlannerImportSection from "./sections/PlannerImportSection";
 import PlannerSetupSection from "./sections/PlannerSetupSection";
-import PlannerObjectTransferSection from "./sections/PlannerObjectTransferSection";
 import HelpHint from "./HelpHint";
 import PlannerRuntimeObstaclesSection from "./sections/PlannerRuntimeObstaclesSection";
 
@@ -32,7 +30,6 @@ export default function PlannerLeftSidebar({
   status,
   mission,
   onCancelMission,
-  onStartObjectTransfer,
   editingLocked=false,onExportCsv,hasPoints=false,
   energyWarning,
   routeBlocked,
@@ -64,30 +61,19 @@ export default function PlannerLeftSidebar({
   batteryRangeInput,
   onBatteryRangeChange,
   onBatteryRangeBlur,
-  cruiseSpeedMps,
   cruiseSpeedInput,
   onCruiseSpeedChange,
   onCruiseSpeedBlur,
-  payloadKg,
   payloadInput,
   onPayloadChange,
   onPayloadBlur,
   routeEnergyStats,
   routeInfluenceRows,
   routeTiming,
-  surfaceZones,
-  activeSurfaceZoneId,
-  onSurfaceProfileChange,
-  onCreateSurfaceZone,
-  onSelectSurfaceZone,
-  onToggleSurfaceZoneClosed,
-  onClearSurfaceZone,
-  onRemoveSurfaceZone,
-  onClearAllSurfaceZones,
 }) {
-  const tab = { visit: "route", free_visit: "route", limit: "objects", surface: "surfaces", charge: "energy" }[activePointKind] || "route";
+  const tab = { visit: "route", free_visit: "route", limit: "objects", charge: "energy" }[activePointKind] || "route";
   const selectTab = (key) => {
-    onActivePointKindChange({ route: visitPointMode, objects: "limit", surfaces: "surface", energy: "charge" }[key]);
+    onActivePointKindChange({ route: visitPointMode, objects: "limit", energy: "charge" }[key]);
   };
   return (
     <aside className="planner-sidebar planner-sidebar-left flex h-full min-h-0 w-[416px] min-w-[416px] max-w-[416px] flex-none flex-col overflow-hidden border-r border-stone-200 bg-gradient-to-b from-stone-100 via-white to-slate-100">
@@ -114,7 +100,7 @@ export default function PlannerLeftSidebar({
       </div>
 
       <nav className="panel-tabs" aria-label="Разделы планировщика">
-        {[["route", "Маршрут"], ["objects", "Зоны"], ["surfaces", "Покрытия"], ["energy", "Энергия"]].map(([key, label]) => {
+        {[["route", "Маршрут"], ["objects", "Зоны"], ["energy", "Энергия"]].map(([key, label]) => {
           const alert = key === "energy" && Boolean(energyWarning);
           return <button type="button" key={key} aria-pressed={tab === key} data-alert={alert || undefined}
             title={alert ? energyWarning : undefined} onClick={() => selectTab(key)}>
@@ -247,33 +233,6 @@ export default function PlannerLeftSidebar({
         onUpdatePointTask={onUpdatePointTask}
       />
       </>}
-      {tab === "surfaces" && <>
-      <PlannerSetupSection
-        kinds={["surface"]}
-        surfaceCount={surfaceZones?.length || 0}
-        activePointKind={activePointKind}
-        onActivePointKindChange={onActivePointKindChange}
-        onClearSurfaceZones={onClearAllSurfaceZones}
-      />
-      <PlannerSurfaceZonesSection
-        activeSurfaceZoneId={activeSurfaceZoneId}
-        cruiseSpeedInput={cruiseSpeedInput}
-        cruiseSpeedMps={cruiseSpeedMps}
-        onSurfaceProfileChange={onSurfaceProfileChange}
-        onClearSurfaceZone={onClearSurfaceZone}
-        onCreateSurfaceZone={onCreateSurfaceZone}
-        onRemoveSurfaceZone={onRemoveSurfaceZone}
-        onSelectSurfaceZone={onSelectSurfaceZone}
-        onToggleSurfaceZoneClosed={onToggleSurfaceZoneClosed}
-        payloadInput={payloadInput}
-        payloadKg={payloadKg}
-        surfaceZones={surfaceZones}
-      />
-      </>}
-      {tab === "route" && <details className="planner-disclosure rounded-xl border border-orange-200 bg-white p-3">
-        <summary className="disclosure-trigger text-sm font-semibold">Перенос объекта</summary>
-        <div className="mt-3"><PlannerObjectTransferSection onStartTransfer={onStartObjectTransfer} /></div>
-      </details>}
       {tab === "route" && <PlannerImportSection onImportFile={onImportFile} onExportCsv={onExportCsv} hasPoints={hasPoints} editingLocked={editingLocked} />}
       </div>
     </aside>

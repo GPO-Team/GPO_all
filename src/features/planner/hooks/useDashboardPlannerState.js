@@ -1,11 +1,9 @@
 import { useRef, useState } from "react";
 import { INITIAL_ZONE } from "../../../lib/plannerModel";
-import { DEFAULT_SURFACE_ZONES } from "../../../lib/zonePlanner";
 import { createDashboardAlgorithmParams } from "../model/dashboardAlgorithmParams";
 import { createEmptyRouteEnergyStats } from "../model/routeEnergy";
 import { MAPPING_SURVEY_MODES } from "../model/runtimeCommands";
 import {
-  createInitialSurfaceZones,
   DEFAULT_SURFACE_PROFILE_KEY,
 } from "../model/surfaceZones";
 import { usePlannerEnergySettings } from "./usePlannerEnergySettings";
@@ -34,15 +32,16 @@ export const useDashboardPlannerState = () => {
     setPointPlacementRevision((previous) => previous + 1);
   };
   const [mapExportPromptOpen, setMapExportPromptOpen] = useState(false);
-  const [surfaceZones, setSurfaceZones] = useState(createInitialSurfaceZones);
+  // Surfaces are no longer edited in the UI; the planner runs without them.
+  const [surfaceZones, setSurfaceZones] = useState(() => []);
   const [activeSurfaceZoneId, setActiveSurfaceZoneId] = useState(
-    () => `surface-zone-${DEFAULT_SURFACE_ZONES.length + 1}`
+    ""
   );
   const [activeSurfaceProfileKey, setActiveSurfaceProfileKey] = useState(
     DEFAULT_SURFACE_PROFILE_KEY
   );
   const [nextSurfaceZoneNumber, setNextSurfaceZoneNumber] = useState(
-    () => DEFAULT_SURFACE_ZONES.length + 2
+    1
   );
   const [limitZones, setLimitZones] = useState([INITIAL_ZONE]);
   const [activeLimitZoneId, setActiveLimitZoneId] = useState(INITIAL_ZONE.id);

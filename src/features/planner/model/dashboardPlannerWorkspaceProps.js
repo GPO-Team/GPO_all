@@ -22,9 +22,8 @@ export const createCanvasProps = ({ state, runtime, derived, actions }) => ({
 });
 
 export const createLeftSidebarProps = ({ state, runtime, derived, actions }) => {
-  const { algorithm = {}, energy = {}, interaction = {}, limits = {}, route = {}, surfaces = {} } = state;
+  const { algorithm = {}, energy = {}, interaction = {}, limits = {}, route = {} } = state;
   const plannerModel = derived.plannerModel || {};
-  const viewModel = derived.viewModel || {};
   const edit=callback=>(...args)=>{if(actions.isEditingLocked?.()){route.setStatus?.("Изменение параметров заблокировано до остановки миссии.");return;}callback?.(...args);};
 
   return {
@@ -64,7 +63,6 @@ export const createLeftSidebarProps = ({ state, runtime, derived, actions }) => 
     onSelectRuntimeObstacle: actions.selectRuntimeObstacle,
     onEditRuntimeObstacle: actions.editRuntimeObstacle,
     onDeleteRuntimeObstacle: actions.deleteRuntimeObstacle,
-    onStartObjectTransfer: actions.startObjectTransfer,
     onClearAll: () => actions.clearPoints?.(),
     hasRoute: (route.optimizedRoute?.length || 0) > 0,
     routeLength: plannerModel.routeLength,
@@ -96,17 +94,6 @@ export const createLeftSidebarProps = ({ state, runtime, derived, actions }) => 
     routeEnergyStats: energy.routeEnergyStats,
     routeInfluenceRows: derived.routeInfluenceRows,
     routeTiming: runtime.routeTiming?.display,
-    surfaceZones: surfaces.surfaceZones,
-    activeSurfaceZoneId: surfaces.activeSurfaceZoneId,
-    activeSurfaceZone: viewModel.activeSurfaceZone,
-    activeSurfaceProfileKey: surfaces.activeSurfaceProfileKey,
-    onSurfaceProfileChange: actions.updateSurfaceProfile,
-    onCreateSurfaceZone: actions.createSurfaceZone,
-    onSelectSurfaceZone: actions.selectSurfaceZone,
-    onToggleSurfaceZoneClosed: actions.toggleSurfaceZoneClosed,
-    onClearSurfaceZone: actions.clearSurfaceZone,
-    onRemoveSurfaceZone: actions.removeSurfaceZone,
-    onClearAllSurfaceZones: actions.clearAllSurfaceZones,
   };
 };
 
@@ -140,11 +127,7 @@ export const createRightSidebarProps = ({ state, runtime, derived, actions }) =>
     onMappingSurveyModeChange: mapping.setMappingSurveyMode,
     mapExportPromptOpen: interaction.mapExportPromptOpen,
     onStartMappingSurvey: actions.startMappingSurvey,
-    onStartPickPlace: actions.startPickPlace,
-    onStartObjectTransfer:actions.startObjectTransfer,onResumeMission:runtime.mission?.resume,
     editingLocked:actions.editingLocked,
-    mission: runtime.mission?.state,
-    onCancelMission: runtime.mission?.cancel,
     onRequestMapExport: actions.requestMapExport,
     onExportMapVariant: actions.exportMapImage,
     onCancelMapExport: () => interaction.setMapExportPromptOpen?.(false),
