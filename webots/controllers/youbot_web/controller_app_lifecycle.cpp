@@ -12,6 +12,7 @@
 #include "controller_motion_profile_reload_service.h"
 #include "controller_navigation_runtime.h"
 #include "controller_object_transfer_runtime.h"
+#include "controller_delivery.h"
 #include "controller_transfer_route.h"
 #include "controller_paths.h"
 #include "controller_route_zone_reload_service.h"
@@ -179,6 +180,7 @@ static void write_state_snapshot(void) {
   manipulator->error = pick.state.error;
   manipulator->active = controller_webots_manipulator_active(&pick) || object_transfer_runtime.manual_active;
   manipulator->load_held = pick.state.load_held;
+  manipulator->on_platform = pick.on_platform;
   manipulator->cancel_pending = pick.state.cancel_pending;
   manipulator->object_valid = pick.sample.object_valid;
   for(int i=0;i<2;++i) manipulator->contacts[i] = pick.sample.contacts[i];
@@ -207,19 +209,20 @@ static void handle_transfer_command(const RuntimeCommand *command) {
     reload_surface_zones_input(NULL);
     controller_motion_profile_reload_service_run(&motion_profile_reload_service,0,1);
   }
+  controller_webots_motion_state_apply(&motion_state);
   controller_object_transfer_runtime_set_speed_limits(&object_transfer_runtime,active_linear_speed_limit,active_angular_speed_limit);
   controller_object_transfer_runtime_command(
       &object_transfer_runtime, command, wb_robot_get_time());
 }
 
 static void run_control_cycle(void) {
+  controller_webots_motion_state_apply(&motion_state);
   if (controller_webots_manipulator_step((double)TIME_STEP / 1000.0)) return;
   double x = 0.0, y = 0.0, heading = 0.0;
   read_pose(&x, &y, &heading);
   controller_object_transfer_runtime_step(
       &object_transfer_runtime, wb_robot_get_time(), x, y, heading);
   const int transferring = object_transfer_runtime.service.state.status == CONTROLLER_TRANSFER_RUNNING;
-  if(!transferring) controller_webots_motion_state_apply(&motion_state);
   if(!transferring || object_transfer_runtime.service.state.stage != CONTROLLER_TRANSFER_TRANSPORTING) {
     webots_adapter.drive_config.acceleration_limit_rad_s2=control_config.drive.acceleration_limit_rad_s2;
     webots_adapter.drive_config.deceleration_limit_rad_s2=control_config.drive.deceleration_limit_rad_s2;
@@ -228,11 +231,6 @@ static void run_control_cycle(void) {
   control_config.navigation.runtime.heading_tolerance_rad = transferring ? 0.02 : 0.08;
   control_config.navigation.tracking.position_tolerance = transferring ? 0.005 : 0.05;
   control_config.navigation.tracking.heading_tolerance_rad = transferring ? 0.02 : 0.08;
-  if(transferring && (object_transfer_runtime.service.state.attached ||
-      object_transfer_runtime.service.state.on_platform)) {
-    active_linear_speed_limit = std::fmin(active_linear_speed_limit,0.08);
-    active_angular_speed_limit = std::fmin(active_angular_speed_limit,0.25);
-  }
   if(transferring && (object_transfer_runtime.service.state.stage == CONTROLLER_TRANSFER_TRANSPORTING ||
       object_transfer_runtime.service.state.stage == CONTROLLER_TRANSFER_APPROACHING_OBJECT)) {
     if(!controller_object_transfer_runtime_allows_navigation(&object_transfer_runtime)) {
@@ -269,12 +267,14 @@ static void run_control_cycle(void) {
         return;
       }
       const bool carrying=cargo.attached || cargo.on_platform;
-      webots_adapter.drive_config.acceleration_limit_rad_s2=carrying ? 1.0 : 4.0;
-      webots_adapter.drive_config.deceleration_limit_rad_s2=carrying ? 2.0 : 8.0;
+      webots_adapter.drive_config.acceleration_limit_rad_s2=cargo.on_platform ? 6.0 : carrying ? 4.0 : 8.0;
+      webots_adapter.drive_config.deceleration_limit_rad_s2=8.0;
+      double linear_limit=0,angular_limit=0;
+      controller_delivery_motion_limits(carrying,cargo.on_platform,
+          active_linear_speed_limit,active_angular_speed_limit,&linear_limit,&angular_limit);
       const auto velocity=controller_transfer_route_velocity(dx,dy,heading,target.heading_rad,
           controller_runtime.current_waypoint_index+1==controller_runtime.route.count,
-          std::fmin(carrying ? 0.06 : 0.12,active_linear_speed_limit),
-          std::fmin(carrying ? 0.10 : 0.30,active_angular_speed_limit));
+          linear_limit,angular_limit);
       controller_webots_adapter_apply_velocity(&webots_adapter,velocity.vx,velocity.vy,velocity.omega);
       set_status("transporting_object");
     }

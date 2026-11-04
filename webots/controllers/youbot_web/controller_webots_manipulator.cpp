@@ -3,6 +3,7 @@
 #include "controller_input_runtime.h"
 #include "controller_navigation_runtime.h"
 #include "controller_delivery.h"
+#include "controller_manipulator_kinematics.h"
 #include "controller_webots_adapter.h"
 #include <cmath>
 #include <initializer_list>
@@ -34,6 +35,34 @@ static int world_to_local(const double world[3], double local[3]) {
   return 1;
 }
 
+static int platform_grip_world(double world[3]) {
+  double x,y,yaw;read_pose(&x,&y,&yaw);
+  const double *base=wb_supervisor_node_get_position(webots_pose.self_node);
+  ControllerWebotsManipulator *m=&controller_app.manipulator;
+  if(!world || !base || !isfinite(m->support_z))return 0;
+  world[0]=x-.07*cos(yaw)-.075*sin(yaw);
+  world[1]=y-.07*sin(yaw)+.075*cos(yaw);
+  world[2]=base[2]+.0485+m->support_z+GRIP_OFFSET;
+  return isfinite(world[0]) && isfinite(world[1]) && isfinite(world[2]);
+}
+static int cargo_on_platform(WbNodeRef object,double minimum_up=.97) {
+  const double *base=wb_supervisor_node_get_position(webots_pose.self_node);
+  const double *p=object ? wb_supervisor_node_get_position(object) : NULL;
+  const double *rotation=object ? wb_supervisor_node_get_orientation(object) : NULL;
+  double expected[3];
+  if(!base || !p || !rotation || !platform_grip_world(expected) || rotation[8]<minimum_up ||
+      hypot(p[0]-expected[0],p[1]-expected[1])>.04 || fabs(p[2]+GRIP_OFFSET-expected[2])>.006)return 0;
+  WbNodeRef plate=wb_supervisor_node_get_from_proto_def(webots_pose.self_node,"PLATE");
+  int count=0,plate_count=0;
+  const auto *contacts=wb_supervisor_node_get_contact_points(object,false,&count);
+  const auto *plate_contacts=plate ? wb_supervisor_node_get_contact_points(plate,false,&plate_count) : NULL;
+  for(int i=0;contacts && i<count;++i)for(int j=0;plate_contacts && j<plate_count;++j)
+    if(fabs(contacts[i].point[2]-base[2]-.0485)<.004 &&
+        hypot(hypot(contacts[i].point[0]-plate_contacts[j].point[0],contacts[i].point[1]-plate_contacts[j].point[1]),
+            contacts[i].point[2]-plate_contacts[j].point[2])<.001)return 1;
+  return 0;
+}
+
 static ControllerManipulatorSample read_sample(void) {
   ControllerManipulatorSample sample = {};
   for (int i = 0; i < 5; ++i) {
@@ -55,13 +84,15 @@ static ControllerManipulatorSample read_sample(void) {
     double grip[3] = {position[0], position[1], position[2] + GRIP_OFFSET};
     sample.object_valid = world_to_local(grip, sample.object);
     auto *m=&controller_app.manipulator;
-    if(m->state.cancel_pending && (m->state.stage==MANIPULATOR_LOWER || m->state.stage==MANIPULATOR_RELEASE)) {
+    if((m->state.cancel_pending || m->state.require_support) &&
+        (m->state.stage==MANIPULATOR_LOWER || m->state.stage==MANIPULATOR_RELEASE)) {
       const double bottom=position[2]-cargo_floor_height(object);
       const double *velocity=wb_supervisor_node_get_velocity(object);
       int count=0,on_floor=0;
       const WbContactPoint *contacts=wb_supervisor_node_get_contact_points(object,false,&count);
       for(int i=0;contacts && i<count;++i) if(fabs(contacts[i].point[2])<.005) on_floor=1;
-      const int supported=on_floor && isfinite(bottom) && fabs(bottom)<.006 && velocity &&
+      const int supported=(m->delivery_phase==DELIVERY_PLATFORM_LOAD ? cargo_on_platform(object,.94) :
+          on_floor && isfinite(bottom) && fabs(bottom)<.006) && velocity &&
           hypot(hypot(velocity[0],velocity[1]),velocity[2])<.025 &&
           hypot(hypot(velocity[3],velocity[4]),velocity[5])<.15;
       const double now=wb_robot_get_time();
@@ -78,6 +109,8 @@ static void apply_targets(void) {
   guard_arm_motion();
   const ControllerManipulator *arm = &controller_app.manipulator.state;
   ControllerWebotsManipulator *m = &controller_app.manipulator;
+  const int platform_motion=m->delivery_phase==DELIVERY_PLATFORM_LOAD ||
+      (m->use_platform && (m->delivery_phase==DELIVERY_PICK || m->delivery_phase==DELIVERY_PLACE));
   if (arm->halt_motion) {
     for (int i = 0; i < 5; ++i) if (webots_devices.arm_joints[i]) wb_motor_set_velocity(webots_devices.arm_joints[i], 0);
     for (int i = 0; i < 2; ++i) if (webots_devices.gripper_fingers[i]) wb_motor_set_velocity(webots_devices.gripper_fingers[i], 0);
@@ -88,26 +121,62 @@ static void apply_targets(void) {
   if (changed) {
     m->trajectory_started = wb_robot_get_time();
     m->trajectory_duration = 0.25;
+    m->trajectory_via_duration=0;
     for (int i=0;i<5;++i) {
       m->trajectory_origin[i] = isfinite(m->sample.joints[i]) ? m->sample.joints[i] : arm->targets[i];
       m->trajectory_target[i] = arm->targets[i];
-      m->trajectory_duration = fmax(m->trajectory_duration,1.5*fabs(arm->targets[i]-m->trajectory_origin[i])/0.6);
+      const double joint_speed=platform_motion ? .35 : .6;
+      m->trajectory_duration = fmax(m->trajectory_duration,1.5*fabs(arm->targets[i]-m->trajectory_origin[i])/joint_speed);
+    }
+    if(platform_motion && arm->stage==MANIPULATOR_TRANSFER) {
+      controller_manipulator_transfer_via(m->trajectory_origin,arm->targets,m->trajectory_via);
+      m->trajectory_via_duration=.25;
+      double final_duration=.25;
+      for(int i=0;i<5;++i) {
+        m->trajectory_via_duration=fmax(m->trajectory_via_duration,1.5*fabs(m->trajectory_via[i]-m->trajectory_origin[i])/.35);
+        final_duration=fmax(final_duration,1.5*fabs(arm->targets[i]-m->trajectory_via[i])/.35);
+      }
+      m->trajectory_duration=m->trajectory_via_duration+final_duration;
     }
     m->trajectory_initialized = 1;
   }
   const double t = fmax(0,fmin(1,(wb_robot_get_time()-m->trajectory_started)/m->trajectory_duration));
   const double blend = t*t*(3-2*t);
+  double command[5];
+  for(int i=0;i<5;++i)command[i]=m->trajectory_origin[i]+blend*(arm->targets[i]-m->trajectory_origin[i]);
+  if(m->trajectory_via_duration>0) {
+    const double elapsed=wb_robot_get_time()-m->trajectory_started;
+    const int first=elapsed<m->trajectory_via_duration;
+    const double progress=first ? elapsed/m->trajectory_via_duration :
+        (elapsed-m->trajectory_via_duration)/(m->trajectory_duration-m->trajectory_via_duration);
+    const double u=fmax(0,fmin(1,progress)),smooth=u*u*(3-2*u);
+    const double *from=first ? m->trajectory_origin : m->trajectory_via;
+    const double *to=first ? m->trajectory_via : arm->targets;
+    for(int i=0;i<5;++i)command[i]=from[i]+smooth*(to[i]-from[i]);
+  }
+  if(platform_motion &&
+      fabs(m->trajectory_origin[0]-arm->targets[0])<.05 &&
+      arm->stage>=MANIPULATOR_APPROACH && arm->stage<=MANIPULATOR_RETRACT) {
+    ControllerManipulatorTcp from,to;
+    if(controller_manipulator_forward(m->trajectory_origin,&from) && controller_manipulator_forward(arm->targets,&to)) {
+      ControllerManipulatorTcp target={from.x+blend*(to.x-from.x),from.y+blend*(to.y-from.y),
+          from.z+blend*(to.z-from.z),from.pitch+blend*(to.pitch-from.pitch),from.roll+blend*(to.roll-from.roll)};
+      if(!controller_manipulator_inverse(&target,m->trajectory_origin,command)) {
+        controller_webots_devices_reset_wheels(&webots_devices);return;
+      }
+    }
+  }
   for (int i = 0; i < 5; ++i) if (webots_devices.arm_joints[i] && isfinite(arm->targets[i])) {
     wb_motor_set_velocity(webots_devices.arm_joints[i], 0.6);
     const double minimum = wb_motor_get_min_position(webots_devices.arm_joints[i]);
     const double maximum = wb_motor_get_max_position(webots_devices.arm_joints[i]);
-    const double target = m->trajectory_origin[i]+blend*(arm->targets[i]-m->trajectory_origin[i]);
+    const double target = command[i];
     wb_motor_set_position(webots_devices.arm_joints[i], fmax(minimum, fmin(maximum, target)));
   }
   for (int i = 0; i < 2; ++i) if (webots_devices.gripper_fingers[i]) {
     wb_motor_set_velocity(webots_devices.gripper_fingers[i], 0.015);
     // The 40 g box needs little force; 20 N per finger excites the contact solver.
-    wb_motor_set_available_force(webots_devices.gripper_fingers[i], 2.0);
+    wb_motor_set_available_force(webots_devices.gripper_fingers[i], 8.0);
     const double minimum = wb_motor_get_min_position(webots_devices.gripper_fingers[i]);
     const double maximum = wb_motor_get_max_position(webots_devices.gripper_fingers[i]);
     const double target = controller_manipulator_finger_target(arm, i);
@@ -278,9 +347,14 @@ static int arm_plan_clear(const ControllerManipulator *arm,const ControllerManip
   const double *unload[]={sample->joints,arm->poses[3],arm->poses[2],arm->poses[3],parked};
   const double **path=recovery ? unload : full;
   const int count=recovery ? 5 : 8;
-  for(int i=1;i<count;++i)
-    if(!controller_manipulator_motion_clear(path[i-1],path[i],controller_app.manipulator.cargo_radius+GRIP_OFFSET,
-        arm_point_clear,&pose)) return 0;
+  for(int i=1;i<count;++i) {
+    const double radius=controller_app.manipulator.cargo_radius+GRIP_OFFSET;
+    if(controller_app.manipulator.use_platform && i==(recovery ? 1 : 4)) {
+      double via[5];controller_manipulator_transfer_via(path[i-1],path[i],via);
+      if(!controller_manipulator_motion_clear(path[i-1],via,radius,arm_point_clear,&pose) ||
+          !controller_manipulator_motion_clear(via,path[i],radius,arm_point_clear,&pose))return 0;
+    } else if(!controller_manipulator_motion_clear(path[i-1],path[i],radius,arm_point_clear,&pose))return 0;
+  }
   return 1;
 }
 static int prepare_departure(double x,double y,double yaw,const ControllerManipulatorSample *sample) {
@@ -321,13 +395,41 @@ static void hold_sample(ControllerManipulator *arm,const ControllerManipulatorSa
 }
 static void delivery_fail(const ControllerManipulatorSample *sample,const char *error) {
   ControllerWebotsManipulator *m=&controller_app.manipulator;
-  int loaded=m->state.load_held || m->delivery_phase==DELIVERY_DRIVE ||
+  int loaded=m->state.load_held || (m->delivery_phase==DELIVERY_DRIVE && !m->on_platform) ||
       (m->state.stage>=MANIPULATOR_CLOSE && m->state.stage<=MANIPULATOR_RELEASE);
   hold_sample(&m->state,sample);m->state.stage=MANIPULATOR_FAILED;m->state.error=error;
   m->state.load_held=m->state.load_held || loaded;
   if(loaded && !m->state.halt_motion){m->state.hold_fingers=0;m->state.finger_target=0;}
   m->delivery_phase=DELIVERY_TERMINAL;
   controller_webots_devices_reset_wheels(&webots_devices);
+}
+static int retarget_held_object(const double world[3],const ControllerManipulatorSample *sample) {
+  ControllerWebotsManipulator *m=&controller_app.manipulator;
+  double local[3],above[3];
+  if(!world_to_local(world,local))return 0;
+  memcpy(above,local,sizeof(above));above[2]+=.08;
+  if(!controller_manipulator_inverse(local,m->state.poses[2],m->state.grip_yaw) ||
+      !controller_manipulator_approach(above,m->state.poses[2],m->state.poses[3],m->state.grip_yaw))return 0;
+  for(int i=2;i<4;++i) {
+    m->state.poses[i][4]=sample->joints[4]+m->state.poses[i][0]-sample->joints[0];
+    if(fabs(m->state.poses[i][4])>2.92343)return 0;
+  }
+  memcpy(m->state.destination,local,sizeof(local));
+  memcpy(m->state.targets,m->state.poses[3],sizeof(m->state.targets));
+  return arm_plan_clear(&m->state,sample,1);
+}
+static int start_pickup(const ControllerManipulatorSample *sample) {
+  auto *m=&controller_app.manipulator;
+  double destination[3];memcpy(destination,sample->object,sizeof(destination));
+  if(m->use_platform) {
+    double world[3];
+    if(!platform_grip_world(world))return 0;
+    world[2]-=.006;
+    if(!world_to_local(world,destination))return 0;
+  }
+  if(!controller_manipulator_start(&m->state,sample->object,destination))return 0;
+  if(m->use_platform)m->state.stage_timeout=25;
+  return 1;
 }
 static void guard_arm_motion(void) {
   auto *m=&controller_app.manipulator;
@@ -337,6 +439,12 @@ static void guard_arm_motion(void) {
       (!refresh_obstacles() || !read_safety_pose(&pose) ||
        !controller_manipulator_motion_clear(m->sample.joints,m->state.targets,
           m->cargo_radius+GRIP_OFFSET,arm_point_clear,&pose))) delivery_fail(&m->sample,"manipulator_path_blocked");
+  if(m->use_platform && m->state.stage==MANIPULATOR_TRANSFER) {
+    double via[5];controller_manipulator_transfer_via(m->sample.joints,m->state.targets,via);
+    if(!controller_manipulator_motion_clear(m->sample.joints,via,m->cargo_radius+GRIP_OFFSET,arm_point_clear,&pose) ||
+        !controller_manipulator_motion_clear(via,m->state.targets,m->cargo_radius+GRIP_OFFSET,arm_point_clear,&pose))
+      delivery_fail(&m->sample,"manipulator_path_blocked");
+  }
 }
 static void dock_position(const double object[3],int pickup,double dock[2]) {
   double yaw=controller_app.manipulator.delivery_yaw,oy=pickup ? -0.1 : 0.1;
@@ -452,6 +560,7 @@ void controller_webots_manipulator_start(const RuntimeCommand *command) {
   reset_navigation_mode();
   controller_webots_devices_reset_wheels(&webots_devices);
   manipulator->delivery_phase=DELIVERY_IDLE;manipulator->mobile=0;
+  manipulator->on_platform=0;
   manipulator->support_stable_since=-1;
   manipulator->delivery_clearance=.36;manipulator->departing=0;manipulator->departure_node=NULL;
   manipulator->destination_world[0]=command->target_x;
@@ -461,6 +570,8 @@ void controller_webots_manipulator_start(const RuntimeCommand *command) {
   manipulator->delivery_yaw=manipulator->pickup_yaw=manipulator->placement_yaw=yaw;
   manipulator->room_zone_index=controller_zone_geometry_find_room(&controller_runtime.limit_zones,x,y);
   ControllerManipulatorSample sample = read_sample();
+  manipulator->use_platform=controller_delivery_use_platform(
+      manipulator->object_world[0],manipulator->object_world[1],command->target_x,command->target_y);
   WbNodeRef cargo=wb_supervisor_node_get_from_def(manipulator->object_def);
   manipulator->state.grip_yaw=grip_yaw_in_base(cargo,yaw);
   manipulator->support_z=cargo_floor_height(cargo);
@@ -496,7 +607,7 @@ void controller_webots_manipulator_start(const RuntimeCommand *command) {
       }
       hold_sample(&manipulator->state,&sample);manipulator->state.stage=MANIPULATOR_IDLE;manipulator->state.error="";
       if(!feasible)delivery_fail(&sample,!source_reachable ? "source_unreachable" : !target_reachable ? "target_unreachable" : "delivery_path_blocked");
-      else if(!manipulator->departing && controller_manipulator_start(&manipulator->state,sample.object,sample.object))manipulator->delivery_phase=DELIVERY_PICK;
+      else if(!manipulator->departing && start_pickup(&sample))manipulator->delivery_phase=DELIVERY_PICK;
       else if(!plan_drive(manipulator->object_world,1))delivery_fail(&sample,"delivery_path_blocked");
     }
   }
@@ -511,6 +622,14 @@ void controller_webots_manipulator_cancel(const char *mission_id) {
       manipulator->state.stage<=MANIPULATOR_STOW) return;
   ControllerManipulatorSample sample = read_sample();
   if(!controller_webots_manipulator_active(manipulator))return;
+  if(manipulator->on_platform && !manipulator->state.load_held &&
+      manipulator->state.stage==MANIPULATOR_COMPLETED &&
+      cargo_on_platform(wb_supervisor_node_get_from_def(manipulator->object_def))) {
+    manipulator->state.stage=MANIPULATOR_CANCELLED;
+    manipulator->delivery_phase=DELIVERY_TERMINAL;
+    controller_webots_devices_reset_wheels(&webots_devices);
+    return;
+  }
   int loaded=manipulator->state.load_held || manipulator->delivery_phase==DELIVERY_DRIVE ||
       (manipulator->state.stage>=MANIPULATOR_LIFT && manipulator->state.stage<=MANIPULATOR_RELEASE);
   controller_manipulator_cancel(&manipulator->state,&sample);
@@ -539,12 +658,13 @@ int controller_webots_manipulator_busy(void) {
   return controller_webots_manipulator_active(&controller_app.manipulator);
 }
 int controller_webots_manipulator_active(const ControllerWebotsManipulator *m) {
-  return m && (m->delivery_phase==DELIVERY_FETCH || m->delivery_phase==DELIVERY_DRIVE || controller_manipulator_active(&m->state));
+  return m && (m->on_platform || m->delivery_phase==DELIVERY_FETCH || m->delivery_phase==DELIVERY_DRIVE || controller_manipulator_active(&m->state));
 }
 const char *controller_webots_manipulator_stage(const ControllerWebotsManipulator *m) {
-  if(m->state.load_held && (m->state.stage==MANIPULATOR_FAILED || m->state.stage==MANIPULATOR_CANCELLED))
+  if((m->state.load_held || m->on_platform) && (m->state.stage==MANIPULATOR_FAILED || m->state.stage==MANIPULATOR_CANCELLED))
     return "holding_for_recovery";
   if(m->delivery_phase==DELIVERY_FETCH)return "driving_to_object";
+  if(m->delivery_phase==DELIVERY_PLATFORM_LOAD)return "placing_on_platform";
   if(m->delivery_phase==DELIVERY_DRIVE)return "carrying";
   return controller_manipulator_stage_name(m->state.stage);
 }
@@ -570,12 +690,16 @@ int controller_webots_manipulator_step(double dt) {
     for(int i=0;i<5;++i)if(!isfinite(sample.joints[i]))delivery_fail(&sample,"invalid_sensor");
     for(int i=0;i<2;++i)if(!isfinite(sample.fingers[i]))delivery_fail(&sample,"invalid_sensor");
     if(carrying) {
-      double tool[3];controller_manipulator_forward(sample.joints,tool);
-      if(hypot(hypot(tool[0]-sample.object[0],tool[1]-sample.object[1]),tool[2]-sample.object[2])>0.055)delivery_fail(&sample,"object_lost");
+      if(manipulator->on_platform) {
+        if(!cargo_on_platform(wb_supervisor_node_get_from_def(manipulator->object_def)))delivery_fail(&sample,"cargo_lost");
+      } else {
+        double tool[3];controller_manipulator_forward(sample.joints,tool);
+        if(hypot(hypot(tool[0]-sample.object[0],tool[1]-sample.object[1]),tool[2]-sample.object[2])>0.055)delivery_fail(&sample,"object_lost");
+      }
     }
     manipulator->delivery_elapsed+=dt;
     if(manipulator->delivery_elapsed>manipulator->drive_timeout)delivery_fail(&sample,"delivery_timeout");
-    if(controller_webots_manipulator_active(manipulator)) {
+    if(manipulator->delivery_phase==DELIVERY_FETCH || manipulator->delivery_phase==DELIVERY_DRIVE) {
       Waypoint target=controller_runtime.route.waypoints[manipulator->delivery_waypoint];
       double distance=hypot(target.x-x,target.z-y);
       const double desired_yaw=manipulator->departing ? manipulator->departure_yaw : manipulator->delivery_yaw;
@@ -594,11 +718,18 @@ int controller_webots_manipulator_step(double dt) {
             manipulator->state.grip_yaw=grip_yaw_in_base(
                 wb_supervisor_node_get_from_def(manipulator->object_def),yaw);
             manipulator->state.hold_fingers=0;
-            if(!controller_manipulator_start(&manipulator->state,sample.object,sample.object))delivery_fail(&sample,"source_unreachable");
+            if(!start_pickup(&sample))delivery_fail(&sample,"source_unreachable");
             else manipulator->delivery_phase=DELIVERY_PICK;
           } else {
             double grip[3]={manipulator->destination_world[0],manipulator->destination_world[1],manipulator->destination_world[2]+GRIP_OFFSET};
             double local[3];world_to_local(grip,local);
+            if(manipulator->on_platform) {
+              manipulator->state.grip_yaw=grip_yaw_in_base(
+                  wb_supervisor_node_get_from_def(manipulator->object_def),yaw);
+              if(!controller_manipulator_start(&manipulator->state,sample.object,local))
+                delivery_fail(&sample,"platform_grasp_failed");
+              else {manipulator->delivery_phase=DELIVERY_PLACE;manipulator->state.stage_timeout=25;}
+            } else {
             memcpy(manipulator->state.destination,local,sizeof(local));
             if(!controller_manipulator_inverse(local,manipulator->state.poses[2],manipulator->state.grip_yaw))delivery_fail(&sample,"target_unreachable");
             else {
@@ -610,17 +741,20 @@ int controller_webots_manipulator_step(double dt) {
                 manipulator->delivery_phase=DELIVERY_PLACE;
               }
             }
+            }
           }
         } else controller_runtime.current_waypoint_index=manipulator->delivery_waypoint;
       } else {
         double lookahead=fmin(distance,0.12),scale=distance>0 ? lookahead/distance : 0;
         if(!refresh_obstacles() || !controller_delivery_segment_clear(x,y,x+(target.x-x)*scale,y+(target.z-y)*scale,delivery_safe,manipulator))delivery_fail(&sample,"delivery_path_blocked");
         else {
-          const double speed_limit=manipulator->departing ? .08 : carrying ? .10 : .16;
+          double linear_limit=0,angular_limit=0;
+          controller_delivery_motion_limits(carrying,manipulator->on_platform,
+              active_linear_speed_limit,active_angular_speed_limit,&linear_limit,&angular_limit);
+          if(manipulator->departing)linear_limit=fmin(linear_limit,.08);
           double velocity[3];controller_delivery_velocity(x,y,yaw,target.x,target.z,desired_yaw,
-              fmin(active_linear_speed_limit,speed_limit),velocity,final_waypoint,manipulator->departing,
-              fmin(active_angular_speed_limit,carrying ? .10 : .30));
-          webots_adapter.drive_config.acceleration_limit_rad_s2=carrying ? 4.0 : 8.0;
+              linear_limit,velocity,final_waypoint,manipulator->departing,angular_limit);
+          webots_adapter.drive_config.acceleration_limit_rad_s2=manipulator->on_platform ? 6.0 : carrying ? 4.0 : 8.0;
           webots_adapter.drive_config.deceleration_limit_rad_s2=8.0;
           controller_webots_adapter_apply_velocity(&webots_adapter,velocity[0],velocity[1],velocity[2]);
         }
@@ -629,23 +763,39 @@ int controller_webots_manipulator_step(double dt) {
   } else {
     controller_webots_devices_reset_wheels(&webots_devices);
     controller_manipulator_step(&manipulator->state,&sample,dt);
+    if(manipulator->state.stage==MANIPULATOR_FAILED && manipulator->delivery_phase!=DELIVERY_TERMINAL)
+      delivery_fail(&sample,manipulator->state.error);
+    if(manipulator->delivery_phase==DELIVERY_PLACE && manipulator->state.stage==MANIPULATOR_LIFT)
+      manipulator->on_platform=0;
     if(manipulator->mobile && manipulator->delivery_phase==DELIVERY_PICK && manipulator->state.stage==MANIPULATOR_TRANSFER) {
       // Maintain closing force during transport; position-only freezing unloads
       // the contacts and lets the box slip when the chassis accelerates.
       manipulator->state.hold_fingers=0;
       manipulator->state.finger_target=0;
-      if(!plan_drive(manipulator->destination_world,0))delivery_fail(&sample,"delivery_path_blocked");
+      if(manipulator->use_platform) {
+        double platform[3]={};
+        const int platform_valid=platform_grip_world(platform);
+        platform[2]-=.006; // Seat the load despite the measured TCP/contact offset.
+        if(!platform_valid || !retarget_held_object(platform,&sample))
+          delivery_fail(&sample,"manipulator_path_blocked");
+        else {manipulator->delivery_phase=DELIVERY_PLATFORM_LOAD;manipulator->state.require_support=1;manipulator->state.stage_timeout=25;}
+      } else if(!plan_drive(manipulator->destination_world,0))delivery_fail(&sample,"delivery_path_blocked");
+    } else if(manipulator->delivery_phase==DELIVERY_PLATFORM_LOAD &&
+        manipulator->state.stage==MANIPULATOR_COMPLETED) {
+      manipulator->on_platform=1;
+      if(!cargo_on_platform(wb_supervisor_node_get_from_def(manipulator->object_def)))delivery_fail(&sample,"cargo_lost");
+      else if(!plan_drive(manipulator->destination_world,0))delivery_fail(&sample,"delivery_path_blocked");
     }
   }
   apply_targets();
   const ControllerManipulatorStage stage = manipulator->state.stage;
   controller_runtime.route_finished = !controller_webots_manipulator_active(manipulator);
-  if (manipulator->state.load_held && (stage==MANIPULATOR_FAILED || stage==MANIPULATOR_CANCELLED)) {
+  if ((manipulator->state.load_held || manipulator->on_platform) && (stage==MANIPULATOR_FAILED || stage==MANIPULATOR_CANCELLED)) {
     set_status("manipulator_holding");set_error(manipulator->state.error);
   }
   else if (stage == MANIPULATOR_FAILED) { set_status("route_failed"); set_error(manipulator->state.error); }
   else if (stage == MANIPULATOR_CANCELLED) set_status("mission_cancelled");
-  else if (stage == MANIPULATOR_COMPLETED) set_status("route_completed");
+  else if (stage == MANIPULATOR_COMPLETED && !controller_webots_manipulator_active(manipulator)) set_status("route_completed");
   else set_status("manipulator_running");
   return 1;
 }

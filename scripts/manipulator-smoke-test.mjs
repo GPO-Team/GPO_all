@@ -89,7 +89,7 @@ try {
     const state=await readState();
     if(state.manipulator?.stage==="closing") armSamples.push(state.manipulator);
     baseTrace.push({x:state.pose.x,y:state.pose.y,yaw:state.pose.yaw,time:state.simulationTime,
-      stage:state.manipulator?.stage,distance:state.navigation.distanceToTarget,
+      stage:state.manipulator?.stage,onPlatform:state.manipulator?.onPlatform,distance:state.navigation.distanceToTarget,
       waypoint:state.navigation.currentWaypointIndex});
     if (process.argv.includes("--inject-route") && !injectedRoute && state.manipulator?.active) {
       await writeFile(path.join(stateDir,"route.csv"), "x,y,heading_deg\n# command foreign-route\n0,0,0\n1,0,0\n");
@@ -109,6 +109,7 @@ try {
   },"physical pick-place",mobile ? 180000 : 90000);
   const final=await readState();
   let naturalDrivingChecks=0;
+  let peakCruiseSpeed=0;
   for(let i=1;i<baseTrace.length;++i) {
     const previous=baseTrace[i-1],current=baseTrace[i];
     const dx=current.x-previous.x,dy=current.y-previous.y;
@@ -118,15 +119,24 @@ try {
     const heading=previous.yaw+turn*.5;
     const error=Math.atan2(Math.sin(Math.atan2(dy,dx)-heading),Math.cos(Math.atan2(dy,dx)-heading));
     assert.ok(Math.abs(error)<.45,`Cargo moved sideways during cruise: heading error ${error}`);
+    if(current.time>previous.time)peakCruiseSpeed=Math.max(peakCruiseSpeed,Math.hypot(dx,dy)/(current.time-previous.time));
     ++naturalDrivingChecks;
   }
   if(mobile)assert.ok(naturalDrivingChecks>0,"No measured forward cargo travel");
+  if(mobile) {
+    const platformCruise=observations.filter(s=>s.manipulator.stage==="carrying");
+    assert.ok(platformCruise.length>0 && platformCruise.every(s=>s.manipulator.onPlatform &&
+      !s.manipulator.loadHeld && s.manipulator.fingers.every(q=>q>.024)),
+    "Long delivery must drive with cargo on the platform and the gripper open");
+    assert.ok(peakCruiseSpeed>.12,`Platform cruise remains too slow: ${peakCruiseSpeed} m/s`);
+  } else assert.ok(observations.every(s=>!s.manipulator.onPlatform),"Short transfer unnecessarily uses the platform");
   if(obstacle) {
     assert.ok(baseTrace.some(p=>Math.abs(p.y)>0.6),"Robot did not detour around the obstacle");
     assert.ok(baseTrace.every(p=>Math.hypot(Math.max(0,Math.abs(p.x-1.5)-0.05),Math.max(0,Math.abs(p.y)-0.2))>0.30),"Base collided with the obstacle");
   }
   if (process.argv.includes("--inject-route")) assert.ok(injectedRoute, "Route interlock was not exercised");
   assert.ok(Math.hypot(final.manipulator.objectPosition.x-destination.x,final.manipulator.objectPosition.y-destination.y)<0.035);
+  assert.ok(Math.abs(final.manipulator.objectPosition.z-destination.z)<.006,"Delivered cargo is not upright on the floor");
   assert.ok(observations.some(s=>s.manipulator.objectPosition.z>0.08),"Object never lifted");
   if(mobile) {
     if(!nearObject)assert.ok(observations.some(s=>s.manipulator.stage==="driving_to_object"),"Base never fetched the distant object");
@@ -160,7 +170,11 @@ try {
   }
   const reverseAck = await send({requestId:"arm-reverse",type:"pick_place",objectDef:"PICK_BOX",destination:{x:0.4,y:-0.1,z:0.04}});
   assert.equal(reverseAck.ok,true,JSON.stringify(reverseAck));
+  let reverseStage;
   await until(async()=>{
+    const snapshot=await readState(),arm=snapshot.manipulator;
+    if(arm.stage==="closing")armSamples.push(arm);
+    if(arm.stage!==reverseStage) {reverseStage=arm.stage;console.log("reverse",JSON.stringify(arm));}
     const mission=await getMission("arm-reverse");
     if(["failed","holding_for_recovery"].includes(mission.status)) throw new Error(await readFile(path.join(stateDir,"robot_state.json"),"utf8"));
     return mission.status==="completed";
@@ -214,9 +228,13 @@ try {
   assert.ok(afterStop.manipulator.joints.every((q,i)=>Math.abs(q-stopped.manipulator.joints[i])<0.02),"Arm moved after cancellation");
   const heldObject = afterStop.manipulator.objectPosition;
   const stoppedObject = stopped.manipulator.objectPosition;
-  assert.equal(afterStop.manipulator.loadHeld,holding,"Cancellation lost load ownership");
+  assert.equal(afterStop.manipulator.loadHeld || afterStop.manipulator.onPlatform,holding,"Cancellation lost load ownership");
   assert.equal(afterStop.manipulator.active,holding,"Cancellation released arm ownership during recovery");
-  if(holding) {
+  if(afterStop.manipulator.onPlatform) {
+    assert.ok(holding && !afterStop.manipulator.loadHeld,"Platform cargo must retain recovery ownership");
+    assert.ok(afterStop.manipulator.fingers.every(q=>q>.024),"Platform cancellation unexpectedly closed the gripper");
+    assert.ok(Math.abs(heldObject.z-.1905)<.006,"Cargo left the platform after cancellation");
+  } else if(holding) {
     assert.ok(afterStop.manipulator.fingers.reduce((sum,q)=>sum+q,0)>0.002,"Recovery hold lost the grasp");
     assert.ok(heldObject.z>=0.034,"Cargo fell onto its side during recovery");
   } else {
@@ -227,7 +245,7 @@ try {
   assert.ok(Math.hypot(heldObject.x-stoppedObject.x,heldObject.y-stoppedObject.y,heldObject.z-stoppedObject.z)<(mobile ? 0.03 : 0.02),"Object moved out of the grasp after cancellation");
   await mkdir(path.join(root,"output/manipulator-smoke"),{recursive:true});
   const reportName = afterDemo ? "pick-after-demo.json" : mobile ? obstacle ? "mobile-delivery-obstacle.json" : nearObject ? "mobile-delivery-near.json" : "mobile-delivery.json" : injectedRoute ? "manipulator-route-interlock.json" : "manipulator-physics.json";
-  await writeFile(path.join(root,"output/manipulator-smoke",reportName),JSON.stringify({injectedRoute,injectedRuntime,naturalDrivingChecks,baseTrace,observations,final,reverse,failed,failedMission,stopped,afterStop},null,2));
+  await writeFile(path.join(root,"output/manipulator-smoke",reportName),JSON.stringify({injectedRoute,injectedRuntime,naturalDrivingChecks,peakCruiseSpeed,baseTrace,observations,final,reverse,failed,failedMission,stopped,afterStop},null,2));
   console.log("Physical pick-place, repeat, unreachable/missing object, and cancellation passed.");
   }
 } catch(error) {

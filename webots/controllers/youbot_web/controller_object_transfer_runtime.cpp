@@ -2,6 +2,7 @@
 #include "controller_manipulator_kinematics.h"
 #include "controller_navigation_state.h"
 #include "controller_transfer_route.h"
+#include "controller_delivery.h"
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -86,9 +87,11 @@ void waypoint(ControllerObjectTransferRuntime *r,double x,double y,int pickup) {
   const double *rotation=wb_supervisor_node_get_orientation(wb_supervisor_node_get_self());
   if(!rotation) {fail(r,"sensor_invalid");return;}
   const double heading=std::atan2(rotation[3],rotation[0]);
+  double linear_limit=0,angular_limit=0;
+  controller_delivery_motion_limits(r->service.state.attached || r->service.state.on_platform,
+      r->service.state.on_platform,r->linear_speed_limit,r->angular_speed_limit,&linear_limit,&angular_limit);
   r->service.state.navigation_timeout=controller_transfer_route_timeout(&n->route,base[0],base[1],heading,
-      std::fmin(r->linear_speed_limit,(r->service.state.attached || r->service.state.on_platform) ? .06 : .12),
-      std::fmin(r->angular_speed_limit,(r->service.state.attached || r->service.state.on_platform) ? .10 : .30));
+      linear_limit,angular_limit);
   if(r->service.state.navigation_timeout<=0) {fail(r,"sensor_invalid");return;}
   r->progress_pose[0]=base[0];r->progress_pose[1]=base[1];r->progress_pose[2]=heading;
   std::snprintf(n->route.command_id,sizeof(n->route.command_id),"%s",r->service.state.mission_id);

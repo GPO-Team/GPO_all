@@ -9,6 +9,15 @@ static int wall(void *context, double x, double y) { return open_space(context,x
 static int closed(void *context, double x, double y) { (void)context;(void)x;(void)y;return 0; }
 static int round_obstacle(void *context,double x,double y) {return open_space(context,x,y) && hypot(x,y)>=.53;}
 int main(void) {
+  assert(!controller_delivery_use_platform(0,0,.74,0));
+  assert(controller_delivery_use_platform(0,0,.75,0));
+  assert(controller_delivery_use_platform(0,0,3,4));
+  assert(!controller_delivery_use_platform(0,0,NAN,0));
+  double linear=0,angular=0;
+  controller_delivery_motion_limits(1,0,.22,1.6,&linear,&angular);
+  assert(fabs(linear-.14)<1e-9 && fabs(angular-.20)<1e-9);
+  controller_delivery_motion_limits(1,1,.22,1.6,&linear,&angular);
+  assert(fabs(linear-.18)<1e-9 && fabs(angular-.30)<1e-9);
   ControllerWebotsManipulator mission={};
   mission.delivery_phase=DELIVERY_FETCH;
   assert(controller_webots_manipulator_active(&mission));

@@ -3,7 +3,7 @@
 #include "controller_manipulator.h"
 #include "controller_types.h"
 #include <webots/supervisor.h>
-typedef enum {DELIVERY_IDLE, DELIVERY_FETCH, DELIVERY_PICK, DELIVERY_DRIVE, DELIVERY_PLACE, DELIVERY_TERMINAL} ControllerDeliveryPhase;
+typedef enum {DELIVERY_IDLE, DELIVERY_FETCH, DELIVERY_PICK, DELIVERY_PLATFORM_LOAD, DELIVERY_DRIVE, DELIVERY_PLACE, DELIVERY_TERMINAL} ControllerDeliveryPhase;
 
 typedef struct {
   ControllerManipulator state;
@@ -29,7 +29,9 @@ typedef struct {
   int room_zone_index;
   double support_z,cargo_radius;
   double support_stable_since;
+  int use_platform,on_platform;
   double trajectory_origin[5], trajectory_target[5];
+  double trajectory_via[5],trajectory_via_duration;
   double trajectory_started, trajectory_duration;
   int trajectory_initialized;
 } ControllerWebotsManipulator;

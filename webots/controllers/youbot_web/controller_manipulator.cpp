@@ -1,5 +1,7 @@
 #include "controller_manipulator.h"
+#include "controller_manipulator_kinematics.h"
 #include <cmath>
+#include <initializer_list>
 #include <string.h>
 using std::isfinite;
 
@@ -68,6 +70,20 @@ int controller_manipulator_motion_clear(const double from[5],const double to[5],
   }
   return 1;
 }
+int controller_manipulator_approach(const double p[3],const double seed[5],double joints[5],double grip_yaw) {
+  if(controller_manipulator_inverse(p,joints,grip_yaw))return 1;
+  const double yaw=atan2(p[1],p[0]-.156);
+  ControllerManipulatorTcp tcp={p[0],p[1],p[2],-2.6,std::remainder(yaw-grip_yaw,ARM_PI)};
+  return controller_manipulator_inverse(&tcp,seed,joints);
+}
+
+void controller_manipulator_transfer_via(const double from[5],const double to[5],double via[5]) {
+  double a[3],b[3];controller_manipulator_forward(from,a);controller_manipulator_forward(to,b);
+  // Swing at the higher endpoint: lift before entering the platform, lower only after leaving it.
+  const double *high=a[2]>b[2] ? from : to;
+  const double *low=a[2]>b[2] ? to : from;
+  memcpy(via,high,5*sizeof(double));via[0]=low[0];via[4]=low[4];
+}
 
 int controller_manipulator_active(const ControllerManipulator *arm) {
   return arm && ((arm->stage >= MANIPULATOR_OPEN && arm->stage <= MANIPULATOR_STOW) || arm->load_held);
@@ -115,11 +131,27 @@ int controller_manipulator_start(ControllerManipulator *arm, const double source
   const char *errors[4] = {"source_unreachable", "source_approach_unreachable",
       "target_unreachable", "target_approach_unreachable"};
   for (int index = 0; index < 4; ++index) {
-    if (!controller_manipulator_inverse(positions[index], next.poses[index], next.grip_yaw)) {
+    const int solved=(index==1 || index==3)
+        ? controller_manipulator_approach(positions[index],next.poses[index-1],next.poses[index],next.grip_yaw)
+        : controller_manipulator_inverse(positions[index],next.poses[index],next.grip_yaw);
+    if (!solved) {
       arm->error = errors[index];
       return 0;
     }
   }
+  // Keep the same jaw orientation branch across the entire held trajectory.
+  for(int i=1;i<4;++i)next.poses[i][4]=next.poses[0][4]+next.poses[i][0]-next.poses[0][0];
+  // Choose one equivalent parallel-jaw branch that fits the entire transfer.
+  int branch_found=0;
+  for(int turn : {0,-1,1}) {
+    int valid=1;
+    for(int i=0;i<4;++i)valid=valid && next.poses[i][4]+turn*ARM_PI>=lower[4] &&
+        next.poses[i][4]+turn*ARM_PI<=upper[4];
+    if(!valid)continue;
+    for(int i=0;i<4;++i)next.poses[i][4]+=turn*ARM_PI;
+    branch_found=1;break;
+  }
+  if(!branch_found){arm->error="target_unreachable";return 0;}
   // Open without lowering the arm; initial targets are set by the hardware adapter.
   memcpy(next.targets, arm->targets, sizeof(next.targets));
   enter(&next, MANIPULATOR_OPEN);
@@ -210,12 +242,12 @@ void controller_manipulator_step(ControllerManipulator *arm, const ControllerMan
     fail(arm, sample, "invalid_sensor"); return;
   }
   arm->elapsed += dt;
-  if (arm->elapsed > 12) { fail(arm, sample, "stage_timeout"); return; }
+  if (arm->elapsed > (arm->stage_timeout>0 ? arm->stage_timeout : 12)) { fail(arm, sample, "stage_timeout"); return; }
   if (arm->stage <= MANIPULATOR_DESCEND && distance(sample->object, arm->source) > 0.03) {
     fail(arm, sample, "object_moved"); return;
   }
   int ready = joints_ready(arm, sample);
-  if(arm->cancel_pending && arm->stage==MANIPULATOR_LOWER)
+  if((arm->cancel_pending || arm->require_support) && arm->stage==MANIPULATOR_LOWER)
     ready=sample->release_safe;
   if (arm->stage == MANIPULATOR_OPEN || arm->stage == MANIPULATOR_RELEASE) {
     ready = ready && sample->fingers[0] > 0.024 && sample->fingers[1] > 0.024;
@@ -232,22 +264,24 @@ void controller_manipulator_step(ControllerManipulator *arm, const ControllerMan
     double tool[3];
     controller_manipulator_forward(sample->joints, tool);
     if (distance(tool, sample->object) > 0.055) { fail(arm, sample, "object_lost"); return; }
-    if (arm->stage == MANIPULATOR_LIFT) ready = ready && sample->object[2] > arm->source[2] + 0.04;
+    if (arm->stage == MANIPULATOR_LIFT) ready = ready && sample->object[2] > arm->source[2] + ARM_CLEARANCE*0.5;
   }
   if (arm->stage == MANIPULATOR_LOWER || arm->stage == MANIPULATOR_RELEASE) {
     ready = ready && distance(sample->object, arm->destination) < 0.03;
-    if(arm->cancel_pending) ready=ready && sample->release_safe;
+    if(arm->cancel_pending || arm->require_support) ready=ready && sample->release_safe;
   }
   if ((arm->stage == MANIPULATOR_RETRACT || arm->stage == MANIPULATOR_STOW) && distance(sample->object, arm->destination) > 0.04) {
     fail(arm, sample, "placement_failed"); return;
   }
   arm->settled = ready ? arm->settled + dt : 0;
   if (arm->settled < 0.16) return;
-  if(arm->cancel_pending && arm->stage==MANIPULATOR_LOWER) {
-    // The load is supported. Relieve floor pressure while opening the fingers;
+  if((arm->cancel_pending || arm->require_support) && arm->stage==MANIPULATOR_LOWER) {
+    // The load is supported. Relieve contact pressure while opening the fingers;
     // freezing a compressed contact can prevent the fingers from sliding apart.
     double relief[3];controller_manipulator_forward(sample->joints,relief);relief[2]+=.005;
     if(!controller_manipulator_inverse(relief,arm->poses[2],arm->grip_yaw)) {fail(arm,sample,"target_approach_unreachable");return;}
+    arm->poses[2][4]=sample->joints[4]+arm->poses[2][0]-sample->joints[0];
+    if(arm->poses[2][4]<lower[4] || arm->poses[2][4]>upper[4]) {fail(arm,sample,"target_approach_unreachable");return;}
   }
   enter(arm, (ControllerManipulatorStage)(arm->stage + 1));
 }

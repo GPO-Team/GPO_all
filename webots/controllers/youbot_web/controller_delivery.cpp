@@ -47,6 +47,15 @@ static int add_point(RouteData *route,double x,double y) {
   if(route->count>=MAX_WAYPOINTS)return 0;
   route->waypoints[route->count++]=Waypoint{.x=x,.z=y};return 1;
 }
+int controller_delivery_use_platform(double source_x,double source_y,double target_x,double target_y) {
+  return std::isfinite(source_x) && std::isfinite(source_y) && std::isfinite(target_x) &&
+      std::isfinite(target_y) && hypot(target_x-source_x,target_y-source_y)>=.75;
+}
+void controller_delivery_motion_limits(int carrying,int on_platform,double active_linear,double active_angular,
+    double *linear,double *angular) {
+  if(linear) *linear=fmin(active_linear,carrying ? (on_platform ? .18 : .14) : .16);
+  if(angular) *angular=fmin(active_angular,carrying ? (on_platform ? .30 : .20) : .30);
+}
 static void simplify_route(RouteData *route,ControllerDeliverySafe safe,void *context) {
   RouteData simplified=*route;simplified.count=1;
   for(int anchor=0;anchor<route->count-1;) {
