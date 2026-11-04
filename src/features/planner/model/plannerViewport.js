@@ -29,6 +29,12 @@ export const screenToMap = (viewport, point) => ({
   y: (point.y - viewport.y) / viewport.scale,
 });
 
+export const resizePan = (viewport, width, height, pan) => {
+  const next = createViewport(width, height, viewport.zoom);
+  const ratio = next.fitScale / viewport.fitScale;
+  return { x: pan.x * ratio, y: pan.y * ratio };
+};
+
 export const zoomAt = (viewport, anchor, zoom, nextZoom, pan) => {
   const ratio = nextZoom / zoom;
   return {
