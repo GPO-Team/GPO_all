@@ -45,7 +45,8 @@ export default function PlannerSetupSection({
           {kinds.includes("limit") && <button onClick={onClearLimitPoints} className={subtleButtonCls}>Очистить зоны</button>}
         </div>}
       </div>
-      {status && <div className={`text-xs ${routeBlocked ? "text-rose-700" : "text-emerald-700"}`}>{status}</div>}
+      {status && (routeBlocked || !status.startsWith("Маршрут построен:")) &&
+        <div className={`text-xs ${routeBlocked ? "text-rose-700" : "text-emerald-700"}`}>{status}</div>}
     </>
   );
 }
