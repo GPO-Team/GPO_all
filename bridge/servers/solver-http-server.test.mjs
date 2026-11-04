@@ -68,6 +68,7 @@ describe("solver HTTP server", () => {
     expect(prepared.status).toBe(200);
     expect(body.ok).toBe(true);
     expect(body.planning.routeEnergy).toBeGreaterThan(0);
+    expect(body.planning.influenceRows.map((row) => row.key)).toEqual(["distance", "payload", "speed", "turns", "slip", "charging"]);
     expect(body.route.length).toBeGreaterThanOrEqual(3);
     const short = await prepareRequest(baseUrl, 1);
     expect(short.status).toBe(422);
@@ -221,5 +222,25 @@ describe("solver HTTP server", () => {
 
     expect((await first).status).toBe(200);
     expect((await second).status).toBe(200);
+  });
+  it("renders map exports to PNG on the server", async () => {
+    const baseUrl = await listenForTest({ solverExists: async () => true });
+    const exportMap = (body) => fetch(`${baseUrl}/api/map-export`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const cells = [{ x: 1, y: 2, confidence: 4 }, { x: -3, y: 0.5, confidence: 9 }];
+    for (const variant of ["lidar", "camera"]) {
+      const response = await exportMap({ variant, map: { cells, freeCells: cells } });
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("image/png");
+      expect(response.headers.get("x-file-name")).toMatch(/\.png$/);
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      expect([...bytes.slice(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+    }
+    const empty = await exportMap({ variant: "lidar", map: { cells: [] } });
+    expect(empty.status).toBe(400);
+    expect((await empty.json()).error).toContain("пустая");
   });
 });

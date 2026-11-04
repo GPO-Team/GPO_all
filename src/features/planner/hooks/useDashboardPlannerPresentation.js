@@ -1,11 +1,7 @@
 import { useMemo } from "react";
-import { analyzeRouteInfluence } from "../../../lib/energyModel";
+import { buildRouteInfluenceRows } from "../model/energyInfluence";
 
 export const useDashboardPlannerPresentation = ({
-  optimizedRoute,
-  plannerModel,
-  payloadKg,
-  cruiseSpeedMps,
   routeEnergyStats,
   routeTimingDisplay,
   routeAvoidanceTimeSec,
@@ -24,18 +20,13 @@ export const useDashboardPlannerPresentation = ({
     [routeAvoidanceTimeSec, routeOffRouteActive, telemetry]
   );
   const routeInfluenceRows = useMemo(
-    () => analyzeRouteInfluence(optimizedRoute, {
-      surfaceZones: plannerModel.surfaceZones,
-      speedMps: cruiseSpeedMps,
-      payloadKg,
-      stationStopCount: routeEnergyStats.stationStopCount,
+    () => buildRouteInfluenceRows(routeEnergyStats.influenceRows, {
       plannedTimeSec: routeEnergyStats.estimatedTimeSec,
       actualTimeSec: routeTimingDisplay.actualTimeSec,
       avoidanceTimeSec: routeAvoidanceTimeSec,
     }),
-    [cruiseSpeedMps, optimizedRoute, payloadKg, plannerModel.surfaceZones,
-      routeAvoidanceTimeSec, routeEnergyStats.estimatedTimeSec,
-      routeEnergyStats.stationStopCount, routeTimingDisplay.actualTimeSec]
+    [routeAvoidanceTimeSec, routeEnergyStats.estimatedTimeSec,
+      routeEnergyStats.influenceRows, routeTimingDisplay.actualTimeSec]
   );
 
   return { routeInfluenceRows, telemetryForSidebar };

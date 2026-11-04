@@ -2,8 +2,10 @@ const http = require("http");
 const { isAllowedOrigin } = require("../protocol/origin-policy.cjs");
 const { createPlanningService } = require("../services/planning-service.cjs");
 const { createGraphImportService } = require("../services/graph-import-service.cjs");
+const { renderMapExport } = require("../rendering/map-export-renderer.cjs");
 
 const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+const MAX_MAP_EXPORT_BYTES = 16 * 1024 * 1024;
 
 const sendJson = (response, statusCode, payload) => {
   response.writeHead(statusCode, {
@@ -14,13 +16,13 @@ const sendJson = (response, statusCode, payload) => {
   response.end(JSON.stringify(payload));
 };
 
-const readJsonBody = (request) =>
+const readJsonBody = (request, limit = 1024 * 1024) =>
   new Promise((resolve, reject) => {
     let body = "";
     request.on("data", (chunk) => {
       body += chunk;
-      if (body.length > 1024 * 1024) {
-        reject(new Error("Request body is too large."));
+      if (body.length > limit) {
+        reject(Object.assign(new Error("Request body is too large."), { statusCode: 413 }));
         request.destroy();
       }
     });
@@ -139,6 +141,26 @@ const createSolverHttpServer = ({
           ok: false,
           error: error instanceof Error ? error.message : "Unexpected planning failure.",
           ...(typeof error?.reason === "string" ? { reason: error.reason } : {}),
+        });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/map-export") {
+      try {
+        const { png, fileName } = renderMapExport(await readJsonBody(request, MAX_MAP_EXPORT_BYTES));
+        response.writeHead(200, {
+          "Access-Control-Expose-Headers": "X-File-Name",
+          "Content-Type": "image/png",
+          "Content-Length": png.length,
+          "X-File-Name": fileName,
+        });
+        response.end(png);
+      } catch (error) {
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(response, statusCode, {
+          ok: false,
+          error: error instanceof Error ? error.message : "Не удалось построить PNG карты.",
         });
       }
       return;

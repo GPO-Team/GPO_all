@@ -8,4 +8,3 @@ export {
 
 export { resolveSurfaceAtPoint } from "../features/planner/model/energySurfaceZones";
 export { describeSurfaceRuntime, estimateRouteEnergy } from "../features/planner/model/energyEstimator";
-export { analyzeRouteInfluence } from "../features/planner/model/energyInfluence";

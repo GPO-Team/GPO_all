@@ -24,6 +24,7 @@ describe("route energy model", () => {
         limitingMaxSpeedMps: 0.2,
         averageSlipRisk: 0.1,
         stationStopCount: 1,
+        influenceRows: [{ key: "distance" }],
       })
     ).toEqual({
       routeEnergy: 12,
@@ -32,6 +33,7 @@ describe("route energy model", () => {
       limitingMaxSpeedMps: 0.2,
       averageSlipRisk: 0.1,
       stationStopCount: 1,
+      influenceRows: [{ key: "distance" }],
     });
   });
 

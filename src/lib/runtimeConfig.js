@@ -20,6 +20,7 @@ export const SOLVER_API_BASE_URL = (import.meta.env.VITE_PLANNING_URL || `http:/
 export const SOLVER_ROUTE_URL = `${SOLVER_API_BASE_URL}/api/solve-route`;
 export const PREPARE_ROUTE_URL = `${SOLVER_API_BASE_URL}/api/prepare-route`;
 export const IMPORT_GRAPH_URL = `${SOLVER_API_BASE_URL}/api/import-graph`;
+export const MAP_EXPORT_URL = `${SOLVER_API_BASE_URL}/api/map-export`;
 export const SOLVER_HEALTH_URL = `${SOLVER_API_BASE_URL}/health`;
 
 export const MISSION_API_BASE_URL = (import.meta.env.VITE_MISSION_URL || `http://${BRIDGE_HOST}:${ROUTE_PORT}`).replace(/\/$/, "");
