@@ -28,6 +28,7 @@ export const usePlannerPointEditor = ({
   clearRouteState,
   points,
   resetZones,
+  ensureLimitZone,
   setPoints,
   setStatus,
   setSurfaceZones,
@@ -150,12 +151,15 @@ export const usePlannerPointEditor = ({
       return;
     }
 
+    const limitZone = activePointKind === "limit" && !activeZone ? ensureLimitZone?.() : null;
+    const zoneId = limitZone?.id || activeLimitZoneId;
+    const zoneName = limitZone?.name || activeZoneName;
     setPoints((previous) =>
       appendPlannerPoint(
         previous,
         point,
         activePointKind,
-        activeLimitZoneId,
+        zoneId,
         DEFAULT_POINT_TASK
       )
     );
@@ -166,7 +170,7 @@ export const usePlannerPointEditor = ({
         ? "Добавлена точка посещения."
         : activePointKind === "charge"
           ? "Добавлена станция зарядки."
-          : `Добавлена точка в ${activeZoneName}.`
+          : `Добавлена точка в ${zoneName}.`
     );
   };
 

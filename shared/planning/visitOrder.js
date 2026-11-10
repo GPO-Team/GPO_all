@@ -1,7 +1,7 @@
 const EPS = 1e-9;
 const euclidean = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
-// Numbered visits form a fixed subsequence. Free visits may occupy any gap.
+// Numbered visits form a fixed prefix. Free visits follow them in the shortest order.
 export const orderVisits = ({
   points,
   visitOrder,
@@ -50,90 +50,70 @@ export const orderVisits = ({
   };
   if (!free.length)
     return { order: ordered, length: length(ordered), optimal: true };
-  if (
-    free.length <= 14 &&
-    (ordered.length + 1) * (free.length + 1) * 2 ** free.length <= 400000
-  ) {
+  // Numbered visits have priority: the robot drives V1, V2, ... first, then
+  // visits the free points along the shortest tail from the last numbered one.
+  const start = ordered.length ? ordered[ordered.length - 1] : origin;
+  const finish = closed ? origin : null;
+  const edge = (a, b) => (b === null ? 0 : cost(a, b));
+  const insertionDelta = (tail, next, i) => {
+    const left = i ? tail[i - 1] : start,
+      right = i < tail.length ? tail[i] : finish;
+    return edge(left, next) + edge(next, right) - edge(left, right);
+  };
+  if (free.length <= 14 && free.length * 2 ** free.length <= 400000) {
     const all = (1 << free.length) - 1,
       memo = new Map();
-    const solve = (done, mask, last) => {
-      if (done === ordered.length && mask === all)
-        return { cost: closed ? cost(last, origin) : 0, next: -1 };
-      const key = `${done}/${mask}/${last}`;
+    const solve = (mask, last) => {
+      if (mask === all) return { cost: edge(last, finish), bit: -1 };
+      const key = mask * (points.length + 1) + last;
       if (memo.has(key)) return memo.get(key);
-      let best = { cost: Infinity, next: -1, bit: -1 };
-      const consider = (next, bit) => {
-        const rest = solve(
-          done + (bit < 0 ? 1 : 0),
-          bit < 0 ? mask : mask | (1 << bit),
-          next,
-        );
-        const candidate = cost(last, next) + rest.cost;
-        if (candidate < best.cost - EPS) best = { cost: candidate, next, bit };
-      };
-      if (done < ordered.length) consider(ordered[done], -1);
-      for (let bit = 0; bit < free.length; ++bit)
-        if (!(mask & (1 << bit))) consider(free[bit], bit);
+      let best = { cost: Infinity, bit: -1 };
+      for (let bit = 0; bit < free.length; ++bit) {
+        if (mask & (1 << bit)) continue;
+        const candidate =
+          cost(last, free[bit]) + solve(mask | (1 << bit), free[bit]).cost;
+        if (candidate < best.cost - EPS) best = { cost: candidate, bit };
+      }
       memo.set(key, best);
       return best;
     };
-    const first = solve(0, 0, origin),
-      order = [];
-    let done = 0,
-      mask = 0,
-      last = origin;
-    while (order.length < points.length) {
-      const next = solve(done, mask, last);
-      if (next.next < 0) break;
-      order.push(next.next);
-      last = next.next;
-      if (next.bit < 0) ++done;
-      else mask |= 1 << next.bit;
+    const tail = [];
+    let mask = 0,
+      last = start;
+    while (mask !== all) {
+      const { bit } = solve(mask, last);
+      if (bit < 0) break;
+      tail.push(free[bit]);
+      mask |= 1 << bit;
+      last = free[bit];
     }
-    return { order, length: first.cost, optimal: true };
+    const order = [...ordered, ...tail];
+    return { order, length: length(order), optimal: true };
   }
-  // Bounded insertion plus relocation keeps the fixed subsequence intact.
-  let route = [...ordered];
+  // Bounded insertion plus relocation inside the free tail.
+  let tail = [];
   const seedFree = seedOrder.filter((i) => free.includes(i));
-  const pending = [...new Set([...seedFree, ...free])];
-  for (const next of pending) {
+  for (const next of [...new Set([...seedFree, ...free])]) {
     let best = Infinity,
-      position = route.length;
-    for (let i = 0; i <= route.length; ++i) {
-      const left = i ? route[i - 1] : origin,
-        right = i < route.length ? route[i] : closed ? origin : null;
-      const delta =
-        cost(left, next) +
-        (right === null ? 0 : cost(next, right) - cost(left, right));
+      position = tail.length;
+    for (let i = 0; i <= tail.length; ++i) {
+      const delta = insertionDelta(tail, next, i);
       if (delta < best - EPS) {
         best = delta;
         position = i;
       }
     }
-    route.splice(position, 0, next);
+    tail.splice(position, 0, next);
   }
   for (let pass = 0; pass < 4; ++pass) {
     let improved = false;
     for (const next of free) {
-      const current = route.indexOf(next),
-        left = current ? route[current - 1] : origin,
-        right =
-          current + 1 < route.length
-            ? route[current + 1]
-            : closed
-              ? origin
-              : null;
-      const removed =
-        cost(left, next) +
-        (right === null ? 0 : cost(next, right) - cost(left, right));
-      const rest = route.filter((i) => i !== next);
-      let best = removed,
+      const current = tail.indexOf(next);
+      const rest = tail.filter((i) => i !== next);
+      let best = insertionDelta(rest, next, current),
         position = current;
       for (let i = 0; i <= rest.length; ++i) {
-        const a = i ? rest[i - 1] : origin,
-          b = i < rest.length ? rest[i] : closed ? origin : null;
-        const delta =
-          cost(a, next) + (b === null ? 0 : cost(next, b) - cost(a, b));
+        const delta = insertionDelta(rest, next, i);
         if (delta < best - EPS) {
           best = delta;
           position = i;
@@ -141,11 +121,12 @@ export const orderVisits = ({
       }
       if (position !== current) {
         rest.splice(position, 0, next);
-        route = rest;
+        tail = rest;
         improved = true;
       }
     }
     if (!improved) break;
   }
-  return { order: route, length: length(route), optimal: false };
+  const order = [...ordered, ...tail];
+  return { order, length: length(order), optimal: false };
 };

@@ -24,3 +24,14 @@ export const MAP_EXPORT_URL = `${SOLVER_API_BASE_URL}/api/map-export`;
 export const SOLVER_HEALTH_URL = `${SOLVER_API_BASE_URL}/health`;
 
 export const MISSION_API_BASE_URL = (import.meta.env.VITE_MISSION_URL || `http://${BRIDGE_HOST}:${ROUTE_PORT}`).replace(/\/$/, "");
+
+// Вход в систему. Адрес не согласован с API-разработчиком: VITE_AUTH_LOGIN_URL
+// задаёт точный URL, иначе используется предполагаемый путь на сервисе миссий.
+export const AUTH_LOGIN_URL = import.meta.env.VITE_AUTH_LOGIN_URL || `${MISSION_API_BASE_URL}/api/auth/login`;
+// Пока API входа нет, в dev-режиме (npm run dev) вход включён на заглушке,
+// а в production-сборке выключен. Флаги "1"/"0" переопределяют это поведение.
+const envFlag = (value, fallback) => (value === "1" ? true : value === "0" ? false : fallback);
+// VITE_AUTH_MOCK — временная заглушка входа без сервера (см. src/lib/auth/authApi.js).
+export const AUTH_MOCK = envFlag(import.meta.env.VITE_AUTH_MOCK, Boolean(import.meta.env.DEV));
+// VITE_AUTH_REQUIRED — пускать на /dashboard только после входа.
+export const AUTH_REQUIRED = envFlag(import.meta.env.VITE_AUTH_REQUIRED, Boolean(import.meta.env.DEV));

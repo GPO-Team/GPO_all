@@ -5,7 +5,7 @@ import PlannerMapSurveySection from "./sections/PlannerMapSurveySection";
 import PlannerTaskAlgorithmSection from "./sections/PlannerTaskAlgorithmSection";
 
 export default function PlannerRightSidebar({
-  editingLocked=false,
+  editingLocked=false, isOptimizing=false,
   onCollapse, telemetry, telemetryWsUp, routeWsUp, solverApiUp,
   mappingSurveyMode, mappingSurveyModes, onMappingSurveyModeChange,
   mapExportPromptOpen, onStartMappingSurvey, onRequestMapExport,
@@ -39,7 +39,9 @@ export default function PlannerRightSidebar({
         <PlannerMapSection mapLayers={mapLayers} onMapLayerChange={onMapLayerChange} />
       </div>
       <div id="planner-right-task" hidden={tab !== "task"} className="space-y-3">
-        <fieldset disabled={editingLocked} className="min-w-0"><PlannerTaskAlgorithmSection routeTaskKey={routeTaskKey} onRouteTaskChange={onRouteTaskChange}
+        <fieldset disabled={editingLocked} className="min-w-0"><PlannerTaskAlgorithmSection locked={editingLocked}
+          lockReason={editingLocked ? (isOptimizing ? "optimizing" : "mission") : null}
+          routeTaskKey={routeTaskKey} onRouteTaskChange={onRouteTaskChange}
           algorithmKey={algorithmKey} onAlgorithmChange={onAlgorithmChange}
           algorithmPrecision={algorithmPrecision} onAlgorithmPrecisionChange={onAlgorithmPrecisionChange} /></fieldset>
         <PlannerMapSurveySection telemetry={telemetry}

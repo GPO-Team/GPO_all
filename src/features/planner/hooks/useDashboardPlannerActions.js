@@ -2,6 +2,7 @@ import { useDashboardPlannerEditors } from "./useDashboardPlannerEditors";
 import { useDashboardPlannerRouteLifecycle } from "./useDashboardPlannerRouteLifecycle";
 import { useDashboardPlannerRuntimeActions } from "./useDashboardPlannerRuntimeActions";
 import { usePlannerRouteSelection } from "./usePlannerRouteSelection";
+import { usePlannerUndo } from "./usePlannerUndo";
 import { useEffect, useLayoutEffect } from "react";
 import { downloadGraphCsv } from "../model/graphExport";
 
@@ -143,6 +144,24 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
     onMissionSubmitted: runtime.mission?.track,
   });
 
+  const history = usePlannerUndo({
+    points: route.points,
+    limitZones: limits.limitZones,
+    activeLimitZoneId: limits.activeLimitZoneId,
+    nextZoneNumber: limits.nextZoneNumber,
+    isEditingLocked,
+    onLocked: refuseEdit,
+    onEmpty: () => route.setStatus("Отменять нечего."),
+    restore: (snapshot) => {
+      route.setPoints(snapshot.points);
+      limits.setLimitZones(snapshot.limitZones);
+      limits.setActiveLimitZoneId(snapshot.activeLimitZoneId);
+      limits.setNextZoneNumber(snapshot.nextZoneNumber);
+      routeSelection.clearRouteState();
+      route.setStatus("Последнее изменение отменено (Ctrl+Z).");
+    },
+  });
+
   // The mode only picks the kind of the next placed point; existing points keep their kind.
   const changeVisitPointMode = (kind) => {
     if (!["visit", "free_visit"].includes(kind)) return;
@@ -181,6 +200,7 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
     ...guarded,
     editingLocked,
     isEditingLocked,
+    undo: history.undo,
     exportGraphCsv: () => {
       downloadGraphCsv({
         points: route.points,

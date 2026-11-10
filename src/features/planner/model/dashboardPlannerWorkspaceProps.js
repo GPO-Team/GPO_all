@@ -128,6 +128,7 @@ export const createRightSidebarProps = ({ state, runtime, derived, actions }) =>
     mapExportPromptOpen: interaction.mapExportPromptOpen,
     onStartMappingSurvey: actions.startMappingSurvey,
     editingLocked:actions.editingLocked,
+    isOptimizing:Boolean(state.route?.isOptimizing),
     onRequestMapExport: actions.requestMapExport,
     onExportMapVariant: actions.exportMapImage,
     onCancelMapExport: () => interaction.setMapExportPromptOpen?.(false),

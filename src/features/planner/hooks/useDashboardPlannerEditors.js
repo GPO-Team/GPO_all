@@ -23,7 +23,7 @@ export const useDashboardPlannerEditors = (input) => {
     activeSurfaceProfileKey: input.activeSurfaceProfileKey, activeSurfaceZone: input.activeSurfaceZone,
     activeZone: input.plannerModel.activeZone, activeZoneName: input.plannerModel.activeZoneName,
     canvasRef: input.canvasRef, clearRouteState: input.clearRouteState, points: input.points,
-    resetZones: limit.resetZones, setPoints: input.setPoints, setStatus: input.setStatus,
+    resetZones: limit.resetZones, ensureLimitZone: limit.ensureLimitZone, setPoints: input.setPoints, setStatus: input.setStatus,
     setSurfaceZones: input.setSurfaceZones,
     mapLayers: input.mapLayers, setMapLayerVisible: input.setMapLayerVisible,
   });

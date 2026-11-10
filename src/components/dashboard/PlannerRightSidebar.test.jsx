@@ -68,3 +68,23 @@ it("separates robot readings from map controls, persists visibility, and keeps s
   await act(async () => root.render(<Harness />));
   expect([...container.querySelectorAll("label")].find(label => label.textContent === "Запретные зоны").querySelector("input").checked).toBe(false);
 });
+it("locks the route task with a notice while a mission runs or a route is being calculated", async () => {
+  const precision = vi.fn();
+  const render = (props) => act(async () => root.render(<PlannerRightSidebar telemetry={INITIAL_TELEMETRY} mapLayers={{}} onMapLayerChange={vi.fn()}
+    routeTaskKey="tsp" algorithmKey="ga_tabu" onRouteTaskChange={vi.fn()} onAlgorithmChange={vi.fn()}
+    algorithmPrecision="medium" onAlgorithmPrecisionChange={precision} mappingSurveyModes={[]} {...props} />));
+  await render({});
+  const taskPanel = () => container.querySelector("#planner-right-task");
+  expect(taskPanel().querySelector('[role="status"]')).toBeNull();
+  expect(taskPanel().querySelector("select").disabled).toBe(false);
+  await render({ editingLocked: true });
+  expect(taskPanel().querySelector('[role="status"]').textContent).toContain("Робот выполняет миссию");
+  expect(taskPanel().querySelector("select").disabled).toBe(true);
+  expect(taskPanel().querySelector('[aria-disabled="true"]')).not.toBeNull();
+  const high = [...taskPanel().querySelectorAll('[aria-label="Точность расчёта"] button')].find(button => button.textContent === "Большая");
+  expect(high.disabled).toBe(true);
+  await act(async () => high.click());
+  expect(precision).not.toHaveBeenCalled();
+  await render({ editingLocked: true, isOptimizing: true });
+  expect(taskPanel().querySelector('[role="status"]').textContent).toContain("Идёт расчёт маршрута");
+});

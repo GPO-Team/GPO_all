@@ -96,7 +96,7 @@ export const usePlannerRouteOptimization = ({ algorithmKey, batteryRangeMeters, 
       setRouteEnergyStats(buildRouteEnergyStats(routed));
       setEnergyWarning("");
       const status = buildRouteOptimizationStatus({ adjustedVisitCount: plannerModel.adjustedVisits.length, algorithmLabel: getAlgorithmLabel(algorithmKey), blocked: routeCrossesAnyLimitPolygon(routed.route, plannerModel.previewPolygons), routed, taskLabel: getTaskLabel(routeTaskKey) });
-      setStatus(status+(solveResult.visitOrdering ? ` Нумерованные — по порядку; свободные — ${solveResult.visitOrdering.optimal ? "точный минимум по доступным путям" : "лучший найденный порядок без гарантии глобального минимума"}.` : ""));
+      setStatus(status+(solveResult.visitOrdering ? ` Сначала нумерованные по порядку, затем свободные — ${solveResult.visitOrdering.optimal ? "точный минимум по доступным путям" : "лучший найденный порядок без гарантии глобального минимума"}.` : ""));
     } catch (error) {
       if (controller.signal.aborted) return;
       setRouteSeed([]);
