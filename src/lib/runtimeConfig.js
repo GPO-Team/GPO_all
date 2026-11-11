@@ -24,3 +24,8 @@ export const MAP_EXPORT_URL = `${SOLVER_API_BASE_URL}/api/map-export`;
 export const SOLVER_HEALTH_URL = `${SOLVER_API_BASE_URL}/health`;
 
 export const MISSION_API_BASE_URL = (import.meta.env.VITE_MISSION_URL || `http://${BRIDGE_HOST}:${ROUTE_PORT}`).replace(/\/$/, "");
+
+export const AUTH_LOGIN_URL = import.meta.env.VITE_AUTH_LOGIN_URL || `${MISSION_API_BASE_URL}/api/auth/login`;
+const envFlag = (value, fallback) => (value === "1" ? true : value === "0" ? false : fallback);
+export const AUTH_MOCK = envFlag(import.meta.env.VITE_AUTH_MOCK, Boolean(import.meta.env.DEV));
+export const AUTH_REQUIRED = envFlag(import.meta.env.VITE_AUTH_REQUIRED, Boolean(import.meta.env.DEV));
