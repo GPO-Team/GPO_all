@@ -225,6 +225,10 @@ int controller_manipulator_recover(ControllerManipulator *arm,
   double above[]={destination[0],destination[1],destination[2]+ARM_CLEARANCE};
   if(!controller_manipulator_inverse(destination,next.poses[2],next.grip_yaw) ||
       !controller_manipulator_inverse(above,next.poses[3],next.grip_yaw)) return 0;
+  for(int i=2;i<=3;++i) {
+    next.poses[i][4]=sample->joints[4]+next.poses[i][0]-sample->joints[0];
+    if(next.poses[i][4]<lower[4] || next.poses[i][4]>upper[4])return 0;
+  }
   memcpy(next.destination,destination,sizeof(next.destination));
   next.halt_motion=next.hold_fingers=0;next.cancel_pending=cancel_pending;next.error="";
   enter(&next,MANIPULATOR_TRANSFER);

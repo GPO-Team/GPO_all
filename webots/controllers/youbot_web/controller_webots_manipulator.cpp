@@ -125,7 +125,7 @@ static void apply_targets(void) {
     for (int i=0;i<5;++i) {
       m->trajectory_origin[i] = isfinite(m->sample.joints[i]) ? m->sample.joints[i] : arm->targets[i];
       m->trajectory_target[i] = arm->targets[i];
-      const double joint_speed=platform_motion ? .25 : .6;
+      const double joint_speed=platform_motion && arm->load_held ? .25 : .6;
       m->trajectory_duration = fmax(m->trajectory_duration,1.5*fabs(arm->targets[i]-m->trajectory_origin[i])/joint_speed);
     }
     if(platform_motion && arm->stage==MANIPULATOR_TRANSFER) {
@@ -641,7 +641,7 @@ void controller_webots_manipulator_cancel(const char *mission_id) {
   if(manipulator->state.load_held) {
     manipulator->support_z=cargo_floor_height(wb_supervisor_node_get_from_def(manipulator->object_def));
     const double world[]={manipulator->object_world[0],manipulator->object_world[1],manipulator->support_z};
-    const double grip[]={world[0],world[1],world[2]+GRIP_OFFSET};double local[3];
+    const double grip[]={world[0],world[1],world[2]+GRIP_OFFSET-.01};double local[3];
     ControllerManipulator recovery=manipulator->state;
     if(placement_clear(world) && world_to_local(grip,local) &&
         controller_manipulator_recover(&recovery,&sample,local,1) && arm_plan_clear(&recovery,&sample,1)) {

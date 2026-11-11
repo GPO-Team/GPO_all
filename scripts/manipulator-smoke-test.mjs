@@ -53,6 +53,30 @@ try {
   let before=await readState();
   assert.ok(Math.hypot(before.pose.x,before.pose.y)<0.015,
     `Robot started moving without a mission: ${JSON.stringify(before.pose)} at ${before.simulationTime}s`);
+  runScenario: {
+  if(process.argv.includes("--cancel-held")) {
+    const ack=await send({requestId:"cancel-held",type:"pick_place",objectDef:"PICK_BOX",destination:{x:.4,y:.1,z:.04}});
+    assert.equal(ack.ok,true,JSON.stringify(ack));
+    await until(async()=>{
+      const arm=(await readState()).manipulator;
+      if(arm.missionId!=="cancel-held")return false;
+      if(["failed","holding_for_recovery","completed"].includes(arm.stage))throw new Error(`Cancellation window missed: ${arm.stage} ${arm.error}`);
+      return arm.stage==="lifting" && arm.objectPosition.z>.055;
+    },"held object before cancellation",90000,5);
+    const response=await fetch(`http://127.0.0.1:${missionPort}/api/missions/cancel-held/cancel`,{method:"POST"});
+    assert.equal(response.status,202);
+    await until(async()=>{
+      const mission=await getMission("cancel-held");
+      if(["failed","holding_for_recovery"].includes(mission.status))throw new Error(JSON.stringify(mission));
+      return mission.status==="cancelled";
+    },"safe unloading on cancellation",90000,25);
+    const arm=(await readState()).manipulator;
+    assert.equal(arm.loadHeld,false);
+    assert.ok(Math.abs(arm.objectPosition.z-.04)<.006,"Cargo is not on the floor after cancellation");
+    assert.ok(arm.fingers.every(q=>q>.024),"Gripper did not release the supported cargo");
+    console.log("Held cargo safely unloaded on cancellation.");
+    break runScenario;
+  }
   if(afterDemo) {
     const scene=sceneContract.normalizeScene({});
     const demoAck=await send({requestId:"demo-before-pick",type:"transfer_object",objectId:"demo-box",
@@ -66,7 +90,6 @@ try {
     before=await readState();
     console.log(`DEMO_BOX placed; fetching PICK_BOX from ${JSON.stringify(before.pose)}`);
   }
-  runScenario: {
   const ack = await send({requestId:"arm-physics",type:"pick_place",objectDef:"PICK_BOX",destination});
   assert.equal(ack.ok,true,JSON.stringify(ack));
   if(blocked) {
