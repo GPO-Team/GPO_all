@@ -77,6 +77,26 @@ try {
     console.log("Held cargo safely unloaded on cancellation.");
     break runScenario;
   }
+  if(process.argv.includes("--cancel-stowing-platform")) {
+    const ack=await send({requestId:"cancel-stowing",type:"pick_place",objectDef:"PICK_BOX",destination:{x:1,y:1,z:.04}});
+    assert.equal(ack.ok,true,JSON.stringify(ack));
+    await until(async()=>{
+      const arm=(await readState()).manipulator;
+      if(arm.missionId!=="cancel-stowing")return false;
+      if(["failed","holding_for_recovery","completed"].includes(arm.stage))throw new Error(`Cancellation window missed: ${arm.stage} ${arm.error}`);
+      return arm.stage==="carrying" && arm.onPlatform && Math.abs(arm.joints[0])>.1;
+    },"platform cargo while arm is stowing",90000,5);
+    const response=await fetch(`http://127.0.0.1:${missionPort}/api/missions/cancel-stowing/cancel`,{method:"POST"});
+    assert.equal(response.status,202);
+    await until(async()=>(await getMission("cancel-stowing")).status==="holding_for_recovery","safe platform stop",90000,25);
+    const stopped=await readState();await delay(500);const after=await readState();
+    assert.equal(after.manipulator.onPlatform,true);
+    assert.equal(after.manipulator.loadHeld,false);
+    assert.ok(Math.hypot(after.pose.x-stopped.pose.x,after.pose.y-stopped.pose.y)<.01,"Base moved after cancellation");
+    assert.ok(Math.abs(after.manipulator.objectPosition.z-.1905)<.006,"Cargo left the platform");
+    console.log("Platform cargo retained safely after cancelling during arm stow.");
+    break runScenario;
+  }
   if(afterDemo) {
     const scene=sceneContract.normalizeScene({});
     const demoAck=await send({requestId:"demo-before-pick",type:"transfer_object",objectId:"demo-box",
@@ -112,7 +132,7 @@ try {
     const state=await readState();
     if(state.manipulator?.stage==="closing") armSamples.push(state.manipulator);
     baseTrace.push({x:state.pose.x,y:state.pose.y,yaw:state.pose.yaw,time:state.simulationTime,
-      stage:state.manipulator?.stage,onPlatform:state.manipulator?.onPlatform,distance:state.navigation.distanceToTarget,
+      stage:state.manipulator?.stage,onPlatform:state.manipulator?.onPlatform,joints:state.manipulator?.joints,distance:state.navigation.distanceToTarget,
       waypoint:state.navigation.currentWaypointIndex});
     if (process.argv.includes("--inject-route") && !injectedRoute && state.manipulator?.active) {
       await writeFile(path.join(stateDir,"route.csv"), "x,y,heading_deg\n# command foreign-route\n0,0,0\n1,0,0\n");
@@ -133,10 +153,14 @@ try {
   const final=await readState();
   let naturalDrivingChecks=0;
   let peakCruiseSpeed=0;
+  let concurrentStowChecks=0;
   for(let i=1;i<baseTrace.length;++i) {
     const previous=baseTrace[i-1],current=baseTrace[i];
     const dx=current.x-previous.x,dy=current.y-previous.y;
     const turn=Math.atan2(Math.sin(current.yaw-previous.yaw),Math.cos(current.yaw-previous.yaw));
+    if(previous.onPlatform && current.onPlatform && previous.stage==="carrying" && current.stage==="carrying" &&
+      (Math.hypot(dx,dy)>.001 || Math.abs(turn)>.002) && current.joints?.some((q,index)=>Math.abs(q-previous.joints[index])>.002))
+      ++concurrentStowChecks;
     if(previous.stage!=="carrying" || current.stage!=="carrying" || current.waypoint!==previous.waypoint ||
         Math.min(previous.distance,current.distance)<.2 || Math.abs(turn)>.05 || Math.hypot(dx,dy)<.005)continue;
     const heading=previous.yaw+turn*.5;
@@ -147,6 +171,7 @@ try {
   }
   if(mobile)assert.ok(naturalDrivingChecks>0,"No measured forward cargo travel");
   if(mobile) {
+    assert.ok(concurrentStowChecks>0,"Base did not move while the empty arm was stowing");
     const platformCruise=observations.filter(s=>s.manipulator.stage==="carrying");
     assert.ok(platformCruise.length>0 && platformCruise.every(s=>s.manipulator.onPlatform &&
       !s.manipulator.loadHeld && s.manipulator.fingers.every(q=>q>.024)),
@@ -163,6 +188,13 @@ try {
   assert.ok(observations.some(s=>s.manipulator.objectPosition.z>0.08),"Object never lifted");
   if(mobile) {
     if(!nearObject)assert.ok(observations.some(s=>s.manipulator.stage==="driving_to_object"),"Base never fetched the distant object");
+    if(!nearObject && !afterDemo) {
+      const pickup=observations.find(s=>s.manipulator.stage==="opening");
+      assert.ok(pickup,"Pickup did not start");
+      const dx=pickup.manipulator.objectPosition.x-pickup.pose.x,dy=pickup.manipulator.objectPosition.y-pickup.pose.y;
+      const c=Math.cos(pickup.pose.yaw),s=Math.sin(pickup.pose.yaw);
+      assert.ok(Math.hypot(c*dx+s*dy-.4,-s*dx+c*dy+.1)>.015,"Pickup waited for the exact dock pose");
+    }
     assert.ok(observations.some(s=>s.manipulator.stage==="carrying"),"Base never carried the load");
     assert.ok(Math.hypot(final.pose.x,final.pose.y)>0.5,"Base never moved to the destination");
   } else assert.ok(Math.hypot(final.pose.x,final.pose.y)<0.015,"Base moved");
@@ -268,7 +300,7 @@ try {
   assert.ok(Math.hypot(heldObject.x-stoppedObject.x,heldObject.y-stoppedObject.y,heldObject.z-stoppedObject.z)<(mobile ? 0.03 : 0.02),"Object moved out of the grasp after cancellation");
   await mkdir(path.join(root,"output/manipulator-smoke"),{recursive:true});
   const reportName = afterDemo ? "pick-after-demo.json" : mobile ? obstacle ? "mobile-delivery-obstacle.json" : nearObject ? "mobile-delivery-near.json" : "mobile-delivery.json" : injectedRoute ? "manipulator-route-interlock.json" : "manipulator-physics.json";
-  await writeFile(path.join(root,"output/manipulator-smoke",reportName),JSON.stringify({injectedRoute,injectedRuntime,naturalDrivingChecks,peakCruiseSpeed,baseTrace,observations,final,reverse,failed,failedMission,stopped,afterStop},null,2));
+  await writeFile(path.join(root,"output/manipulator-smoke",reportName),JSON.stringify({injectedRoute,injectedRuntime,naturalDrivingChecks,concurrentStowChecks,peakCruiseSpeed,baseTrace,observations,final,reverse,failed,failedMission,stopped,afterStop},null,2));
   console.log("Physical pick-place, repeat, unreachable/missing object, and cancellation passed.");
   }
 } catch(error) {

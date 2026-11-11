@@ -14,6 +14,10 @@ int main(void) {
   assert(controller_delivery_use_platform(0,0,3,4));
   assert(!controller_delivery_use_platform(0,0,NAN,0));
   double linear=0,angular=0;
+  controller_delivery_motion_limits(0,0,.22,1.6,&linear,&angular);
+  assert(fabs(linear-.22)<1e-9 && fabs(angular-.30)<1e-9);
+  controller_delivery_motion_limits(0,0,.12,1.6,&linear,&angular);
+  assert(fabs(linear-.12)<1e-9);
   controller_delivery_motion_limits(1,0,.22,1.6,&linear,&angular);
   assert(fabs(linear-.14)<1e-9 && fabs(angular-.20)<1e-9);
   controller_delivery_motion_limits(1,1,.22,1.6,&linear,&angular);

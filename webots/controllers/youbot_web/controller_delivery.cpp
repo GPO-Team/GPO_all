@@ -53,7 +53,7 @@ int controller_delivery_use_platform(double source_x,double source_y,double targ
 }
 void controller_delivery_motion_limits(int carrying,int on_platform,double active_linear,double active_angular,
     double *linear,double *angular) {
-  if(linear) *linear=fmin(active_linear,carrying ? (on_platform ? .18 : .14) : .16);
+  if(linear) *linear=fmin(active_linear,carrying ? (on_platform ? .18 : .14) : .22);
   if(angular) *angular=fmin(active_angular,carrying ? (on_platform ? .30 : .20) : .30);
 }
 static void simplify_route(RouteData *route,ControllerDeliverySafe safe,void *context) {

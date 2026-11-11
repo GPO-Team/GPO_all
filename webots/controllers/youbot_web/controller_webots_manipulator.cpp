@@ -434,7 +434,7 @@ static int start_pickup(const ControllerManipulatorSample *sample) {
 static void guard_arm_motion(void) {
   auto *m=&controller_app.manipulator;
   ArmSafetyPose pose;
-  if(m->delivery_phase!=DELIVERY_FETCH && m->delivery_phase!=DELIVERY_DRIVE &&
+  if(m->delivery_phase!=DELIVERY_FETCH && (m->delivery_phase!=DELIVERY_DRIVE || m->state.stage==MANIPULATOR_STOW) &&
       m->state.stage>=MANIPULATOR_OPEN && m->state.stage<=MANIPULATOR_STOW &&
       (!refresh_obstacles() || !read_safety_pose(&pose) ||
        !controller_manipulator_motion_clear(m->sample.joints,m->state.targets,
@@ -623,8 +623,9 @@ void controller_webots_manipulator_cancel(const char *mission_id) {
   ControllerManipulatorSample sample = read_sample();
   if(!controller_webots_manipulator_active(manipulator))return;
   if(manipulator->on_platform && !manipulator->state.load_held &&
-      manipulator->state.stage==MANIPULATOR_COMPLETED &&
+      (manipulator->state.stage==MANIPULATOR_STOW || manipulator->state.stage==MANIPULATOR_COMPLETED) &&
       cargo_on_platform(wb_supervisor_node_get_from_def(manipulator->object_def))) {
+    hold_sample(&manipulator->state,&sample);
     manipulator->state.stage=MANIPULATOR_CANCELLED;
     manipulator->delivery_phase=DELIVERY_TERMINAL;
     controller_webots_devices_reset_wheels(&webots_devices);
@@ -684,6 +685,10 @@ int controller_webots_manipulator_step(double dt) {
   if(manipulator->delivery_phase==DELIVERY_FETCH || manipulator->delivery_phase==DELIVERY_DRIVE) {
     int carrying=manipulator->delivery_phase==DELIVERY_DRIVE;
     double x,y,yaw;read_pose(&x,&y,&yaw);
+    if(carrying && manipulator->on_platform && manipulator->state.stage==MANIPULATOR_STOW) {
+      controller_manipulator_step(&manipulator->state,&sample,dt);
+      if(manipulator->state.stage==MANIPULATOR_FAILED)delivery_fail(&sample,manipulator->state.error);
+    }
     if(!sample.object_valid)delivery_fail(&sample,"object_missing");
     if(!isfinite(x) || !isfinite(y) || !isfinite(yaw))delivery_fail(&sample,"invalid_sensor");
     for(int i=0;i<3;++i)if(!isfinite(sample.object[i]))delivery_fail(&sample,"invalid_sensor");
@@ -705,9 +710,22 @@ int controller_webots_manipulator_step(double dt) {
       const double desired_yaw=manipulator->departing ? manipulator->departure_yaw : manipulator->delivery_yaw;
       const int final_waypoint=manipulator->delivery_waypoint+1>=controller_runtime.route.count;
       controller_runtime.distance_to_target=distance;
+      if(!carrying && final_waypoint && !manipulator->departing && distance<.50) {
+        const ControllerManipulator previous=manipulator->state;
+        manipulator->state.grip_yaw=grip_yaw_in_base(wb_supervisor_node_get_from_def(manipulator->object_def),yaw);
+        manipulator->state.hold_fingers=0;
+        if(start_pickup(&sample) && arm_plan_clear(&manipulator->state,&sample,0)) {
+          controller_webots_devices_reset_wheels(&webots_devices);
+          controller_runtime.route.count=0;controller_runtime.current_waypoint_index=0;
+          manipulator->delivery_phase=DELIVERY_PICK;
+          apply_targets();return 1;
+        }
+        manipulator->state=previous;
+      }
       if(distance<0.008 && ((!final_waypoint && !manipulator->departing) ||
           fabs(atan2(sin(yaw-desired_yaw),cos(yaw-desired_yaw)))<0.012)) {
         controller_webots_devices_reset_wheels(&webots_devices);
+        if(carrying && manipulator->on_platform && manipulator->state.stage==MANIPULATOR_STOW) {apply_targets();return 1;}
         if(manipulator->departing) {manipulator->departing=0;manipulator->departure_node=NULL;}
         if(++manipulator->delivery_waypoint>=controller_runtime.route.count) {
           controller_runtime.route.count=0;
@@ -781,7 +799,7 @@ int controller_webots_manipulator_step(double dt) {
         else {manipulator->delivery_phase=DELIVERY_PLATFORM_LOAD;manipulator->state.require_support=1;manipulator->state.stage_timeout=40;}
       } else if(!plan_drive(manipulator->destination_world,0))delivery_fail(&sample,"delivery_path_blocked");
     } else if(manipulator->delivery_phase==DELIVERY_PLATFORM_LOAD &&
-        manipulator->state.stage==MANIPULATOR_COMPLETED) {
+        (manipulator->state.stage==MANIPULATOR_STOW || manipulator->state.stage==MANIPULATOR_COMPLETED)) {
       manipulator->on_platform=1;
       if(!cargo_on_platform(wb_supervisor_node_get_from_def(manipulator->object_def)))delivery_fail(&sample,"cargo_lost");
       else if(!plan_drive(manipulator->destination_world,0))delivery_fail(&sample,"delivery_path_blocked");
