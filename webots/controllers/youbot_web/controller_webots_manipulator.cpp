@@ -125,7 +125,7 @@ static void apply_targets(void) {
     for (int i=0;i<5;++i) {
       m->trajectory_origin[i] = isfinite(m->sample.joints[i]) ? m->sample.joints[i] : arm->targets[i];
       m->trajectory_target[i] = arm->targets[i];
-      const double joint_speed=platform_motion ? .35 : .6;
+      const double joint_speed=platform_motion ? .25 : .6;
       m->trajectory_duration = fmax(m->trajectory_duration,1.5*fabs(arm->targets[i]-m->trajectory_origin[i])/joint_speed);
     }
     if(platform_motion && arm->stage==MANIPULATOR_TRANSFER) {
@@ -133,8 +133,8 @@ static void apply_targets(void) {
       m->trajectory_via_duration=.25;
       double final_duration=.25;
       for(int i=0;i<5;++i) {
-        m->trajectory_via_duration=fmax(m->trajectory_via_duration,1.5*fabs(m->trajectory_via[i]-m->trajectory_origin[i])/.35);
-        final_duration=fmax(final_duration,1.5*fabs(arm->targets[i]-m->trajectory_via[i])/.35);
+        m->trajectory_via_duration=fmax(m->trajectory_via_duration,1.5*fabs(m->trajectory_via[i]-m->trajectory_origin[i])/.25);
+        final_duration=fmax(final_duration,1.5*fabs(arm->targets[i]-m->trajectory_via[i])/.25);
       }
       m->trajectory_duration=m->trajectory_via_duration+final_duration;
     }
@@ -428,7 +428,7 @@ static int start_pickup(const ControllerManipulatorSample *sample) {
     if(!world_to_local(world,destination))return 0;
   }
   if(!controller_manipulator_start(&m->state,sample->object,destination))return 0;
-  if(m->use_platform)m->state.stage_timeout=25;
+  if(m->use_platform)m->state.stage_timeout=40;
   return 1;
 }
 static void guard_arm_motion(void) {
@@ -728,7 +728,7 @@ int controller_webots_manipulator_step(double dt) {
                   wb_supervisor_node_get_from_def(manipulator->object_def),yaw);
               if(!controller_manipulator_start(&manipulator->state,sample.object,local))
                 delivery_fail(&sample,"platform_grasp_failed");
-              else {manipulator->delivery_phase=DELIVERY_PLACE;manipulator->state.stage_timeout=25;}
+              else {manipulator->delivery_phase=DELIVERY_PLACE;manipulator->state.stage_timeout=40;}
             } else {
             memcpy(manipulator->state.destination,local,sizeof(local));
             if(!controller_manipulator_inverse(local,manipulator->state.poses[2],manipulator->state.grip_yaw))delivery_fail(&sample,"target_unreachable");
@@ -778,7 +778,7 @@ int controller_webots_manipulator_step(double dt) {
         platform[2]-=.006; // Seat the load despite the measured TCP/contact offset.
         if(!platform_valid || !retarget_held_object(platform,&sample))
           delivery_fail(&sample,"manipulator_path_blocked");
-        else {manipulator->delivery_phase=DELIVERY_PLATFORM_LOAD;manipulator->state.require_support=1;manipulator->state.stage_timeout=25;}
+        else {manipulator->delivery_phase=DELIVERY_PLATFORM_LOAD;manipulator->state.require_support=1;manipulator->state.stage_timeout=40;}
       } else if(!plan_drive(manipulator->destination_world,0))delivery_fail(&sample,"delivery_path_blocked");
     } else if(manipulator->delivery_phase==DELIVERY_PLATFORM_LOAD &&
         manipulator->state.stage==MANIPULATOR_COMPLETED) {
