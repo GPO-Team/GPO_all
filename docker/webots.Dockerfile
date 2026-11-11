@@ -5,7 +5,7 @@ WORKDIR /project
 COPY webots/controllers/youbot_web ./controllers/youbot_web
 RUN make -C controllers/youbot_web -j2
 
-FROM python:3.12-slim-bookworm AS assets
+FROM python:3.15-slim-bookworm AS assets
 COPY docker/cache-webots-assets.py /cache-webots-assets.py
 COPY webots/worlds/youbot_only.wbt /project/worlds/youbot_only.wbt
 COPY webots/protos /project/protos
