@@ -46,6 +46,7 @@ ControllerNavigationRouteDecision controller_navigation_service_advance_route(
 
 ControllerNavigationZoneDecision controller_navigation_service_guard_route(
     const ZoneData *zones,
+    const ControllerMappingObstacles *obstacles,
     double current_x,
     double current_z,
     const Waypoint *target,
@@ -55,6 +56,7 @@ ControllerNavigationZoneDecision controller_navigation_service_guard_route(
     int has_next_waypoint) {
   return controller_navigation_zone_guard_evaluate(
       zones,
+      obstacles,
       current_x,
       current_z,
       target,
@@ -125,6 +127,7 @@ ControllerNavigationServiceFrameDecision controller_navigation_service_process_f
 
   output->zone_decision = controller_navigation_service_guard_route(
       input->zones,
+      input->obstacles,
       input->x,
       input->z,
       &output->route.route.target,
@@ -132,6 +135,7 @@ ControllerNavigationServiceFrameDecision controller_navigation_service_process_f
       input->mapping_survey,
       input->survey_room_zone_index,
       *input->current_waypoint_index + 1 < input->route->count);
+
   switch (output->zone_decision) {
     case CONTROLLER_NAVIGATION_ZONE_SKIP_BLOCKED_TARGET:
       return CONTROLLER_NAVIGATION_FRAME_SKIP_BLOCKED_TARGET;

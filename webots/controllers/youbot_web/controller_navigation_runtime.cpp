@@ -9,6 +9,8 @@
 #include "controller_avoidance_start.h"
 #include "controller_input_runtime.h"
 #include "controller_lidar_runtime.h"
+#include "controller_mapping_obstacles.h"
+#include "controller_mapping_runtime.h"
 #include "controller_math.h"
 #include "controller_navigation_adapter.h"
 #include "controller_navigation_context.h"
@@ -24,6 +26,19 @@
 
 #include <cmath>
 #include <string.h>
+#include <webots/robot.h>
+
+static double s_prev_lidar_heading_bias = 0.0;
+static int s_skip_notice_hold_steps = 0;
+
+static void skip_blocked_waypoint_with_notice(double x, double z) {
+  controller_avoidance_lifecycle_finish(&controller_runtime.avoidance, START_X, START_Z);
+  ++controller_runtime.current_waypoint_index;
+  begin_navigation_for_waypoint(controller_runtime.current_waypoint_index, x, z);
+  set_status("skipped_blocked_waypoint");
+  set_error("Невозможно посетить точку: она находится внутри объекта");
+  s_skip_notice_hold_steps = 220;
+}
 
 double scaled_linear_floor(double factor) {
   const double floor_cap = fmin(TRACK_MIN_LINEAR_SPEED, active_linear_speed_limit);
@@ -47,6 +62,7 @@ void drive_webots_base(
 void set_base_velocity(double vx, double vy, double omega) {
   controller_webots_adapter_apply_velocity(&webots_adapter, vx, vy, omega);
 }
+
 void stop_robot(void) {
   controller_webots_adapter_stop(&webots_adapter);
 }
@@ -61,6 +77,8 @@ void reset_robot_pose() {
   controller_webots_devices_reset_wheels(&webots_devices);
   controller_runtime.avoidance.hold_steps = 0;
   controller_runtime.avoidance.turn_sign = 1.0;
+  s_prev_lidar_heading_bias = 0.0;
+  s_skip_notice_hold_steps = 0;
   controller_runtime.navigation_pose_history = ControllerNavigationPoseHistory{
       START_X,
       START_Z,
@@ -101,6 +119,10 @@ double sign_or_one(double value) {
 }
 
 void reset_navigation_mode(void) {
+  s_prev_lidar_heading_bias = 0.0;
+  s_skip_notice_hold_steps = 0;
+  controller_mapping_runtime_clear(&mapping_runtime);
+  perception_runtime.trace_count = 0;
   controller_navigation_state_reset(&controller_runtime, START_X, START_Z);
 }
 
@@ -113,6 +135,7 @@ void ensure_navigation_waypoint_initialized(double current_x, double current_z) 
 }
 
 void clear_local_navigation_state(void) {
+  s_prev_lidar_heading_bias = 0.0;
   controller_navigation_state_clear_local(&controller_runtime, START_X, START_Z);
 }
 
@@ -121,7 +144,11 @@ void reset_route_avoidance_metrics(void) {
 }
 
 int route_off_route_active_now() {
-  return controller_navigation_metrics_off_route(controller_runtime.route_finished, controller_runtime.route.count, controller_runtime.avoidance.active, navigation_status);
+  return controller_navigation_metrics_off_route(
+      controller_runtime.route_finished,
+      controller_runtime.route.count,
+      controller_runtime.avoidance.active,
+      navigation_status);
 }
 
 void update_route_avoidance_metrics(void) {
@@ -137,6 +164,8 @@ void run_navigation_step(void) {
     controller_runtime.route_finished = 1;
     controller_runtime.mapping_survey.route_active = 0;
     controller_runtime.avoidance.active = 0;
+    s_prev_lidar_heading_bias = 0.0;
+    s_skip_notice_hold_steps = 0;
     stop_robot();
     set_status("mission_cancelled");
     return;
@@ -146,6 +175,8 @@ void run_navigation_step(void) {
     controller_runtime.route_finished = 1;
     controller_runtime.mapping_survey.route_active = 0;
     controller_runtime.avoidance.active = 0;
+    s_prev_lidar_heading_bias = 0.0;
+    s_skip_notice_hold_steps = 0;
     stop_robot();
     set_status("route_failed");
     return;
@@ -155,7 +186,19 @@ void run_navigation_step(void) {
   double heading = 0.0;
 
   read_pose(&x, &z, &heading);
-  const ControllerRuntimeSensorFrame sensor_frame = {x, z, heading, 0};
+
+  const ControllerMappingObstacles live_obstacles = {
+      .map = persistent_map,
+      .map_count = persistent_map_count,
+      .camera_map = mapping_camera_map,
+      .camera_count = camera_map_count,
+      .trace = perception_runtime.trace,
+      .trace_count = perception_runtime.trace_count,
+      .now_time = wb_robot_get_time(),
+      .trace_ttl_seconds = LIDAR_TRACE_TTL_SECONDS,
+      .min_trace_confidence = LIDAR_TRACE_MIN_CONFIDENCE,
+  };
+  const ControllerRuntimeSensorFrame sensor_frame = {x, z, heading, 0, &live_obstacles};
   const ControllerRuntimeNavigationResult navigation_result =
       controller_runtime_process_navigation_frame(
           &controller_runtime, &sensor_frame, &control_config.navigation.runtime);
@@ -167,7 +210,9 @@ void run_navigation_step(void) {
     if (terminal_effect.clear_avoidance_hold) controller_runtime.avoidance.hold_steps = 0;
     if (terminal_effect.reset_navigation) reset_navigation_mode();
     controller_runtime.distance_to_target = terminal_effect.distance_to_target;
-    set_status(terminal_effect.status); stop_robot(); return;
+    set_status(terminal_effect.status);
+    stop_robot();
+    return;
   }
 
   controller_mapping_survey_state_tick(&controller_runtime.mapping_survey);
@@ -188,12 +233,18 @@ void run_navigation_step(void) {
   ensure_navigation_waypoint_initialized(x, z);
 
   if (navigation_result.action == CONTROLLER_RUNTIME_ACTION_ROUTE_COMPLETED) {
-    reset_navigation_mode(); controller_runtime.distance_to_target = terminal_effect.distance_to_target;
-    set_status(terminal_effect.status); stop_robot();
+    s_skip_notice_hold_steps = 0;
+    clear_error();
+    reset_navigation_mode();
+    controller_runtime.distance_to_target = terminal_effect.distance_to_target;
+    set_status(terminal_effect.status);
+    stop_robot();
     return;
   }
-  if (navigation_result.navigation.route_decision == CONTROLLER_NAVIGATION_ROUTE_ADVANCED)
+  if (navigation_result.navigation.route_decision == CONTROLLER_NAVIGATION_ROUTE_ADVANCED) {
+    controller_avoidance_lifecycle_finish(&controller_runtime.avoidance, START_X, START_Z);
     begin_navigation_for_waypoint(controller_runtime.current_waypoint_index, x, z);
+  }
   Waypoint target = navigation_result.target;
   int is_final_waypoint = navigation_result.navigation.route.route.is_final_waypoint;
 
@@ -206,8 +257,18 @@ void run_navigation_step(void) {
     set_status("mapping_survey_resumed_route");
   }
 
+  if (s_skip_notice_hold_steps > 0) {
+    --s_skip_notice_hold_steps;
+  }
+
   if (navigation_result.action == CONTROLLER_RUNTIME_ACTION_SKIP_BLOCKED_TARGET ||
       navigation_result.action == CONTROLLER_RUNTIME_ACTION_SKIP_BLOCKED_SEGMENT) {
+    if (!controller_runtime.mapping_survey.route_active &&
+        navigation_result.action == CONTROLLER_RUNTIME_ACTION_SKIP_BLOCKED_TARGET) {
+      skip_blocked_waypoint_with_notice(x, z);
+      return;
+    }
+    controller_avoidance_lifecycle_finish(&controller_runtime.avoidance, START_X, START_Z);
     ++controller_runtime.current_waypoint_index;
     begin_navigation_for_waypoint(controller_runtime.current_waypoint_index, x, z);
     clear_error();
@@ -218,9 +279,11 @@ void run_navigation_step(void) {
     return;
   }
   if (navigation_result.action == CONTROLLER_RUNTIME_ACTION_BLOCKED_TARGET) {
+    s_skip_notice_hold_steps = 0;
+    const double dist_to_target = hypot2(target.x - x, target.z - z);
     set_status("blocked_by_dynamic_zone");
-    set_error("Current waypoint is blocked by a dynamic zone");
-    controller_runtime.distance_to_target = hypot2(target.x - x, target.z - z);
+    set_error("Невозможно посетить точку: она находится внутри объекта");
+    controller_runtime.distance_to_target = dist_to_target;
     stop_robot();
     return;
   }
@@ -287,7 +350,9 @@ void run_navigation_step(void) {
           heading,
           &target,
           &lidar_context,
-          fabs(controller_runtime.lidar_priority_turn_sign) > 0.0 ? controller_runtime.lidar_priority_turn_sign : sign_or_one(heading_error_to_target))) {
+          fabs(controller_runtime.lidar_priority_turn_sign) > 0.0
+              ? controller_runtime.lidar_priority_turn_sign
+              : sign_or_one(heading_error_to_target))) {
     stop_robot();
     return;
   }
@@ -314,6 +379,8 @@ void run_navigation_step(void) {
   }
 
   if (controller_runtime.avoidance.active) {
+    s_prev_lidar_heading_bias = 0.0;
+    const double saved_turn_sign = controller_runtime.avoidance.turn_sign;
     const double detour_dx = controller_runtime.avoidance.detour_x - x;
     const double detour_dz = controller_runtime.avoidance.detour_z - z;
     const double detour_distance =
@@ -373,48 +440,75 @@ void run_navigation_step(void) {
 
     if (recovery_output.rejoin_route) {
       clear_local_navigation_state();
+      controller_runtime.lidar_priority_turn_sign = saved_turn_sign;
+      controller_runtime.lidar_priority_hold_steps = 20;
       controller_runtime.navigation_waypoint_index = controller_runtime.current_waypoint_index;
       controller_runtime.navigation_segment_start_x = x;
       controller_runtime.navigation_segment_start_z = z;
       controller_runtime.navigation_mode = NAV_MODE_TRACK;
       controller_runtime.distance_to_target = target_distance_now;
-      clear_error();
-      set_status("mapping_survey_rejoined_route");
+      if (s_skip_notice_hold_steps == 0) {
+        clear_error();
+      }
+      set_status(
+          controller_runtime.mapping_survey.route_active
+              ? "mapping_survey_rejoined_route"
+              : "rejoined_route");
     }
 
     if (recovery_output.attempt_orbit_escape) {
-        const ControllerAvoidanceRecoveryAfterOrbit after_orbit =
-            controller_avoidance_recovery_after_orbit(
-                escape_mapping_survey_orbit(x, z),
-                controller_runtime.current_waypoint_index + 1 < controller_runtime.route.count);
-        if (after_orbit == CONTROLLER_AVOIDANCE_RECOVERY_STOP_AFTER_ESCAPE) {
-          controller_runtime.distance_to_target = 0.0;
+      if (!controller_runtime.mapping_survey.route_active) {
+        if (!is_final_waypoint) {
+          skip_blocked_waypoint_with_notice(x, z);
+        } else {
+          s_skip_notice_hold_steps = 0;
+          set_status("blocked_by_dynamic_zone");
+          set_error("Невозможно посетить точку: она находится внутри объекта");
+          controller_runtime.distance_to_target = target_distance_now;
           stop_robot();
-          return;
         }
+        return;
+      }
 
-        if (after_orbit == CONTROLLER_AVOIDANCE_RECOVERY_SKIP_LOOPED_WAYPOINT) {
-          ++controller_runtime.current_waypoint_index;
-          clear_local_navigation_state();
-          begin_navigation_for_waypoint(controller_runtime.current_waypoint_index, x, z);
-          controller_runtime.mapping_survey.replan_cooldown_steps = MAPPING_SURVEY_REPLAN_COOLDOWN_STEPS;
-          controller_runtime.distance_to_target = hypot2(controller_runtime.route.waypoints[controller_runtime.current_waypoint_index].x - x,
-                                      controller_runtime.route.waypoints[controller_runtime.current_waypoint_index].z - z);
-          clear_error();
-          set_status("mapping_survey_skipped_looped_obstacle");
-          stop_robot();
-          return;
-        }
+      const ControllerAvoidanceRecoveryAfterOrbit after_orbit =
+          controller_avoidance_recovery_after_orbit(
+              escape_mapping_survey_orbit(x, z),
+              controller_runtime.current_waypoint_index + 1 < controller_runtime.route.count);
+      if (after_orbit == CONTROLLER_AVOIDANCE_RECOVERY_STOP_AFTER_ESCAPE) {
+        controller_runtime.distance_to_target = 0.0;
+        stop_robot();
+        return;
+      }
+
+      if (after_orbit == CONTROLLER_AVOIDANCE_RECOVERY_SKIP_LOOPED_WAYPOINT) {
+        ++controller_runtime.current_waypoint_index;
+        clear_local_navigation_state();
+        controller_runtime.avoidance.active = 0;
+        controller_runtime.avoidance.hold_steps = 0;
+        begin_navigation_for_waypoint(controller_runtime.current_waypoint_index, x, z);
+        controller_runtime.mapping_survey.replan_cooldown_steps = MAPPING_SURVEY_REPLAN_COOLDOWN_STEPS;
+        controller_runtime.distance_to_target = hypot2(
+            controller_runtime.route.waypoints[controller_runtime.current_waypoint_index].x - x,
+            controller_runtime.route.waypoints[controller_runtime.current_waypoint_index].z - z);
+        clear_error();
+        set_status("mapping_survey_skipped_looped_obstacle");
+        stop_robot();
+        return;
+      }
     }
 
     if (recovery_output.reacquire_free_space) {
       clear_local_navigation_state();
+      controller_runtime.lidar_priority_turn_sign = saved_turn_sign;
+      controller_runtime.lidar_priority_hold_steps = 20;
       controller_runtime.navigation_waypoint_index = controller_runtime.current_waypoint_index;
       controller_runtime.navigation_segment_start_x = x;
       controller_runtime.navigation_segment_start_z = z;
       controller_runtime.navigation_mode = NAV_MODE_TRACK;
       controller_runtime.distance_to_target = target_distance_now;
-      clear_error();
+      if (s_skip_notice_hold_steps == 0) {
+        clear_error();
+      }
       set_status("reacquired_free_space");
     }
 
@@ -426,7 +520,9 @@ void run_navigation_step(void) {
       set_status(avoidance_service_output.presentation.status);
 
       controller_runtime.distance_to_target = target_distance_now;
-      clear_error();
+      if (s_skip_notice_hold_steps == 0) {
+        clear_error();
+      }
       set_base_velocity(
           avoidance_service_output.command.linear_speed,
           0.0,
@@ -479,6 +575,7 @@ void run_navigation_step(void) {
       .expected_front_range = expected_front_range,
       .current_priority_turn_sign = controller_runtime.lidar_priority_turn_sign,
       .current_priority_hold_steps = controller_runtime.lidar_priority_hold_steps,
+      .prev_heading_bias = s_prev_lidar_heading_bias,
   };
   const ControllerNavigationMotionServiceInput motion_input = {
       .tracking = tracking_input,
@@ -492,7 +589,10 @@ void run_navigation_step(void) {
       &motion_output);
   controller_runtime.navigation_mode = motion_output.motion.tracking.mode;
   if (final_alignment) {
-    clear_error();
+    s_prev_lidar_heading_bias = 0.0;
+    if (s_skip_notice_hold_steps == 0) {
+      clear_error();
+    }
     set_status("aligning_final_heading");
     apply_kinematic_step(
         x,
@@ -502,9 +602,12 @@ void run_navigation_step(void) {
         motion_output.motion.tracking.angular_speed);
     return;
   }
+  s_prev_lidar_heading_bias = motion_output.motion.lidar.heading_bias;
   controller_runtime.lidar_priority_turn_sign = motion_output.motion.lidar.priority_turn_sign;
   controller_runtime.lidar_priority_hold_steps = motion_output.motion.lidar.priority_hold_steps;
-  clear_error();
+  if (s_skip_notice_hold_steps == 0) {
+    clear_error();
+  }
   set_status(controller_navigation_presentation_tracking_status(
       motion_output.motion.tracking.status));
   apply_kinematic_step(

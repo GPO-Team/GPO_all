@@ -25,7 +25,9 @@ void controller_avoidance_presentation_apply(
   output->priority_updated = 0;
   output->status = command_status(command->mode, has_best_gap);
   if (command->clear_detour) state->detour_active = 0;
-  if (command->clear_hold) state->hold_steps = 0;
+  if (command->clear_hold && command->mode == CONTROLLER_AVOIDANCE_COMMAND_PASS_GAP) {
+    state->hold_steps = 0;
+  }
   if (command->turn_sign_changed) {
     state->turn_sign = command->turn_sign;
     state->obstacle_side = state->turn_sign > 0.0 ? -1 : 1;

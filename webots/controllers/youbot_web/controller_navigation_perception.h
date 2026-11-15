@@ -30,6 +30,7 @@ typedef struct {
 typedef struct {
   int camera_visual_front_obstacle;
   double camera_preferred_turn_sign;
+  double camera_effective_range;
   ControllerAvoidanceDetection avoidance;
 } ControllerNavigationPerceptionOutput;
 

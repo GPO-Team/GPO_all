@@ -71,7 +71,12 @@ void controller_navigation_tracking_compute(
                                             ? wrap_angle(input->heading_error_to_target +
                                                          input->lidar_heading_bias)
                                             : input->updated_heading_error;
-    if (fabs(preferred_turn_error) <= config->turn_exit_error_rad ||
+    const int prefer_arc_over_stop =
+        (input->lidar_caution_active || input->lidar_hard_priority) &&
+        fabs(preferred_turn_error) <= 1.35;
+
+    if (prefer_arc_over_stop ||
+        fabs(preferred_turn_error) <= config->turn_exit_error_rad ||
         input->distance_to_target <= config->track_slow_radius * 0.5) {
       mode = NAV_MODE_TRACK;
     } else {
@@ -92,8 +97,13 @@ void controller_navigation_tracking_compute(
     }
   }
 
+  const double effective_reenter_turn_rad =
+      input->lidar_caution_active
+          ? fmax(config->track_reenter_turn_rad, 1.35)
+          : config->track_reenter_turn_rad;
+
   if (!input->route_relaxed_mode &&
-      fabs(input->updated_heading_error) > config->track_reenter_turn_rad &&
+      fabs(input->updated_heading_error) > effective_reenter_turn_rad &&
       input->distance_to_target > config->track_slow_radius) {
     output->mode = NAV_MODE_TURN;
     output->action = CONTROLLER_NAVIGATION_TRACKING_TURN;
@@ -136,11 +146,17 @@ void controller_navigation_tracking_compute(
       !input->lidar_caution_active && !input->expected_zone_wall_slowdown;
   double heading_scale = clear_fast_tracking
                              ? clamp_value(1.0 - fabs(input->updated_heading_error) / 1.15, 0.45, 1.0)
-                             : clamp_value(1.0 - fabs(input->updated_heading_error) / 0.85, 0.22, 1.0);
+                             : clamp_value(1.0 - fabs(input->updated_heading_error) / 0.95, 0.32, 1.0);
   if (fabs(input->updated_heading_error) > config->turn_enter_error_rad) {
-    heading_scale = fmin(heading_scale, clear_fast_tracking ? 0.62 : 0.35);
+    heading_scale = fmin(heading_scale, clear_fast_tracking ? 0.62 : 0.42);
   }
   output->linear_speed = base_speed * heading_scale;
+  if (input->lidar_caution_active &&
+      input->distance_to_target > config->position_tolerance * 1.4) {
+    output->linear_speed = fmax(
+        output->linear_speed,
+        fmin(config->track_min_linear_speed * 0.85, input->runtime_linear_speed_limit));
+  }
   if (input->distance_to_target <= config->position_tolerance * 1.4) {
     output->linear_speed = fmin(output->linear_speed, 0.05);
   }

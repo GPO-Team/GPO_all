@@ -6,6 +6,8 @@
 typedef struct {
   const MapCell *map;
   int map_count;
+  const MapCell *camera_map;
+  int camera_count;
   const ObstacleTracePoint *trace;
   int trace_count;
   double now_time;

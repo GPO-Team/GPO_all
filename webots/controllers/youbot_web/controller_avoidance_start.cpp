@@ -22,12 +22,17 @@ int controller_avoidance_start(
       .right_clearance = fmax(
           input->detection->right_obstacle_range,
           input->detection->right_front_corner_range),
-      .switch_margin = config->switch_margin,
+      .switch_margin = config->switch_margin + 0.12,
       .priority_turn_sign = input->priority_turn_sign,
       .camera_turn_sign = input->camera_turn_sign,
       .heading_error = input->heading_error,
   };
   const double turn_sign = controller_avoidance_choose_turn_sign(&turn_input);
+  const int committed_hold =
+      config->initial_hold_steps < 65 ? 65 : config->initial_hold_steps;
+  const int priority_hold =
+      config->priority_hold_steps < 75 ? 75 : config->priority_hold_steps;
+
   controller_avoidance_state_begin(
       state,
       input->x,
@@ -35,7 +40,7 @@ int controller_avoidance_start(
       input->heading,
       input->target_distance,
       turn_sign,
-      config->initial_hold_steps);
+      committed_hold);
   controller_avoidance_set_detour(
       state,
       input->x,
@@ -45,6 +50,6 @@ int controller_avoidance_start(
       state->turn_sign,
       &config->detour);
   output->priority_turn_sign = state->turn_sign;
-  output->priority_hold_steps = config->priority_hold_steps;
+  output->priority_hold_steps = priority_hold;
   return 1;
 }

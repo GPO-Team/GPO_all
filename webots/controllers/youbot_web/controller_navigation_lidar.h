@@ -32,6 +32,7 @@ typedef struct {
   double expected_front_range;
   double current_priority_turn_sign;
   int current_priority_hold_steps;
+  double prev_heading_bias;
 } ControllerNavigationLidarInput;
 
 typedef struct {

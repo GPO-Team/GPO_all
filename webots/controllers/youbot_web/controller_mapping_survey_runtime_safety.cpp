@@ -9,6 +9,7 @@ static ControllerMappingObstacles obstacles_for(
     const ControllerMappingSurveySafetyContext *context) {
   return ControllerMappingObstacles{
       context->persistent_map, context->persistent_map_count,
+      context->camera_map, context->camera_map_count,
       context->obstacle_trace, context->obstacle_trace_count,
       context->now, context->trace_ttl_seconds, context->trace_clearance};
 }

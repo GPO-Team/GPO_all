@@ -220,19 +220,23 @@ static void run_control_cycle(void) {
       &object_transfer_runtime, wb_robot_get_time(), x, y, heading);
   const int transferring = object_transfer_runtime.service.state.status == CONTROLLER_TRANSFER_RUNNING;
   if(!transferring) controller_webots_motion_state_apply(&motion_state);
+  
   if(!transferring || object_transfer_runtime.service.state.stage != CONTROLLER_TRANSFER_TRANSPORTING) {
     webots_adapter.drive_config.acceleration_limit_rad_s2=control_config.drive.acceleration_limit_rad_s2;
     webots_adapter.drive_config.deceleration_limit_rad_s2=control_config.drive.deceleration_limit_rad_s2;
   }
-  control_config.navigation.runtime.position_tolerance = transferring ? 0.005 : 0.05;
-  control_config.navigation.runtime.heading_tolerance_rad = transferring ? 0.02 : 0.08;
-  control_config.navigation.tracking.position_tolerance = transferring ? 0.005 : 0.05;
-  control_config.navigation.tracking.heading_tolerance_rad = transferring ? 0.02 : 0.08;
+
+  control_config.navigation.runtime.position_tolerance = transferring ? 0.005 : 0.30;
+  control_config.navigation.runtime.heading_tolerance_rad = transferring ? 0.02 : 0.15;
+  control_config.navigation.tracking.position_tolerance = transferring ? 0.005 : 0.30;
+  control_config.navigation.tracking.heading_tolerance_rad = transferring ? 0.02 : 0.15;
+  
   if(transferring && (object_transfer_runtime.service.state.attached ||
       object_transfer_runtime.service.state.on_platform)) {
     active_linear_speed_limit = std::fmin(active_linear_speed_limit,0.08);
     active_angular_speed_limit = std::fmin(active_angular_speed_limit,0.25);
   }
+  
   if(transferring && (object_transfer_runtime.service.state.stage == CONTROLLER_TRANSFER_TRANSPORTING ||
       object_transfer_runtime.service.state.stage == CONTROLLER_TRANSFER_APPROACHING_OBJECT)) {
     if(!controller_object_transfer_runtime_allows_navigation(&object_transfer_runtime)) {
@@ -244,9 +248,12 @@ static void run_control_cycle(void) {
       return;
     }
     ControllerNavigationRouteOutput route_output={};
+
     const auto decision=controller_navigation_route_evaluate(&controller_runtime.route,
         &controller_runtime.current_waypoint_index,&controller_runtime.route_finished,
-        x,y,heading,0.005,0.02,&route_output);
+        x,y,heading,control_config.navigation.runtime.position_tolerance,
+        control_config.navigation.runtime.heading_tolerance_rad,&route_output);
+        
     if(decision==CONTROLLER_NAVIGATION_ROUTE_COMPLETED || decision==CONTROLLER_NAVIGATION_ROUTE_FINISHED) {
       controller_webots_devices_reset_wheels(&webots_devices); set_status("finished");
     } else {

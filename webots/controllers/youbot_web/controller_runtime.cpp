@@ -79,6 +79,21 @@ ControllerRuntimeNavigationResult controller_runtime_process_navigation_frame(
           frame->heading,
           config->relocation_distance,
           config->relocation_heading_rad);
+
+  const ControllerMappingObstacles empty_obstacles = {
+      .map = nullptr,
+      .map_count = 0,
+      .camera_map = nullptr,
+      .camera_count = 0,
+      .trace = nullptr,
+      .trace_count = 0,
+      .now_time = 0.0,
+      .trace_ttl_seconds = 0.0,
+      .min_trace_confidence = 0.0,
+  };
+  const ControllerMappingObstacles *obstacles =
+      frame->obstacles ? frame->obstacles : &empty_obstacles;
+
   const ControllerNavigationServiceFrameInput input = {
       .route = &runtime->route,
       .current_waypoint_index = &runtime->current_waypoint_index,
@@ -93,7 +108,11 @@ ControllerRuntimeNavigationResult controller_runtime_process_navigation_frame(
       .zone_clearance = config->zone_clearance,
       .mapping_survey = runtime->mapping_survey.route_active,
       .survey_room_zone_index = runtime->mapping_survey.room_zone_index,
+      .obstacles = obstacles,
+      .avoidance_stuck_steps = runtime->avoidance.stuck_steps,
+      .avoidance_stuck_limit = 220,
   };
+
   result.action = action_from_navigation_decision(
       controller_navigation_service_process_frame(&input, &result.navigation));
   result.target = result.navigation.route.route.target;
