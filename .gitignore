@@ -9,8 +9,6 @@ lerna-debug.log*
 
 node_modules
 .worktrees/
-.playwright-cli/
-output/playwright/
 tmp/
 dist
 dist-ssr
