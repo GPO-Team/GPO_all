@@ -11,7 +11,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/login" element={<Suspense fallback={null}><Login /></Suspense>} />
-      <Route path="/warehouse" element={<Suspense fallback={<div className="p-8 text-stone-600">Загрузка склада…</div>}><Warehouse /></Suspense>} />
+      <Route path="/warehouse" element={<RequireAuth><Suspense fallback={<div className="p-8 text-stone-600">Загрузка склада…</div>}><Warehouse /></Suspense></RequireAuth>} />
       <Route
         path="/dashboard"
         element={

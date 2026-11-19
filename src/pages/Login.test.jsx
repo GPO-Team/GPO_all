@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Login from "./Login";
 import RequireAuth from "../components/auth/RequireAuth";
 import { AUTH_ERROR_CODES, AuthError } from "../lib/auth/authApi";
-import { clearSession, getSession, saveSession } from "../lib/auth/authSession";
+import { clearSession, enterDemo, getSession, saveSession } from "../lib/auth/authSession";
 
 const setInput = (input, value) => {
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
@@ -127,9 +127,16 @@ describe("Login", () => {
     expect(button().textContent).toBe("Войти");
   });
 
-  it("keeps the dashboard open when sign-in is not required or a session exists", async () => {
+  it("requires an explicit demo choice and accepts an authenticated session", async () => {
+    await render(vi.fn(), { initialEntries: ["/dashboard"], required: false });
+    expect(field("login")).not.toBeNull();
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    enterDemo();
     await render(vi.fn(), { initialEntries: ["/dashboard"], required: false });
     expect(container.textContent).toBe("Планировщик");
+    await act(async () => root.unmount());
+    root = createRoot(container);
     saveSession({ token: "abc", user: { login: "operator" } });
     await render(vi.fn(), { initialEntries: ["/dashboard"], required: true });
     expect(container.textContent).toBe("Планировщик");

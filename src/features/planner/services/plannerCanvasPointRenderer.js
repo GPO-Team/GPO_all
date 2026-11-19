@@ -75,15 +75,15 @@ export const renderPlannerPointLayer = (ctx, state) => {
       ctx.textBaseline = "bottom";
       ctx.fillText(label, point.x + 14 / markerScale, point.y - 12 / markerScale);
     }
-    ctx.fillStyle = POINT_KIND_META.visit.color;
+    ctx.fillStyle = numbered ? "#a855f7" : "#14b8a6";
     ctx.beginPath();
-    ctx.arc(point.x, point.y, 13 / markerScale, 0, Math.PI * 2);
+    ctx.arc(point.x, point.y, 8 / markerScale, 0, Math.PI * 2);
     ctx.fill();
-    ctx.font = `700 ${12 / markerScale}px 'Segoe UI', sans-serif`;
+    ctx.font = `700 ${9 / markerScale}px 'Segoe UI', sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.lineWidth = 3 / markerScale;
-    ctx.strokeStyle = "rgba(0, 0, 0, 0.45)";
+    ctx.strokeStyle = "rgba(36, 30, 70, 0.5)";
     if(numbered)ctx.strokeText(String(entry.order), point.x, point.y);
     ctx.fillStyle = "#fff";
     if(numbered)ctx.fillText(String(entry.order), point.x, point.y);
@@ -95,12 +95,15 @@ export const renderPlannerRobot = (ctx, state, telemetry) => {
   if (state.mapLayers?.robot === false) return;
   const markerScale = state.markerScale || 1;
   const robot = worldToCanvas(telemetry.x, telemetry.y);
-  ctx.fillStyle = "#16a34a";
+  ctx.fillStyle = "#14b8a6";
   ctx.beginPath();
   ctx.arc(robot.x, robot.y, 11 / markerScale, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = "#1c1917";
-  ctx.lineWidth = 4 / markerScale;
+  ctx.strokeStyle = "#e6fffb";
+  ctx.lineWidth = 2 / markerScale;
+  ctx.stroke();
+  ctx.strokeStyle = "#123a4a";
+  ctx.lineWidth = 3 / markerScale;
   ctx.beginPath();
   ctx.moveTo(robot.x, robot.y);
   ctx.lineTo(robot.x + Math.cos(telemetry.yaw) * 24 / markerScale, robot.y - Math.sin(telemetry.yaw) * 24 / markerScale);

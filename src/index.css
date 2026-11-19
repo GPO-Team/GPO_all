@@ -150,3 +150,208 @@ html {
   .workspace-header { padding: 6px 8px; }
   .workspace-header button { padding: 7px; font-size: 11px; }
 }
+
+/* Shared interface surfaces and theme controls. The map canvas keeps its own colors. */
+.workspace-brand { color: #12345d; font-size: 19px; font-weight: 800; letter-spacing: .03em; padding: 0 12px 0 4px; }
+.theme-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 7px 11px; border: 1px solid #cbdbea; border-radius: 9px; background: #fff; color: #304961; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.theme-toggle:hover { background: #edf6fc; border-color: #82bdd2; }
+.theme-toggle:focus-visible { outline: 2px solid #078aa2; outline-offset: 2px; }
+.login-page { position: relative; background: #eef4f8; }
+.login-top { position: absolute; top: 20px; left: 24px; right: 24px; display: flex; align-items: center; justify-content: space-between; }
+.planner-workspace > div > main > nav { box-shadow: 0 1px 4px #0f172a0a; }
+.planner-workspace > div > main > nav > button[aria-pressed="true"] { background: #e5f4fa; border-color: #a8dbe7; color: #075b73; font-weight: 600; }
+
+html[data-theme="dark"] { color-scheme: dark; background: #0e1925 !important; color: #e6edf5 !important; }
+html[data-theme="dark"] body { background: #0e1925 !important; color: #e6edf5 !important; }
+html[data-theme="dark"] .login-page { background: #101d2a; color: #e6edf5; }
+html[data-theme="dark"] .workspace-brand { color: #e6f4fa; }
+html[data-theme="dark"] .theme-toggle { background: #1d3040; border-color: #3a5568; color: #e5f2f8; }
+html[data-theme="dark"] .theme-toggle:hover { background: #294658; }
+html[data-theme="dark"] .planner-sidebar,
+html[data-theme="dark"] .planner-workspace,
+html[data-theme="dark"] .bg-stone-100,
+html[data-theme="dark"] .bg-slate-100 { background: #101d2a !important; color: #e4edf4; }
+html[data-theme="dark"] .planner-sidebar { background-image: none !important; }
+html[data-theme="dark"] .bg-white,
+html[data-theme="dark"] [class~="bg-white/95"],
+html[data-theme="dark"] .panel-tabs,
+html[data-theme="dark"] .route-controls,
+html[data-theme="dark"] .map-settings,
+html[data-theme="dark"] .map-tools,
+html[data-theme="dark"] .help-trigger { background: #1b2b3a !important; border-color: #395063; color: #e5edf5; }
+html[data-theme="dark"] .bg-slate-50,
+html[data-theme="dark"] .bg-stone-50,
+html[data-theme="dark"] .bg-sky-50,
+html[data-theme="dark"] .map-layer-row,
+html[data-theme="dark"] .route-action { background: #243849; border-color: #42596b; color: #e2ebf3; }
+html[data-theme="dark"] .map-layer-row[data-enabled="true"],
+html[data-theme="dark"] .panel-tabs button[aria-pressed="true"],
+html[data-theme="dark"] .planner-workspace > div > main > nav > button[aria-pressed="true"] { background: #174553; border-color: #2a8190; color: #9af4ee; }
+html[data-theme="dark"] :is(.text-slate-900,.text-slate-800,.text-slate-700,.text-stone-900,.text-stone-800,.text-stone-700,.text-gray-900,.text-gray-800,.text-gray-700,.text-sky-900,.text-sky-800,.text-sky-700),
+html[data-theme="dark"] :is(.route-controls-title,.map-settings-title,.map-layer-label) { color: #e2ebf3 !important; }
+html[data-theme="dark"] :is(.text-slate-600,.text-slate-500,.text-stone-600,.text-stone-500,.text-gray-600,.text-gray-500,.map-layer-group-title) { color: #bacbd9 !important; }
+html[data-theme="dark"] :is(.border-slate-200,.border-sky-100,.border-sky-200,.border-stone-200,.border-stone-300) { border-color: #395063; }
+html[data-theme="dark"] :is(input:not([type="checkbox"]), select, textarea) { background-color: #142534 !important; border-color: #496171 !important; color: #eef6fa !important; }
+html[data-theme="dark"] input::placeholder, html[data-theme="dark"] textarea::placeholder { color: #a6bac9; }
+html[data-theme="dark"] .map-layer-icon { background: #152737; border-color: #3a5568; }
+html[data-theme="dark"] .map-tools button, html[data-theme="dark"] .panel-tabs button { color: #c3d4df; }
+html[data-theme="dark"] .map-tools button:hover, html[data-theme="dark"] .panel-tabs button:hover { background: #294658; color: #fff; }
+html[data-theme="dark"] .help-content { background: #213a4b; border-color: #486879; color: #e0eaf1; }
+html[data-theme="dark"] .help-title { color: #9be4ed; }
+html[data-theme="dark"] .route-action-primary { background: #087a8a; color: #fff; border-color: #168f9d; }
+html[data-theme="dark"] .route-action-danger { background: #542f3b; color: #ffd6dd; border-color: #9a4f62; }
+@media (max-width: 600px) { .theme-toggle span { display: none; } .workspace-brand { padding-right: 4px; } .login-top { left: 16px; right: 16px; } }
+html[data-theme="dark"] [aria-label="Метраж карты"] { color: #334155 !important; }
+
+/* Dashboard layout: shared navigation and compact, purpose-led side panels. */
+.app-header { display: flex; align-items: center; flex: none; gap: 20px; min-height: 58px; padding: 8px 20px; background: #fff; border-bottom: 1px solid #dbe5ef; }
+.app-brand { color: #12345d; font-size: 24px; font-weight: 800; letter-spacing: .03em; }
+.app-header-title { border-left: 1px solid #d7e2ed; padding-left: 20px; color: #27425f; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.app-nav-link { display: inline-flex; align-items: center; min-height: 38px; padding: 7px 12px; border: 1px solid #d4e3ee; border-radius: 8px; color: #315978; font-size: 13px; font-weight: 600; }
+.app-nav-link:hover { color: #076e85; background: #e8f5f8; }
+.app-header-spacer { flex: 1; }
+.workspace-body { gap: 8px; padding: 8px; background: #eaf0f5; }
+.workspace-panel { overflow: hidden; border: 1px solid #d9e4ec; border-radius: 10px; }
+.planner-sidebar-left { width: 322px; }
+.planner-sidebar-right { width: 322px; }
+.planner-sidebar { background: #f3f7fa; color: #21364f; font-size: 13px; }
+.sidebar-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px; border-bottom: 1px solid #dbe6ef; background: #fff; }
+.sidebar-eyebrow { color: #6a8399; font-size: 10px; font-weight: 700; letter-spacing: .11em; }
+.sidebar-title { color: #173550; font-size: 17px; font-weight: 750; line-height: 1.3; }
+.panel-tabs { gap: 3px; padding: 8px; background: #fff; }
+.panel-tabs button { min-width: 0; min-height: 36px; border-radius: 7px; padding: 7px 3px; font-size: 12px; }
+.planner-sidebar .text-xs { font-size: 12px; line-height: 1.45; }
+.planner-sidebar .text-sm { font-size: 13px; line-height: 1.4; }
+.planner-sidebar h3.text-sm { font-size: 14px; }
+.planner-sidebar input:not([type="checkbox"]), .planner-sidebar select { min-height: 38px; font-size: 13px; }
+.planner-sidebar :is(.point-setup,.route-controls,.map-settings,.planner-disclosure) { border-radius: 10px; box-shadow: none; }
+.point-setup { padding: 13px; }
+.point-modes button { min-height: 38px; font-weight: 600; line-height: 1.3; }
+.point-instruction { margin-top: 6px; }
+.route-controls { padding: 13px; }
+.route-controls-title { margin-bottom: 10px; font-size: 14px; }
+.route-actions { gap: 6px; }
+.route-action { flex-direction: row; min-height: 42px; padding: 8px; border-radius: 7px; font-size: 12px; }
+.route-action-icon { width: 16px; height: 16px; }
+.route-action-wide { min-height: 38px; }
+.workspace-body > main { overflow: hidden; border: 1px solid #d9e4ec; border-radius: 10px; background: #fff; }
+.workspace-viewbar { min-height: 52px; padding: 7px 10px; }
+.workspace-viewbar > button:not(.planner-panel-open) { font-size: 13px; }
+html[data-theme="dark"] .app-header, html[data-theme="dark"] .sidebar-heading { background: #172737; border-color: #34495b; }
+html[data-theme="dark"] .app-brand, html[data-theme="dark"] .sidebar-title { color: #e5f2f8; }
+html[data-theme="dark"] .app-header-title { border-color: #40586a; color: #c5d8e4; }
+html[data-theme="dark"] .app-nav-link { border-color: #40596b; color: #d7e9f1; }
+html[data-theme="dark"] .app-nav-link:hover { background: #294658; }
+html[data-theme="dark"] .sidebar-eyebrow { color: #9ab4c3; }
+html[data-theme="dark"] .workspace-body { background: #0f1c29; }
+html[data-theme="dark"] .workspace-panel, html[data-theme="dark"] .workspace-body > main { border-color: #34495b; }
+html[data-theme="dark"] .sidebar-heading button { color: #d7e8f1 !important; }
+@media (max-width: 1199px) {
+  .workspace-panel { top: 8px; bottom: 8px; height: auto; }
+  .workspace-panel-left { left: 8px; }
+  .workspace-panel-right { right: 8px; }
+  .planner-sidebar { width: min(322px, calc(100vw - 32px)); }
+}
+@media (max-width: 600px) {
+  .app-header { gap: 10px; padding: 7px 10px; }
+  .app-header-title { display: none; }
+  .app-nav-link { font-size: 12px; padding: 6px 8px; }
+  .workspace-body { padding: 5px; gap: 5px; }
+}
+.planner-sidebar :is([class~="rounded-2xl"], [class~="rounded-[18px]"]) { border-radius: 10px; box-shadow: none; }
+.planner-sidebar :is(button, input, select) { border-radius: 7px; }
+html[data-theme="dark"] .point-modes button[aria-pressed="true"] { background: #174553 !important; border-color: #41b0b6 !important; color: #a5f3ed !important; }
+html[data-theme="dark"] [aria-label="Метраж карты"] { color: #c5dbe8 !important; }
+.login-demo { margin-top: 12px; padding: 16px; border: 1px solid #cddde7; border-radius: 12px; background: #fff; color: #536b7d; font-size: 13px; line-height: 1.5; }
+.login-demo button { width: 100%; margin-top: 10px; padding: 10px; border: 1px solid #8cc5d3; border-radius: 8px; background: #e8f6f7; color: #075d70; font-weight: 650; }
+.login-demo button:hover { background: #d9f0f2; }
+html[data-theme="dark"] .login-demo { border-color: #3a5568; background: #1b2b3a; color: #d4e4ed; }
+html[data-theme="dark"] .login-demo button { border-color: #35828e; background: #174553; color: #a5f3ed; }
+/* Login shares the dashboard palette and keeps the illustration decorative. */
+.login-page { overflow: hidden; min-height: 100dvh; padding: 88px 28px 48px; background: #edf4f8; }
+.login-top { z-index: 1; top: 24px; left: clamp(24px, 5vw, 72px); right: clamp(24px, 5vw, 72px); }
+.login-top .workspace-brand { font-size: 25px; letter-spacing: .04em; }
+.login-layout { display: grid; grid-template-columns: minmax(300px, 390px) minmax(300px, 520px); align-items: center; gap: clamp(40px, 8vw, 120px); width: min(100%, 1030px); }
+.login-form-column { width: 100%; min-width: 0; }
+.login-card { padding: 32px; border-color: #d9e7ef; border-radius: 14px; box-shadow: 0 14px 40px #29465b12; }
+.login-card h1 { font-size: 25px; font-weight: 700; color: #173550; }
+.login-card label { font-size: 13px; color: #405d72; }
+.login-card input { min-height: 44px; border-radius: 8px; }
+.login-card button[type="submit"] { min-height: 44px; border-radius: 8px; background: #087f91; }
+.login-card button[type="submit"]:hover { background: #096b7a; }
+.login-demo { border-radius: 12px; }
+.login-visual { display: flex; align-items: center; justify-content: center; min-width: 0; }
+.login-arm { width: min(100%, 520px); height: auto; filter: drop-shadow(0 22px 24px #0b34471c); }
+.arm-guides { color: #91b9c7; opacity: .65; }
+html[data-theme="dark"] .login-page { background: #0c1b28; }
+html[data-theme="dark"] .login-card { border-color: #345767; box-shadow: 0 18px 50px #020a1150; }
+html[data-theme="dark"] .login-card button[type="submit"] { background: #13bdb8; color: #082e36; }
+html[data-theme="dark"] .login-card button[type="submit"]:hover { background: #43ddd5; }
+html[data-theme="dark"] .arm-guides { color: #4a8996; opacity: .55; }
+@media (max-width: 760px) {
+  .login-page { padding: 90px 20px 32px; }
+  .login-layout { grid-template-columns: minmax(0, 420px); justify-content: center; gap: 18px; }
+  .login-form-column { order: 2; }
+  .login-visual { order: 1; }
+  .login-arm { width: min(44vw, 185px); }
+  .login-card { padding: 24px; }
+}
+@media (max-height: 700px) and (min-width: 761px) { .login-arm { width: min(70vh, 460px); } }
+/* Technical login composition. */
+.login-page {
+  background-color: #eef6f9;
+  background-image: linear-gradient(#83b1c11a 1px, transparent 1px), linear-gradient(90deg, #83b1c11a 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+.login-layout { grid-template-columns: minmax(310px, 420px) minmax(320px, 560px); gap: clamp(16px, 4vw, 65px); width: min(100%, 1100px); }
+.login-card { border-color: #8fcbd0; border-radius: 12px; background: #f9fcfd !important; }
+.login-card h1 { margin-bottom: 26px; }
+.login-visual { align-self: end; overflow: visible; }
+.login-arm { width: min(100%, 560px); max-height: min(70vh, 560px); filter: drop-shadow(0 12px 20px #0b34471c); }
+.arm-guides { color: #2b9aa7; opacity: .7; }
+html[data-theme="dark"] .login-page {
+  background-color: #0d202b;
+  background-image: linear-gradient(#7fcdd41c 1px, transparent 1px), linear-gradient(90deg, #7fcdd41c 1px, transparent 1px);
+}
+html[data-theme="dark"] .login-card { background: #142a36 !important; border-color: #2bc1c2; }
+html[data-theme="dark"] .login-card input { background: #223a46 !important; border-color: #557a86 !important; }
+html[data-theme="dark"] .login-card button[type="submit"] { background: #26e3d4; color: #062d34; }
+html[data-theme="dark"] .arm-guides { color: #42d8d1; opacity: .65; }
+@media (max-width: 760px) {
+  .login-layout { grid-template-columns: minmax(0, 420px); gap: 8px; }
+  .login-arm { width: min(49vw, 205px); max-height: 190px; }
+  .login-card h1 { margin-bottom: 12px; }
+}
+
+/* Reference-inspired technical login screen. */
+.login-page { background-color: #f1f8fb; background-size: 42px 42px; }
+.login-top { top: 24px; left: clamp(24px, 5vw, 72px); right: clamp(24px, 5vw, 72px); }
+.login-brand { display: inline-flex; align-items: center; gap: 8px; color: #123e61; font-size: 26px; font-weight: 800; letter-spacing: .02em; }
+.login-brand svg { width: 35px; height: 35px; color: #058a9b; }
+.login-layout { width: min(100%, 1160px); grid-template-columns: minmax(320px, 440px) minmax(0, 1fr); gap: clamp(12px, 3vw, 48px); }
+.login-card { padding: 28px; border-radius: 12px; }
+.login-card h1 { margin: 24px 0 0; font-size: 27px; }
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #c9dce4; font-size: 13px; font-weight: 600; text-align: center; }
+.auth-tabs span { padding: 10px 4px; }
+.auth-tab-active { border-bottom: 2px solid #008ea2; color: #007a91; background: #e8f5f7; }
+.auth-tab-unavailable { color: #718998; }
+.login-demo { margin: 20px 0 0; padding: 14px 0 0; border: 0; border-top: 1px solid #d3e3e9; border-radius: 0; background: transparent; }
+.login-demo p { font-size: 12px; }
+.login-visual { position: relative; align-self: center; width: 100%; }
+.login-arm { width: 100%; max-height: none; filter: none; }
+html[data-theme="dark"] .login-page { background-color: #0d202b; }
+html[data-theme="dark"] .login-brand { color: #f1fbff; }
+html[data-theme="dark"] .login-brand svg { color: #38e2d6; }
+html[data-theme="dark"] .auth-tabs { border-color: #315662; }
+html[data-theme="dark"] .auth-tab-active { border-color: #27e2d4; background: #174551; color: #5ff8ed; }
+html[data-theme="dark"] .auth-tab-unavailable { color: #b2c5cf; }
+html[data-theme="dark"] .login-demo { background: transparent; border-color: #31515e; }
+@media (max-width: 760px) {
+  .login-page { padding-top: 82px; }
+  .login-layout { grid-template-columns: minmax(0, 440px); gap: 4px; }
+  .login-visual { order: 0; }
+  .login-form-column { order: 1; }
+  .login-arm { width: min(78vw, 340px); max-height: 210px; object-fit: contain; }
+  .login-card { padding: 22px; }
+  .login-card h1 { margin-top: 16px; }
+}

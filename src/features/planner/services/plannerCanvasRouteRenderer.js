@@ -16,10 +16,12 @@ export const renderPlannerLidarTrace = (ctx, obstacleTrace = [], enabled = false
   });
 };
 
-export const renderPlannerRouteLayer = (ctx, { optimizedRoute, routeBlocked }) => {
+export const renderPlannerRouteLayer = (ctx, { optimizedRoute, routeBlocked, viewScale = 1 }) => {
   if (optimizedRoute.length <= 1) return;
-  ctx.strokeStyle = routeBlocked ? "#dc2626" : "#0f766e";
-  ctx.lineWidth = 5;
+  ctx.strokeStyle = routeBlocked ? "#dc2626" : "#a855f7";
+  ctx.lineWidth = 2.5 / viewScale;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
   ctx.beginPath();
   optimizedRoute.forEach((point, index) => {
     const currentPoint = worldToCanvas(point.x, point.y);

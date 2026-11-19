@@ -23,7 +23,7 @@ const validate = (login, password) => {
   return null;
 };
 
-export default function LoginForm({ onSubmit, hint = null }) {
+export default function LoginForm({ onSubmit, hint = null, onDemo = null }) {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -54,9 +54,12 @@ export default function LoginForm({ onSubmit, hint = null }) {
   const invalid = (field) => (error?.fields.includes(field) ? "true" : undefined);
 
   return (
-    <form className={cardCls} onSubmit={handleSubmit} noValidate aria-busy={loading || undefined}>
+    <form className={`${cardCls} login-card`} onSubmit={handleSubmit} noValidate aria-busy={loading || undefined}>
+      <div className="auth-tabs" aria-label="Авторизация">
+        <span className="auth-tab-active" aria-current="page">Вход</span>
+        <span className="auth-tab-unavailable" title="Регистрация пока не подключена">Регистрация · скоро</span>
+      </div>
       <h1 className="text-xl font-semibold text-stone-900">Вход</h1>
-      <p className="mt-1 text-sm text-stone-500">Планировщик маршрута робота</p>
 
       <label className="mt-5 block text-xs font-semibold text-stone-600" htmlFor="login-name">Логин</label>
       <input id="login-name" name="login" type="text" autoComplete="username" autoFocus
@@ -82,6 +85,10 @@ export default function LoginForm({ onSubmit, hint = null }) {
       </button>
 
       {hint && <p className="mt-3 text-xs text-stone-500">{hint}</p>}
+      {onDemo && <div className="login-demo">
+        <p>Регистрация и сервер авторизации пока не подключены.</p>
+        <button type="button" onClick={onDemo}>Открыть проект в тестовом режиме</button>
+      </div>}
     </form>
   );
 }

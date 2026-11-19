@@ -1,4 +1,6 @@
 import { Link } from "react-router-dom";
+import ThemeToggle from "../components/ThemeToggle";
+import { clearSession } from "../lib/auth/authSession";
 import WarehouseWorkspace from "@/features/warehouse/WarehouseWorkspace";
 
 export default function Warehouse() {
@@ -22,7 +24,9 @@ export default function Warehouse() {
               </h1>
             </div>
           </div>
-          <nav aria-label="Основная навигация" className="flex gap-4 text-sm">
+          <nav aria-label="Основная навигация" className="flex flex-wrap items-center gap-4 text-sm">
+            <ThemeToggle />
+            <a href="/login" onClick={clearSession} className="app-nav-link">Выйти</a>
             <Link to="/" className="!text-stone-500 hover:!text-slate-900">
               Главная
             </Link>

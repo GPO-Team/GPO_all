@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import ThemeToggle from "../../components/ThemeToggle";
+import { clearSession } from "../../lib/auth/authSession";
 import PlannerCanvas from "../../components/dashboard/PlannerCanvas";
 import PlannerLeftSidebar from "../../components/dashboard/PlannerLeftSidebar";
 import PlannerRightSidebar from "../../components/dashboard/PlannerRightSidebar";
@@ -33,8 +35,16 @@ export default function DashboardPlannerWorkspace({
     setSidebarCollapsed(side, open);
   };
   return (
-    <div className="planner-workspace flex overflow-hidden bg-slate-100 text-slate-900">
-      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+    <div className="planner-workspace flex flex-col overflow-hidden bg-slate-100 text-slate-900">
+      <header className="app-header">
+        <span className="app-brand">GPO</span>
+        <span className="app-header-title">Планировщик маршрута</span>
+        <a href="/warehouse" className="app-nav-link">Склад и размещение</a>
+        <div className="app-header-spacer" />
+        <ThemeToggle />
+        <a className="app-nav-link" href="/login" onClick={clearSession}>Выйти</a>
+      </header>
+      <div className="relative flex min-h-0 flex-1 overflow-hidden workspace-body">
         <div
           hidden={!leftOpen}
           id="planner-left-panel"
@@ -47,7 +57,7 @@ export default function DashboardPlannerWorkspace({
         </div>
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">
           <nav
-            className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-3 py-2"
+            className="workspace-viewbar flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-3 py-2"
             aria-label="Рабочее окно"
           >
             {!leftOpen && (
@@ -81,12 +91,6 @@ export default function DashboardPlannerWorkspace({
             >
               Симуляция · крупный вид
             </button>
-            <a
-              href="/warehouse"
-              className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm font-semibold !text-orange-800"
-            >
-              Склад и размещение
-            </a>
             <div className="ml-auto flex items-center gap-3">
               {canvasProps.editingLocked && !canvasProps.isOptimizing && (
                 <span role="status" className="text-xs text-amber-800">

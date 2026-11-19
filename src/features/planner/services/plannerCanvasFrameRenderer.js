@@ -10,16 +10,16 @@ export const renderPlannerCanvasScene = (ctx, state) => {
   drawPlannerBackground(ctx, [], {
     annotate: layers.axes === true, border: false, grid: layers.grid !== false,
     axisLabels: layers.axisLabels !== false,
-    viewScale: state.viewScale,
+    viewScale: state.viewScale, dark: state.dark,
   });
   renderPlannerSensorLayers(ctx, {
     obstacleMap: layers.lidar === false ? null : state.obstacleMap,
     cameraMap: layers.lidar === false ? null : state.cameraMap,
   });
   if (layers.lidarTrace !== false) renderPlannerLidarTrace(ctx, state.obstacleTrace, true);
-  if (layers.zones !== false) renderPlannerZoneLayer(ctx, state.zoneEntries);
+  if (layers.zones !== false) renderPlannerZoneLayer(ctx, state.zoneEntries, state.viewScale, state.dark);
   if (layers.route !== false) renderPlannerRouteLayer(ctx, state);
-  if (layers.runtimeObstacles !== false) renderPlannerRuntimeObstacles(ctx, state.runtimeObstacles, state.viewScale, state.activeRuntimeObstacleId);
+  if (layers.runtimeObstacles !== false) renderPlannerRuntimeObstacles(ctx, state.runtimeObstacles, state.viewScale, state.activeRuntimeObstacleId, state.dark);
   renderPlannerPointLayer(ctx, {
     ...state,
     visitEntries: layers.visits === false ? [] : state.visitEntries,

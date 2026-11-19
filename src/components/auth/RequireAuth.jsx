@@ -1,10 +1,10 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { AUTH_REQUIRED } from "../../lib/runtimeConfig";
-import { getSession } from "../../lib/auth/authSession";
+import { getSession, hasDemo } from "../../lib/auth/authSession";
 
-// Пока VITE_AUTH_REQUIRED не включён, маршруты открыты как раньше.
+// Demo access is available only when server authentication is not required.
 export default function RequireAuth({ children, required = AUTH_REQUIRED }) {
   const location = useLocation();
-  if (!required || getSession()) return children;
+  if (getSession() || (!required && hasDemo())) return children;
   return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />;
 }

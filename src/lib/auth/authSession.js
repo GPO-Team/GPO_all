@@ -7,6 +7,8 @@
 export const SESSION_STORAGE_KEY = "gpo.auth.session";
 
 let memorySession = null;
+let memoryDemo = false;
+const DEMO_STORAGE_KEY = "gpo.demo.active";
 
 const storage = () => {
   try {
@@ -38,6 +40,15 @@ export function getSession(now = Date.now()) {
   return session;
 }
 
+export function enterDemo() {
+  memoryDemo = true;
+  try { storage()?.setItem(DEMO_STORAGE_KEY, "1"); } catch { /* Session remains in memory. */ }
+}
+
+export function hasDemo() {
+  try { return memoryDemo || storage()?.getItem(DEMO_STORAGE_KEY) === "1"; } catch { return memoryDemo; }
+}
+
 export function saveSession({ token, expiresAt = null, user = {} }) {
   const session = { token, expiresAt, login: user.login || "" };
   memorySession = session;
@@ -51,7 +62,9 @@ export function saveSession({ token, expiresAt = null, user = {} }) {
 
 export function clearSession() {
   memorySession = null;
+  memoryDemo = false;
   try {
+    storage()?.removeItem(DEMO_STORAGE_KEY);
     storage()?.removeItem(SESSION_STORAGE_KEY);
   } catch {
     // нечего очищать

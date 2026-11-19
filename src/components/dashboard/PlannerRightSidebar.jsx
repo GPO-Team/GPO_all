@@ -10,11 +10,11 @@ export default function PlannerRightSidebar({
   mapLayers, onMapLayerChange,
 }) {
   const [tab, setTab] = useState("telemetry");
-  return <aside className="planner-sidebar planner-sidebar-right flex h-full min-h-0 w-[360px] min-w-[360px] max-w-[360px] flex-none flex-col overflow-hidden border-l border-sky-100 bg-gradient-to-b from-sky-50 via-white to-cyan-50">
-    <div className="flex shrink-0 items-start justify-between gap-2 border-b border-sky-200 bg-white px-3 py-2">
+  return <aside className="planner-sidebar planner-sidebar-right flex h-full min-h-0 flex-none flex-col overflow-hidden">
+    <div className="sidebar-heading">
       <div className="min-w-0 pt-0.5">
-        <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-sky-800">Робот и карта</div>
-        <div className="truncate text-base font-bold text-slate-900">Наблюдение и настройки</div>
+        <div className="sidebar-eyebrow">СОСТОЯНИЕ РОБОТА</div>
+        <div className="sidebar-title">Наблюдение</div>
       </div>
       {onCollapse && <button type="button" title="Свернуть правую панель" aria-label="Свернуть правую панель"
         onClick={onCollapse} className="shrink-0 rounded-lg border border-sky-200 bg-white px-2 py-1.5 text-sky-700 shadow-sm hover:bg-sky-50">
@@ -29,6 +29,7 @@ export default function PlannerRightSidebar({
     </nav>
     <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-3">
       <div id="planner-right-telemetry" hidden={tab !== "telemetry"} className="space-y-3">
+        <PlannerTelemetrySection telemetry={telemetry} telemetryWsUp={telemetryWsUp} routeWsUp={routeWsUp} solverApiUp={solverApiUp} />
         <PlannerManipulatorSection
           telemetry={telemetry}
           connected={telemetryWsUp}
@@ -39,7 +40,6 @@ export default function PlannerRightSidebar({
           onResume={onResumeMission}
           editingLocked={editingLocked}
         />
-        <PlannerTelemetrySection telemetry={telemetry} telemetryWsUp={telemetryWsUp} routeWsUp={routeWsUp} solverApiUp={solverApiUp} />
       </div>
       <div id="planner-right-map" hidden={tab !== "map"} className="space-y-3">
         <PlannerMapSection mapLayers={mapLayers} onMapLayerChange={onMapLayerChange} />
