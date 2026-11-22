@@ -109,6 +109,7 @@ controller_webots_camera_range.cpp
 controller_webots_devices.cpp
 controller_webots_motion_state.cpp
 controller_webots_object_adapter.cpp
+controller_webots_object_naming.cpp
 controller_webots_pose.cpp
 controller_webots_sensors.cpp
 controller_webots_simulation.cpp

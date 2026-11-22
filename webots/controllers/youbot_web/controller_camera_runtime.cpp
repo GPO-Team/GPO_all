@@ -16,6 +16,11 @@
 #include <cmath>
 #include <string.h>
 
+namespace {
+ControllerPerceptionCameraObservation s_held_observation = {};
+int s_held_observation_frames = 0;
+}
+
 static ControllerWebotsCameraMapSyncContext camera_map_sync_context(void) {
   double robot_x = 0.0;
   double robot_y = 0.0;
@@ -130,50 +135,55 @@ static void update_obstacle_hint(ControllerCameraRuntime *runtime) {
       runtime->config.min_obstacle_score,
       &result);
 
+  double robot_x = 0.0;
+  double robot_z = 0.0;
+  double robot_heading = 0.0;
+  if (runtime->operations.read_pose) {
+    runtime->operations.read_pose(runtime->operations.context, &robot_x, &robot_z, &robot_heading);
+  } else {
+    read_pose(&robot_x, &robot_z, &robot_heading);
+  }
+
+  const float *lidar_ranges =
+      (runtime->perception->lidar.available && controller_webots_sensors_has_lidar(runtime->sensors))
+          ? controller_webots_sensors_lidar_ranges(runtime->sensors)
+          : nullptr;
+
+  controller_webots_camera_perception_fuse_lidar(
+      &result,
+      lidar_ranges,
+      runtime->perception->lidar.resolution,
+      runtime->perception->lidar.fov,
+      runtime->config.range_search_window,
+      runtime->config.min_trace_range,
+      runtime->config.max_trace_range,
+      LIDAR_LOCAL_X,
+      LIDAR_LOCAL_Y,
+      robot_x,
+      robot_z,
+      robot_heading,
+      camera_time(runtime));
+
   ControllerPerceptionCameraObservation observation = {
       .score = 0.0,
       .update_step = step,
   };
 
-  double lidar_confirmed_range = 0.0;
-  const int lidar_covers_angle =
-      runtime->perception->lidar.available &&
-      runtime->perception->lidar.resolution > 1 &&
-      runtime->perception->lidar.fov > 1e-9 &&
-      fabs(result.angle) <=
-          (0.5 * runtime->perception->lidar.fov + runtime->config.range_search_window);
-
-  const int lidar_confirmed =
-      result.visible &&
-      controller_webots_camera_confirmed_range_from_lidar(
-          runtime->sensors,
-          runtime->perception->lidar.available,
-          runtime->perception->lidar.resolution,
-          runtime->perception->lidar.fov,
-          result.angle,
-          runtime->config.range_search_window,
-          runtime->config.min_trace_range,
-          runtime->config.max_trace_range,
-          &lidar_confirmed_range);
-
-  if (result.visible && (!lidar_covers_angle || lidar_confirmed)) {
-    if (result.fallback_range_m <= 0.05) {
-      result.fallback_range_m = runtime->config.range_fallback;
-    }
-
-    if (lidar_confirmed) {
-      controller_webots_camera_perception_confirm_range(&result, lidar_confirmed_range);
-    }
+  if (result.visible) {
+    const double resolved_range = clamp_value(
+        result.fallback_range_m > 0.05 ? result.fallback_range_m : runtime->config.range_fallback,
+        runtime->config.min_trace_range,
+        runtime->config.max_trace_range);
 
     observation.visible = 1;
     observation.score = result.score;
     observation.center_offset = result.center_offset;
     observation.angle = result.angle;
-    observation.range = clamp_value(
-        lidar_confirmed ? lidar_confirmed_range : result.fallback_range_m,
-        runtime->config.min_trace_range,
-        runtime->config.max_trace_range);
+    observation.range = resolved_range;
     observation.detection_count = result.detection_count;
+
+    s_held_observation = observation;
+    s_held_observation_frames = 2;
 
     merge_visible_frustum(
         runtime,
@@ -195,13 +205,19 @@ static void update_obstacle_hint(ControllerCameraRuntime *runtime) {
           result.confidence_boost > 0 ? result.confidence_boost : 2);
     }
   } else {
+    if (s_held_observation_frames > 0) {
+      --s_held_observation_frames;
+      observation = s_held_observation;
+      observation.update_step = step;
+      observation.score = fmax(0.75, observation.score - 0.03);
+    }
     merge_visible_frustum(
         runtime,
         effective_fov,
         runtime->config.range_fallback,
-        0,
-        0.0,
-        runtime->config.max_trace_range);
+        observation.visible,
+        observation.angle,
+        observation.visible ? observation.range : runtime->config.max_trace_range);
   }
 
   controller_perception_runtime_update_camera(runtime->perception, &observation);

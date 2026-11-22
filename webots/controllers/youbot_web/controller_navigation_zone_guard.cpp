@@ -17,8 +17,8 @@ ControllerNavigationZoneDecision controller_navigation_zone_guard_evaluate(
   if (!target) return CONTROLLER_NAVIGATION_ZONE_CLEAR;
 
   const double dist_to_target = hypot(target->x - current_x, target->z - current_z);
-  if (obstacles && dist_to_target <= 1.8 &&
-      controller_mapping_obstacles_known_near(obstacles, target->x, target->z, 0.24)) {
+  if (obstacles && dist_to_target <= 1.45 &&
+      controller_mapping_obstacles_known_near(obstacles, target->x, target->z, 0.46)) {
     return has_next_waypoint ? CONTROLLER_NAVIGATION_ZONE_SKIP_BLOCKED_TARGET
                              : CONTROLLER_NAVIGATION_ZONE_BLOCKED_TARGET;
   }

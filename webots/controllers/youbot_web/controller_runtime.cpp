@@ -1,5 +1,6 @@
 #include "controller_runtime.h"
 
+#include <cmath>
 #include <string.h>
 
 void controller_runtime_init(ControllerRuntime *runtime) {
@@ -94,6 +95,16 @@ ControllerRuntimeNavigationResult controller_runtime_process_navigation_frame(
   const ControllerMappingObstacles *obstacles =
       frame->obstacles ? frame->obstacles : &empty_obstacles;
 
+  const double strict_center_tolerance =
+      (config->position_tolerance > 0.0)
+          ? fmax(config->position_tolerance, 0.045)
+          : 0.045;
+
+  const double target_obstacle_clearance =
+      (config->zone_clearance > 0.0)
+          ? fmin(config->zone_clearance, 0.13)
+          : 0.13;
+
   const ControllerNavigationServiceFrameInput input = {
       .route = &runtime->route,
       .current_waypoint_index = &runtime->current_waypoint_index,
@@ -102,10 +113,10 @@ ControllerRuntimeNavigationResult controller_runtime_process_navigation_frame(
       .x = frame->x,
       .z = frame->z,
       .heading = frame->heading,
-      .position_tolerance = config->position_tolerance,
+      .position_tolerance = strict_center_tolerance,
       .heading_tolerance_rad = config->heading_tolerance_rad,
       .zones = &runtime->limit_zones,
-      .zone_clearance = config->zone_clearance,
+      .zone_clearance = target_obstacle_clearance,
       .mapping_survey = runtime->mapping_survey.route_active,
       .survey_room_zone_index = runtime->mapping_survey.room_zone_index,
       .obstacles = obstacles,

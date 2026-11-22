@@ -41,7 +41,7 @@ int controller_mapping_obstacles_known_near(
     const ControllerMappingObstacles *obstacles, double x, double y, double clearance) {
   if (!obstacles) return 0;
   const double clearance_squared = clearance * clearance;
-  const double core_radius = fmin(clearance * 0.65, 0.22);
+  const double core_radius = fmin(clearance * 0.75, 0.11);
   const double core_squared = core_radius * core_radius;
   int confirmed_hits = 0;
 
@@ -53,7 +53,7 @@ int controller_mapping_obstacles_known_near(
       if (dist_sq <= core_squared) return 1;
       if (dist_sq <= clearance_squared) {
         ++confirmed_hits;
-        if (confirmed_hits >= 2) return 1;
+        if (confirmed_hits >= 3) return 1;
       }
     }
   }
@@ -70,7 +70,7 @@ int controller_mapping_obstacles_known_near(
       const double dy = obstacles->trace[i].y - y;
       if (dx * dx + dy * dy <= clearance_squared) {
         ++confirmed_hits;
-        if (confirmed_hits >= 2) return 1;
+        if (confirmed_hits >= 3) return 1;
       }
     }
   }

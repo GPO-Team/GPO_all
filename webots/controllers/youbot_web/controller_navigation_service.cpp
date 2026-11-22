@@ -1,5 +1,6 @@
 #include "controller_navigation_service.h"
 
+#include <cmath>
 #include <string.h>
 
 ControllerNavigationSessionDecision controller_navigation_service_begin_step(
@@ -116,6 +117,7 @@ ControllerNavigationServiceFrameDecision controller_navigation_service_process_f
           input->position_tolerance,
           input->heading_tolerance_rad,
           &output->route);
+
   output->route_decision = route_decision;
   if (route_decision == CONTROLLER_NAVIGATION_ROUTE_COMPLETED) {
     return CONTROLLER_NAVIGATION_FRAME_ROUTE_COMPLETED;
