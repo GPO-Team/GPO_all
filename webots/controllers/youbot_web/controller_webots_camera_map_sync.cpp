@@ -3,6 +3,15 @@
 #include "controller_camera_map.h"
 #include "controller_math.h"
 
+#include <cmath>
+
+namespace {
+constexpr double kMinValidCameraMapRangeM = 0.10;
+constexpr double kMaxValidCameraMapRangeM = 1.25;
+constexpr double kUnconfirmedFallbackRangeM = 1.55;
+constexpr int kMinCameraMapConfidenceBoost = 2;
+}
+
 static int context_has_storage(const ControllerWebotsCameraMapSyncContext *context) {
   return context && context->obstacles && context->obstacle_count &&
          context->obstacle_capacity > 0 && context->free_cells && context->free_count &&
@@ -48,6 +57,15 @@ int controller_webots_camera_map_sync_observation(
     int confidence_boost) {
   if (!context_has_storage(context) || !controller_math_is_finite(relative_angle) ||
       !controller_math_is_finite(range)) {
+    return 0;
+  }
+  if (confidence_boost < kMinCameraMapConfidenceBoost) {
+    return 0;
+  }
+  if (range < kMinValidCameraMapRangeM || range > kMaxValidCameraMapRangeM) {
+    return 0;
+  }
+  if (fabs(range - kUnconfirmedFallbackRangeM) < 1e-3) {
     return 0;
   }
 

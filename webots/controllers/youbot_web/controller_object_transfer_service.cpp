@@ -2,23 +2,28 @@
 #include <cstdio>
 #include <cstring>
 #include <cmath>
+
 namespace {
 constexpr double kTimeout = 30.0;
+
 void enter(ControllerObjectTransferState *s, ControllerObjectTransferStage stage, double now) {
   static const int progress[] = {0,5,10,16,22,28,34,39,44,50,65,70,76,82,90,96};
   s->stage = stage; s->stage_started_at = now; s->progress = progress[stage];
   if(stage==CONTROLLER_TRANSFER_APPROACHING_OBJECT || stage==CONTROLLER_TRANSFER_TRANSPORTING)
     s->navigation_last_progress_at=now;
 }
+
 void fault(ControllerObjectTransferState *s, const char *code) {
   if((s->attached || s->on_platform) && s->status!=CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY) ++s->recovery_epoch;
   s->status = (s->attached || s->on_platform) ? CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY : CONTROLLER_TRANSFER_FAILED;
   std::snprintf(s->error_code, sizeof(s->error_code), "%s", code);
 }
 }
+
 void controller_object_transfer_service_init(ControllerObjectTransferService *s) {
   if (s) std::memset(s, 0, sizeof(*s));
 }
+
 int controller_object_transfer_service_start(ControllerObjectTransferService *service,
     const char *id, const char *object, double x, double y, double now) {
   if (!service || !id || !object || !std::isfinite(x) || !std::isfinite(y) ||
@@ -33,6 +38,7 @@ int controller_object_transfer_service_start(ControllerObjectTransferService *se
   s->navigation_timeout=180;
   enter(s,CONTROLLER_TRANSFER_APPROACHING_OBJECT,now); return 1;
 }
+
 void controller_object_transfer_service_step(ControllerObjectTransferService *service,
     const ControllerObjectTransferInput *in, double now, ControllerObjectTransferOutput *out) {
   if (!service || !in || !out) return;
@@ -60,28 +66,34 @@ void controller_object_transfer_service_step(ControllerObjectTransferService *se
       out->request_navigation=1;
       if(in->navigation_reached) enter(s,CONTROLLER_TRANSFER_ALIGNING,now);
       else if(now-s->navigation_last_progress_at>60) fault(s,"navigation_stalled");
-      else if(elapsed>s->navigation_timeout) fault(s,"navigation_failed"); break;
+      else if(elapsed>s->navigation_timeout) fault(s,"navigation_failed");
+      break;
     case CONTROLLER_TRANSFER_ALIGNING:
       if(in->base_aligned) enter(s,CONTROLLER_TRANSFER_LOWERING_ARM,now);
       else if(elapsed>kTimeout && s->alignment_retries++==0) s->stage_started_at=now;
-      else if(elapsed>kTimeout) fault(s,"alignment_failed"); break;
+      else if(elapsed>kTimeout) fault(s,"alignment_failed");
+      break;
     case CONTROLLER_TRANSFER_LOWERING_ARM:
       out->request_arm_pose=1;
       if(in->arm_reached) enter(s,CONTROLLER_TRANSFER_GRASPING,now);
-      else if(elapsed>kTimeout) fault(s,"arm_timeout"); break;
+      else if(elapsed>kTimeout) fault(s,"arm_timeout");
+      break;
     case CONTROLLER_TRANSFER_GRASPING:
       out->close_gripper=1;
       if(in->arm_reached && in->grasp_valid) {
         out->attach_object=1; s->attached=1; s->gripper_closed=1; enter(s,CONTROLLER_TRANSFER_LIFTING,now);
-      } else if(elapsed>kTimeout) fault(s,"grasp_failed"); break;
+      } else if(elapsed>kTimeout) fault(s,"grasp_failed");
+      break;
     case CONTROLLER_TRANSFER_LIFTING:
       out->request_arm_pose=1;
       if(in->arm_reached && in->attached && in->grasp_valid) enter(s,CONTROLLER_TRANSFER_PLACING_ON_PLATFORM,now);
-      else if(elapsed>kTimeout) fault(s,"lift_failed"); break;
+      else if(elapsed>kTimeout) fault(s,"lift_failed");
+      break;
     case CONTROLLER_TRANSFER_PLACING_ON_PLATFORM:
       out->request_arm_pose=1;
       if(in->arm_reached && in->attached && in->on_platform) enter(s,CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM,now);
-      else if(elapsed>kTimeout) fault(s,"platform_place_timeout"); break;
+      else if(elapsed>kTimeout) fault(s,"platform_place_timeout");
+      break;
     case CONTROLLER_TRANSFER_RELEASING_ON_PLATFORM:
       if(s->attached && in->arm_reached && in->on_platform) {
         out->detach_object=1; s->attached=0; s->gripper_closed=0;
@@ -92,46 +104,54 @@ void controller_object_transfer_service_step(ControllerObjectTransferService *se
     case CONTROLLER_TRANSFER_RETURNING_ARM_FOR_TRANSPORT:
       out->request_arm_pose=1;
       if(in->arm_reached && in->on_platform) enter(s,CONTROLLER_TRANSFER_TRANSPORTING,now);
-      else if(elapsed>kTimeout) fault(s,in->arm_reached ? "cargo_lost" : "arm_timeout"); break;
+      else if(elapsed>kTimeout) fault(s,in->arm_reached ? "cargo_lost" : "arm_timeout");
+      break;
     case CONTROLLER_TRANSFER_TRANSPORTING:
       out->request_navigation=1;
       if(!in->on_platform && !in->attached) fault(s,"cargo_lost");
       else if(in->navigation_reached) enter(s,in->on_platform
           ? CONTROLLER_TRANSFER_PICKING_FROM_PLATFORM : CONTROLLER_TRANSFER_PLACING,now);
       else if(now-s->navigation_last_progress_at>60) fault(s,"navigation_stalled");
-      else if(elapsed>s->navigation_timeout) fault(s,"navigation_failed"); break;
+      else if(elapsed>s->navigation_timeout) fault(s,"navigation_failed");
+      break;
     case CONTROLLER_TRANSFER_PICKING_FROM_PLATFORM:
       out->request_arm_pose=1;
       if(!in->on_platform) fault(s,"cargo_lost");
       else if(in->arm_reached) enter(s,CONTROLLER_TRANSFER_GRASPING_FROM_PLATFORM,now);
-      else if(elapsed>kTimeout) fault(s,"platform_pick_timeout"); break;
+      else if(elapsed>kTimeout) fault(s,"platform_pick_timeout");
+      break;
     case CONTROLLER_TRANSFER_GRASPING_FROM_PLATFORM:
       out->close_gripper=1;
       if(in->arm_reached && in->grasp_valid) {
         out->attach_object=1; s->attached=1; s->on_platform=0; s->gripper_closed=1;
         enter(s,CONTROLLER_TRANSFER_LIFTING_FROM_PLATFORM,now);
-      } else if(elapsed>kTimeout) fault(s,"platform_grasp_failed"); break;
+      } else if(elapsed>kTimeout) fault(s,"platform_grasp_failed");
+      break;
     case CONTROLLER_TRANSFER_LIFTING_FROM_PLATFORM:
       out->request_arm_pose=1;
       if(in->arm_reached && in->attached && in->grasp_valid) enter(s,CONTROLLER_TRANSFER_PLACING,now);
-      else if(elapsed>kTimeout) fault(s,"platform_lift_failed"); break;
+      else if(elapsed>kTimeout) fault(s,"platform_lift_failed");
+      break;
     case CONTROLLER_TRANSFER_PLACING:
       out->request_arm_pose=1;
       if(in->arm_reached && in->release_safe) enter(s,CONTROLLER_TRANSFER_RELEASING,now);
-      else if(elapsed>kTimeout) fault(s,"unsafe_release"); break;
+      else if(elapsed>kTimeout) fault(s,"unsafe_release");
+      break;
     case CONTROLLER_TRANSFER_RELEASING:
       if(s->attached && in->arm_reached && in->release_safe) {
         out->detach_object=1; s->attached=0; s->on_platform=0; s->gripper_closed=0;
       } else if(!in->attached && in->arm_reached && in->release_safe) {
         enter(s,CONTROLLER_TRANSFER_RETURNING_ARM,now);
-      } else if(elapsed>kTimeout) fault(s,"release_failed"); break;
+      } else if(elapsed>kTimeout) fault(s,"release_failed");
+      break;
     case CONTROLLER_TRANSFER_RETURNING_ARM:
       out->request_arm_pose=1;
       if(in->arm_reached && in->release_safe) {
         s->status=s->cancel_pending ? CONTROLLER_TRANSFER_CANCELLED : CONTROLLER_TRANSFER_COMPLETED;
         s->stage=CONTROLLER_TRANSFER_STAGE_NONE; s->progress=100;
         s->error_code[0]=0;
-      } else if(elapsed>kTimeout) fault(s,"placement_failed"); break;
+      } else if(elapsed>kTimeout) fault(s,"placement_failed");
+      break;
     default: break;
   }
   if(s->status!=CONTROLLER_TRANSFER_RUNNING) {
@@ -139,6 +159,7 @@ void controller_object_transfer_service_step(ControllerObjectTransferService *se
     out->request_navigation=0;
   }
 }
+
 int controller_object_transfer_service_resume(ControllerObjectTransferService *service,double now) {
   if(!service || service->state.status!=CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY) return 0;
   service->state.status=CONTROLLER_TRANSFER_RUNNING;

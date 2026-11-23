@@ -24,6 +24,7 @@
 #include "controller_telemetry_service.h"
 #include "controller_webots_adapter.h"
 #include "controller_webots_camera_adapter.h"
+#include "controller_webots_camera_perception.h"
 #include "controller_webots_devices.h"
 #include "controller_webots_motion_state.h"
 #include "controller_webots_pose.h"
@@ -35,12 +36,6 @@
 #include <cmath>
 #include "controller_navigation_route.h"
 #include <webots/robot.h>
-
-
-
-
-
-
 
 static void init_sensors(void) {
   controller_camera_runtime_configure_sensors(&camera_runtime);
@@ -109,10 +104,6 @@ static void init_camera_runtime(void) {
       &operations);
 }
 
-
-
-
-
 void clear_persistent_map(void) {
   controller_mapping_runtime_clear(&mapping_runtime);
 }
@@ -122,10 +113,21 @@ static void maybe_write_map(void) {
       &mapping_runtime, (step_counter % MAP_WRITE_INTERVAL) == 0);
 }
 
+static void sync_camera_active_target(void) {
+  double joints[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
+  double fingers[2] = {0.0, 0.0};
+  controller_webots_devices_read_manipulator(&webots_devices, joints, fingers);
+  controller_webots_camera_set_manipulator_joints(joints);
 
-
-
-
+  const auto &cargo = object_transfer_runtime.service.state;
+  const int approaching_target =
+      cargo.status == CONTROLLER_TRANSFER_RUNNING &&
+      !cargo.attached &&
+      !cargo.on_platform &&
+      cargo.stage == CONTROLLER_TRANSFER_APPROACHING_OBJECT;
+  controller_webots_camera_set_active_target(
+      approaching_target, cargo.object_pose[0], cargo.object_pose[1]);
+}
 
 static void write_state_snapshot(void) {
   double x = 0.0;
@@ -217,16 +219,19 @@ static void handle_transfer_command(const RuntimeCommand *command) {
 
 static void run_control_cycle(void) {
   controller_webots_motion_state_apply(&motion_state);
+  sync_camera_active_target();
   if (controller_webots_manipulator_step((double)TIME_STEP / 1000.0)) return;
   double x = 0.0, y = 0.0, heading = 0.0;
   read_pose(&x, &y, &heading);
   controller_object_transfer_runtime_step(
       &object_transfer_runtime, wb_robot_get_time(), x, y, heading);
+  sync_camera_active_target();
   const int transferring = object_transfer_runtime.service.state.status == CONTROLLER_TRANSFER_RUNNING;
   if(!transferring || object_transfer_runtime.service.state.stage != CONTROLLER_TRANSFER_TRANSPORTING) {
     webots_adapter.drive_config.acceleration_limit_rad_s2=control_config.drive.acceleration_limit_rad_s2;
     webots_adapter.drive_config.deceleration_limit_rad_s2=control_config.drive.deceleration_limit_rad_s2;
   }
+  control_config.navigation.runtime.adaptive_arrival = !transferring;
   control_config.navigation.runtime.position_tolerance = transferring ? 0.005 : 0.05;
   control_config.navigation.runtime.heading_tolerance_rad = transferring ? 0.02 : 0.08;
   control_config.navigation.tracking.position_tolerance = transferring ? 0.005 : 0.05;
@@ -242,9 +247,12 @@ static void run_control_cycle(void) {
       return;
     }
     ControllerNavigationRouteOutput route_output={};
+
     const auto decision=controller_navigation_route_evaluate(&controller_runtime.route,
         &controller_runtime.current_waypoint_index,&controller_runtime.route_finished,
-        x,y,heading,0.005,0.02,&route_output);
+        x,y,heading,control_config.navigation.runtime.position_tolerance,
+        control_config.navigation.runtime.heading_tolerance_rad,&route_output);
+        
     if(decision==CONTROLLER_NAVIGATION_ROUTE_COMPLETED || decision==CONTROLLER_NAVIGATION_ROUTE_FINISHED) {
       controller_webots_devices_reset_wheels(&webots_devices); set_status("finished");
     } else {
@@ -253,19 +261,41 @@ static void run_control_cycle(void) {
       const double distance=std::hypot(dx,dy);
       bool blocked=false;
       const auto &cargo=object_transfer_runtime.service.state;
+      const bool ignore_cargo_radius =
+          cargo.stage == CONTROLLER_TRANSFER_APPROACHING_OBJECT &&
+          !cargo.attached && !cargo.on_platform;
+
       for(int i=0;i<perception_runtime.trace_count;++i) {
         const auto &point=perception_runtime.trace[i];
         if(wb_robot_get_time()-point.last_seen_time>2.0) continue;
-        if(std::hypot(point.x-cargo.object_pose[0],point.y-cargo.object_pose[1])<0.20) continue;
+        if(ignore_cargo_radius &&
+            std::hypot(point.x-cargo.object_pose[0],point.y-cargo.object_pose[1])<0.32) continue;
         const double along=((point.x-x)*dx+(point.y-y)*dy)/std::fmax(distance,1e-9);
         const double across=std::fabs((point.x-x)*dy-(point.y-y)*dx)/std::fmax(distance,1e-9);
-        if(along>0 && along<std::fmin(distance+0.5,0.75) &&
-            across<((cargo.attached || cargo.on_platform) ? 0.50 : 0.36)) {blocked=true;break;}
+        if(along>0 && along<std::fmin(distance+0.5,0.85) &&
+            across<((cargo.attached || cargo.on_platform) ? 0.50 : 0.38)) {blocked=true;break;}
       }
+
+      ControllerWebotsCameraPerception cam_perception = {};
+      if(!blocked && controller_webots_camera_get_latest_perception(&cam_perception)) {
+        for(int i=0;i<cam_perception.object_count;++i) {
+          const auto &obj=cam_perception.objects[i];
+          if(obj.is_pickup_target) continue;
+          if(obj.range_m <= 0.05 || obj.range_m >= std::fmin(distance + 0.35, 0.90)) continue;
+          if(std::fabs(obj.angle) >= 0.48) continue;
+          if(!ignore_cargo_radius ||
+              std::hypot(obj.world_x - cargo.object_pose[0], obj.world_z - cargo.object_pose[1]) >= 0.36) {
+            blocked = true;
+            break;
+          }
+        }
+      }
+
       if(blocked) {
         controller_object_transfer_runtime_hold(&object_transfer_runtime,"transport_obstacle");
         return;
       }
+
       const bool carrying=cargo.attached || cargo.on_platform;
       webots_adapter.drive_config.acceleration_limit_rad_s2=cargo.on_platform ? 6.0 : carrying ? 4.0 : 8.0;
       webots_adapter.drive_config.deceleration_limit_rad_s2=8.0;
@@ -299,10 +329,12 @@ STEP_CALLBACK(merge_trace_for_controller_step)
 STEP_CALLBACK(maybe_write_map)
 static void maybe_update_camera_perception_step(void *context) {
   (void)context;
+  sync_camera_active_target();
   controller_camera_runtime_capture(&camera_runtime);
 }
 static void maybe_write_camera_frame_step(void *context) {
   (void)context;
+  sync_camera_active_target();
   controller_camera_runtime_publish(&camera_runtime);
 }
 STEP_CALLBACK(run_control_cycle)
@@ -396,7 +428,6 @@ int controller_app_lifecycle_run(int argc, char **argv) {
           MAPPING_SURVEY_GRID_CELL,
       });
   controller_route_zone_service_init(&route_zone_service);
-  // Restore zones after restart, but require an explicit new route launch.
   route_zone_service.route_last_checked = get_file_mtime(ROUTE_PATH);
   controller_route_zone_reload_service_init(
       &route_zone_reload_service,
@@ -462,7 +493,6 @@ int controller_app_lifecycle_run(int argc, char **argv) {
     set_status("error");
     set_error("Supervisor fields are not available");
   } else {
-    // Creating route.csv here makes the reload loop launch an unrequested survey.
     wait_for_fresh_route();
   }
 

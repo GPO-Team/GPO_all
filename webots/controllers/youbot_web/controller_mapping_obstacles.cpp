@@ -4,16 +4,22 @@
 
 #include <cmath>
 
-int controller_mapping_obstacles_map_near(
-    const ControllerMappingObstacles *obstacles, double x, double y, double clearance) {
-  if (!obstacles || !obstacles->map) return 0;
+static int cell_array_near(const MapCell *cells, int count, double x, double y, double clearance) {
+  if (!cells || count <= 0) return 0;
   const double clearance_squared = clearance * clearance;
-  for (int i = 0; i < obstacles->map_count; ++i) {
-    const double dx = obstacles->map[i].x - x;
-    const double dy = obstacles->map[i].y - y;
+  for (int i = 0; i < count; ++i) {
+    const double dx = cells[i].x - x;
+    const double dy = cells[i].y - y;
     if (dx * dx + dy * dy <= clearance_squared) return 1;
   }
   return 0;
+}
+
+int controller_mapping_obstacles_map_near(
+    const ControllerMappingObstacles *obstacles, double x, double y, double clearance) {
+  if (!obstacles) return 0;
+  return cell_array_near(obstacles->map, obstacles->map_count, x, y, clearance) ||
+         cell_array_near(obstacles->camera_map, obstacles->camera_count, x, y, clearance);
 }
 
 int controller_mapping_obstacles_recent_trace_near(
@@ -33,8 +39,43 @@ int controller_mapping_obstacles_recent_trace_near(
 
 int controller_mapping_obstacles_known_near(
     const ControllerMappingObstacles *obstacles, double x, double y, double clearance) {
-  return controller_mapping_obstacles_map_near(obstacles, x, y, clearance) ||
-         controller_mapping_obstacles_recent_trace_near(obstacles, x, y, clearance);
+  if (!obstacles) return 0;
+  const double clearance_squared = clearance * clearance;
+  const double core_radius = fmin(clearance * 0.75, 0.11);
+  const double core_squared = core_radius * core_radius;
+  int confirmed_hits = 0;
+
+  if (obstacles->map && obstacles->map_count > 0) {
+    for (int i = 0; i < obstacles->map_count; ++i) {
+      const double dx = obstacles->map[i].x - x;
+      const double dy = obstacles->map[i].y - y;
+      const double dist_sq = dx * dx + dy * dy;
+      if (dist_sq <= core_squared) return 1;
+      if (dist_sq <= clearance_squared) {
+        ++confirmed_hits;
+        if (confirmed_hits >= 3) return 1;
+      }
+    }
+  }
+
+  if (obstacles->trace && obstacles->trace_count > 0) {
+    const double min_conf = fmax(obstacles->min_trace_confidence, 0.45);
+    for (int i = 0; i < obstacles->trace_count; ++i) {
+      if (controller_lidar_trace_confidence(
+              &obstacles->trace[i], obstacles->now_time, obstacles->trace_ttl_seconds) <
+          min_conf) {
+        continue;
+      }
+      const double dx = obstacles->trace[i].x - x;
+      const double dy = obstacles->trace[i].y - y;
+      if (dx * dx + dy * dy <= clearance_squared) {
+        ++confirmed_hits;
+        if (confirmed_hits >= 3) return 1;
+      }
+    }
+  }
+
+  return 0;
 }
 
 int controller_mapping_obstacles_segment_clear(

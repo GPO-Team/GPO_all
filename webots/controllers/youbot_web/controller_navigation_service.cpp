@@ -1,5 +1,6 @@
 #include "controller_navigation_service.h"
 
+#include <cmath>
 #include <string.h>
 
 ControllerNavigationSessionDecision controller_navigation_service_begin_step(
@@ -30,7 +31,7 @@ ControllerNavigationRouteDecision controller_navigation_service_advance_route(
     double heading,
     double position_tolerance,
     double heading_tolerance_rad,
-    ControllerNavigationServiceRouteOutput *output) {
+    ControllerNavigationServiceRouteOutput *output, bool adaptive_arrival) {
   if (!output) return CONTROLLER_NAVIGATION_ROUTE_WAITING;
   return controller_navigation_route_evaluate(
       route,
@@ -41,11 +42,12 @@ ControllerNavigationRouteDecision controller_navigation_service_advance_route(
       heading,
       position_tolerance,
       heading_tolerance_rad,
-      &output->route);
+      &output->route, adaptive_arrival);
 }
 
 ControllerNavigationZoneDecision controller_navigation_service_guard_route(
     const ZoneData *zones,
+    const ControllerMappingObstacles *obstacles,
     double current_x,
     double current_z,
     const Waypoint *target,
@@ -55,6 +57,7 @@ ControllerNavigationZoneDecision controller_navigation_service_guard_route(
     int has_next_waypoint) {
   return controller_navigation_zone_guard_evaluate(
       zones,
+      obstacles,
       current_x,
       current_z,
       target,
@@ -113,7 +116,8 @@ ControllerNavigationServiceFrameDecision controller_navigation_service_process_f
           input->heading,
           input->position_tolerance,
           input->heading_tolerance_rad,
-          &output->route);
+          &output->route, input->adaptive_arrival);
+
   output->route_decision = route_decision;
   if (route_decision == CONTROLLER_NAVIGATION_ROUTE_COMPLETED) {
     return CONTROLLER_NAVIGATION_FRAME_ROUTE_COMPLETED;
@@ -125,6 +129,7 @@ ControllerNavigationServiceFrameDecision controller_navigation_service_process_f
 
   output->zone_decision = controller_navigation_service_guard_route(
       input->zones,
+      input->obstacles,
       input->x,
       input->z,
       &output->route.route.target,
@@ -132,6 +137,7 @@ ControllerNavigationServiceFrameDecision controller_navigation_service_process_f
       input->mapping_survey,
       input->survey_room_zone_index,
       *input->current_waypoint_index + 1 < input->route->count);
+
   switch (output->zone_decision) {
     case CONTROLLER_NAVIGATION_ZONE_SKIP_BLOCKED_TARGET:
       return CONTROLLER_NAVIGATION_FRAME_SKIP_BLOCKED_TARGET;

@@ -5,6 +5,7 @@
 #include "controller_navigation_session.h"
 #include "controller_navigation_motion_service.h"
 #include "controller_navigation_zone_guard.h"
+#include "controller_mapping_obstacles.h"
 
 typedef struct {
   ControllerNavigationSessionOutput session;
@@ -45,6 +46,11 @@ typedef struct {
   double zone_clearance;
   int mapping_survey;
   int survey_room_zone_index;
+  
+  const ControllerMappingObstacles *obstacles;
+  int avoidance_stuck_steps;
+  int avoidance_stuck_limit;
+  bool adaptive_arrival;
 } ControllerNavigationServiceFrameInput;
 
 typedef struct {
@@ -71,9 +77,10 @@ ControllerNavigationRouteDecision controller_navigation_service_advance_route(
     double heading,
     double position_tolerance,
     double heading_tolerance_rad,
-    ControllerNavigationServiceRouteOutput *output);
+    ControllerNavigationServiceRouteOutput *output, bool adaptive_arrival = false);
 ControllerNavigationZoneDecision controller_navigation_service_guard_route(
     const ZoneData *zones,
+    const ControllerMappingObstacles *obstacles,
     double current_x,
     double current_z,
     const Waypoint *target,
