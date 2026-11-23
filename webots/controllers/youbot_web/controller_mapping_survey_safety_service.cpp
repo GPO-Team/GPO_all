@@ -38,8 +38,6 @@ ControllerMappingSurveySafetyContext controller_mapping_survey_safety_service_co
       &service->runtime->limit_zones,
       store->persistent_map,
       store->persistent_count,
-      nullptr,
-      0,
       service->perception_runtime->trace,
       service->perception_runtime->trace_count,
       now,

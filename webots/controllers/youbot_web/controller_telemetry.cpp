@@ -3,7 +3,6 @@
 #include "controller_io.h"
 
 #include <stdio.h>
-#include <string.h>
 #include <cmath>
 
 #define CONTROLLER_TELEMETRY_PI 3.14159265358979323846
@@ -64,19 +63,12 @@ int controller_telemetry_write_snapshot(
           snapshot->pose_x, snapshot->pose_y, snapshot->pose_z, snapshot->pose_yaw);
 
   const ControllerTelemetryNavigation *navigation = &snapshot->navigation;
-  const int is_unreachable =
-      (navigation->status &&
-       (strcmp(navigation->status, "target_unreachable") == 0 ||
-        strcmp(navigation->status, "blocked_by_dynamic_zone") == 0))
-          ? 1
-          : 0;
   fprintf(file, "  \"navigation\": {\n");
   fprintf(file, "    \"missionId\": \"%s\",\n", safe_command_id(navigation->command_id));
   fprintf(file, "    \"status\": \"%s\",\n", safe_text(navigation->status));
   fprintf(file, "    \"error\": \"%s\",\n", safe_text(navigation->error));
   fprintf(file, "    \"currentWaypointIndex\": %d,\n", navigation->current_waypoint_index);
   fprintf(file, "    \"finished\": %s,\n", json_bool(navigation->finished));
-  fprintf(file, "    \"unreachable\": %s,\n", json_bool(is_unreachable));
   fprintf(file, "    \"distanceToTarget\": %.6f,\n", navigation->distance_to_target);
   fprintf(file, "    \"avoidanceActive\": %s,\n", json_bool(navigation->avoidance_active));
   fprintf(file, "    \"offRouteActive\": %s,\n", json_bool(navigation->off_route_active));

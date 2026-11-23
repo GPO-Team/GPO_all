@@ -6,7 +6,6 @@
 #include <string.h>
 
 #define CONTROLLER_LIDAR_EPS 1e-9
-#define CONTROLLER_LIDAR_REAR_SECTOR_MIN_RAD 1.85
 
 double controller_lidar_range_pressure(
     double range,
@@ -80,7 +79,6 @@ void controller_lidar_context_init(
   context->unexpected_right_front_min_range = effective_max_range;
   context->unexpected_left_min_range = effective_max_range;
   context->unexpected_right_min_range = effective_max_range;
-  context->unexpected_rear_min_range = effective_max_range;
   context->best_gap_score = -1e9;
   context->closest_unexpected_range = effective_max_range;
 }
@@ -94,7 +92,6 @@ static void controller_lidar_context_consider_gap(
     double preferred_turn_sign,
     int obstacle_hit) {
   if (sensed_range < config->gap_min_range) return;
-  if (obstacle_hit && sensed_range < config->track_caution_range + 0.15) return;
 
   const double target_alignment =
       1.0 - clamp_value(fabs(wrap_angle(beam_angle - target_beam_angle)) / 1.25, 0.0, 1.0);
@@ -102,7 +99,9 @@ static void controller_lidar_context_consider_gap(
   const double commitment_bonus =
       preferred_turn_sign == 0.0
           ? 0.0
-          : (gap_side_sign == preferred_turn_sign ? 0.24 : -0.35);
+          : (gap_side_sign == preferred_turn_sign
+                 ? (obstacle_hit ? 0.16 : 0.18)
+                 : (obstacle_hit ? -0.10 : -0.08));
   const double frontal_bonus = 1.0 - clamp_value(fabs(beam_angle) / 1.35, 0.0, 1.0);
   const double range_score =
       clamp_value(
@@ -110,13 +109,10 @@ static void controller_lidar_context_consider_gap(
               fmax(config->effective_max_range - config->gap_min_range, 0.1),
           0.0,
           1.0);
-  const double open_bonus = obstacle_hit ? -0.30 : 0.12;
   const double gap_score =
-      range_score * 0.72 +
-      target_alignment * 0.16 +
-      frontal_bonus * 0.08 +
-      commitment_bonus +
-      open_bonus;
+      range_score * (obstacle_hit ? 0.72 : 0.78) +
+      target_alignment * (obstacle_hit ? 0.18 : 0.16) +
+      frontal_bonus * 0.08 + commitment_bonus;
 
   if (!context->has_best_gap ||
       gap_score > context->best_gap_score + 1e-6 ||
@@ -156,16 +152,14 @@ void controller_lidar_context_observe(
   }
 
   if (!obstacle_hit) {
-    if (fabs(beam_angle) <= CONTROLLER_LIDAR_REAR_SECTOR_MIN_RAD) {
-      controller_lidar_context_consider_gap(
-          context,
-          config,
-          sensed_range,
-          beam_angle,
-          target_beam_angle,
-          preferred_turn_sign,
-          0);
-    }
+    controller_lidar_context_consider_gap(
+        context,
+        config,
+        sensed_range,
+        beam_angle,
+        target_beam_angle,
+        preferred_turn_sign,
+        0);
     return;
   }
 
@@ -173,14 +167,6 @@ void controller_lidar_context_observe(
     context->closest_unexpected_range = sensed_range;
     context->closest_unexpected_beam_angle = beam_angle;
     context->has_closest_unexpected = 1;
-  }
-
-  if (fabs(beam_angle) > CONTROLLER_LIDAR_REAR_SECTOR_MIN_RAD) {
-    context->unexpected_rear_hit_count += 1;
-    if (sensed_range < context->unexpected_rear_min_range) {
-      context->unexpected_rear_min_range = sensed_range;
-    }
-    return;
   }
 
   if (fabs(beam_angle) <= config->front_sector_rad + 0.16) {

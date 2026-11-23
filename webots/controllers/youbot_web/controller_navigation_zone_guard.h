@@ -2,7 +2,6 @@
 #define YOUBOT_WEB_CONTROLLER_NAVIGATION_ZONE_GUARD_H
 
 #include "controller_types.h"
-#include "controller_mapping_obstacles.h"
 
 typedef enum {
   CONTROLLER_NAVIGATION_ZONE_CLEAR = 0,
@@ -14,7 +13,6 @@ typedef enum {
 
 ControllerNavigationZoneDecision controller_navigation_zone_guard_evaluate(
     const ZoneData *zones,
-    const ControllerMappingObstacles *obstacles,
     double current_x,
     double current_z,
     const Waypoint *target,

@@ -1,6 +1,7 @@
 #include "controller_webots_camera_perception.h"
 
 #include "controller_math.h"
+#include "controller_io.h"
 #include "controller_webots_object_naming.h"
 
 #include <algorithm>
@@ -102,7 +103,7 @@ void save_dataset_to_file(void) {
   }
   std::fclose(f);
   std::remove(path);
-  std::rename(tmp_path, path);
+  if (replace_file(tmp_path, path) != 0) return;
   s_dataset_dirty_updates = 0;
 }
 

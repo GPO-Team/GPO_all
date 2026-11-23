@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <webots/robot.h>
 #include <webots/supervisor.h>
 
 namespace {
@@ -66,6 +67,7 @@ int controller_webots_object_naming_resolve(
     out_label[0] = '\0';
   }
 
+  if (!wb_robot_get_supervisor()) return 0;
   WbNodeRef root = wb_supervisor_node_get_root();
   if (!root) return 0;
   WbFieldRef children = wb_supervisor_node_get_field(root, "children");

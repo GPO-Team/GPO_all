@@ -126,7 +126,7 @@ static void update_obstacle_hint(ControllerCameraRuntime *runtime) {
                                    ? runtime->perception->camera.fov
                                    : runtime->config.default_fov;
 
-  ControllerWebotsCameraPerception result;
+  ControllerWebotsCameraPerception result{};
   controller_webots_camera_perception_analyze(
       image,
       runtime->perception->camera.width,
@@ -169,7 +169,7 @@ static void update_obstacle_hint(ControllerCameraRuntime *runtime) {
       .update_step = step,
   };
 
-  if (result.visible) {
+  if (result.visible && result.obstacle_lidar_confirmed) {
     const double resolved_range = clamp_value(
         result.fallback_range_m > 0.05 ? result.fallback_range_m : runtime->config.range_fallback,
         runtime->config.min_trace_range,

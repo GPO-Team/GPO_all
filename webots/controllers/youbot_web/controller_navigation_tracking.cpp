@@ -4,16 +4,8 @@
 
 #include <cmath>
 
-namespace {
-int s_rear_clear_for_reverse = 0;
-
-double sign_or_one_local(double value) {
+static double sign_or_one_local(double value) {
   return value < 0.0 ? -1.0 : 1.0;
-}
-}
-
-void controller_navigation_tracking_set_rear_clear(int rear_clear) {
-  s_rear_clear_for_reverse = rear_clear ? 1 : 0;
 }
 
 int controller_navigation_tracking_prepare(
@@ -30,7 +22,7 @@ int controller_navigation_tracking_prepare(
   };
 
   if (output->mode == NAV_MODE_IDLE) output->mode = NAV_MODE_TRACK;
-  const double align_distance = fmax(config->final_align_distance, config->position_tolerance);
+  const double align_distance = fmin(config->final_align_distance, config->position_tolerance);
   if (input->is_final_waypoint && input->target_has_heading &&
       input->distance_to_target <= align_distance) {
     output->mode = NAV_MODE_FINAL_ALIGN;
@@ -79,12 +71,7 @@ void controller_navigation_tracking_compute(
                                             ? wrap_angle(input->heading_error_to_target +
                                                          input->lidar_heading_bias)
                                             : input->updated_heading_error;
-    const int prefer_arc_over_stop =
-        (input->lidar_caution_active || input->lidar_hard_priority) &&
-        fabs(preferred_turn_error) <= 1.25;
-
-    if (prefer_arc_over_stop ||
-        fabs(preferred_turn_error) <= config->turn_exit_error_rad ||
+    if (fabs(preferred_turn_error) <= config->turn_exit_error_rad ||
         input->distance_to_target <= config->track_slow_radius * 0.5) {
       mode = NAV_MODE_TRACK;
     } else {
@@ -92,12 +79,7 @@ void controller_navigation_tracking_compute(
       output->action = CONTROLLER_NAVIGATION_TRACKING_TURN;
       output->status = lidar_priority ? CONTROLLER_NAVIGATION_STATUS_TURN_LIDAR
                                       : CONTROLLER_NAVIGATION_STATUS_TURN_PATH;
-      const int convenient_to_reverse =
-          s_rear_clear_for_reverse &&
-          (input->lidar_caution_active || fabs(input->heading_error_to_target) > 1.65);
-      output->linear_speed = convenient_to_reverse
-                                 ? -fmin(0.11, input->runtime_linear_speed_limit * 0.55)
-                                 : 0.0;
+      output->linear_speed = 0.0;
       output->angular_speed = clamp_value(
           preferred_turn_error * config->turn_heading_gain,
           -input->runtime_angular_speed_limit,
@@ -110,23 +92,13 @@ void controller_navigation_tracking_compute(
     }
   }
 
-  const double effective_reenter_turn_rad =
-      input->lidar_caution_active
-          ? fmax(config->track_reenter_turn_rad, 1.35)
-          : config->track_reenter_turn_rad;
-
   if (!input->route_relaxed_mode &&
-      fabs(input->updated_heading_error) > effective_reenter_turn_rad &&
+      fabs(input->updated_heading_error) > config->track_reenter_turn_rad &&
       input->distance_to_target > config->track_slow_radius) {
     output->mode = NAV_MODE_TURN;
     output->action = CONTROLLER_NAVIGATION_TRACKING_TURN;
     output->status = CONTROLLER_NAVIGATION_STATUS_TURN_PATH;
-    const int convenient_to_reverse =
-        s_rear_clear_for_reverse &&
-        (input->lidar_caution_active || fabs(input->heading_error_to_target) > 1.65);
-    output->linear_speed = convenient_to_reverse
-                               ? -fmin(0.11, input->runtime_linear_speed_limit * 0.55)
-                               : 0.0;
+    output->linear_speed = 0.0;
     output->angular_speed = clamp_value(
         input->updated_heading_error * config->turn_heading_gain,
         -input->runtime_angular_speed_limit,
@@ -140,30 +112,21 @@ void controller_navigation_tracking_compute(
 
   output->mode = mode;
   output->action = CONTROLLER_NAVIGATION_TRACKING_DRIVE;
-
-  const double heading_gain =
-      (input->distance_to_target <= 0.12)
-          ? config->track_heading_gain * 0.65
-          : config->track_heading_gain;
   output->angular_speed = clamp_value(
-      input->updated_heading_error * heading_gain,
+      input->updated_heading_error * config->track_heading_gain,
       -input->runtime_angular_speed_limit,
       input->runtime_angular_speed_limit);
 
-  const double effective_min_speed = fmin(
-      fmax(config->track_min_linear_speed, 0.075),
-      input->runtime_linear_speed_limit);
-
   double base_speed = clamp_value(
       input->distance_to_target * 1.18,
-      effective_min_speed,
+      config->track_min_linear_speed,
       input->runtime_linear_speed_limit);
   if (input->distance_to_target < config->track_slow_radius) {
     const double near_target_speed_cap = clamp_value(
-        input->runtime_linear_speed_limit * 0.42, 0.14, 0.24);
+        input->runtime_linear_speed_limit * 0.36, 0.14, 0.24);
     base_speed = clamp_value(
-        input->distance_to_target * 1.15,
-        effective_min_speed,
+        input->distance_to_target * 1.05,
+        config->track_min_linear_speed,
         near_target_speed_cap);
   }
   base_speed *= input->lidar_speed_scale;
@@ -173,21 +136,14 @@ void controller_navigation_tracking_compute(
       !input->lidar_caution_active && !input->expected_zone_wall_slowdown;
   double heading_scale = clear_fast_tracking
                              ? clamp_value(1.0 - fabs(input->updated_heading_error) / 1.15, 0.45, 1.0)
-                             : clamp_value(1.0 - fabs(input->updated_heading_error) / 0.95, 0.35, 1.0);
+                             : clamp_value(1.0 - fabs(input->updated_heading_error) / 0.85, 0.22, 1.0);
   if (fabs(input->updated_heading_error) > config->turn_enter_error_rad) {
-    heading_scale = fmin(heading_scale, clear_fast_tracking ? 0.62 : 0.45);
+    heading_scale = fmin(heading_scale, clear_fast_tracking ? 0.62 : 0.35);
   }
-
   output->linear_speed = base_speed * heading_scale;
-  if (input->distance_to_target <= 0.22 && fabs(input->updated_heading_error) <= 0.65) {
-    output->linear_speed = fmax(output->linear_speed, effective_min_speed);
-  } else if (input->lidar_caution_active &&
-             input->distance_to_target > config->position_tolerance * 1.4) {
-    output->linear_speed = fmax(
-        output->linear_speed,
-        fmin(effective_min_speed * 0.90, input->runtime_linear_speed_limit));
+  if (input->distance_to_target <= config->position_tolerance * 1.4) {
+    output->linear_speed = fmin(output->linear_speed, 0.05);
   }
-
   output->status = input->lidar_caution_active
                        ? CONTROLLER_NAVIGATION_STATUS_TRACK_LIDAR
                        : (input->expected_zone_wall_ahead

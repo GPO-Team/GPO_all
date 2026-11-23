@@ -4,7 +4,6 @@ EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/project
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/Floor.proto"
 EXTERNPROTO "../protos/YoubotManipulation.proto"
-EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/cabinet/protos/Cabinet.proto"
 
 WorldInfo {
   info [
@@ -16,22 +15,18 @@ WorldInfo {
     ContactProperties {
       material1 "gripper-pad"
       material2 "demo-object"
-      coulombFriction [
-        5
-      ]
+      coulombFriction [ 5 ]
       bounce 0
       softERP 0.4
-      softCFM 1e-05
+      softCFM 0.00001
     }
     ContactProperties {
       material1 "cargo-platform"
       material2 "demo-object"
-      coulombFriction [
-        3
-      ]
+      coulombFriction [ 3 ]
       bounce 0
       softERP 0.4
-      softCFM 1e-05
+      softCFM 0.00001
     }
     ContactProperties {
       material1 "InteriorWheelMat"
@@ -58,8 +53,8 @@ WorldInfo {
   ]
 }
 Viewpoint {
-  orientation 0.16344200679000842 -0.11586131707887172 -0.9797259135192884 4.545001115014542
-  position 0.5598562597016211 -9.970374873530755 3.9431196801879866
+  orientation 0.07467287892190907 0.08761296949069716 -0.9933518655192307 2.4565251739789433
+  position 4.8645 4.7397 2.2439
   follow "youBot"
 }
 TexturedBackground {
@@ -69,41 +64,15 @@ TexturedBackgroundLight {
 Floor {
   size 300 300
 }
-Cabinet {
-  hidden position_6_0 -0.002799072767974949
-  hidden translation_7 0.0005570147534757091 -7.795629228257717e-07 0
-  hidden rotation_7 0 0 -1 0.0027990727679301996
-  hidden position_10_0 0.008987141881678304
-  hidden translation_11 0.0015201545856032453 6.830968448834351e-06 0
-  hidden rotation_11 0 0 1 0.008987141881682054
-  hidden position_14_0 0.02425566673583507
-  hidden translation_15 0.02425566673583507 0 0
-  hidden position_22_0 0.18183402188106854
-  hidden translation_23 0.18183402188106854 0 0
-  hidden position_30_0 0.01802183365654017
-  hidden translation_31 0.01802183365654017 0 0
-  hidden position_38_0 0.05195994554250313
-  hidden translation_39 0.05195994554250313 0 0
-  translation 0.28 4.12 0
-  rotation 0 0 1 -1.5707953071795862
-  name "cabinet(2)"
-}
 DEF DEMO_BOX Solid {
-  translation 1.4 3.4443500421956303e-18 0.07495095000000002
-  rotation 0.9886909876444926 -0.1492363754932007 0.014786317330900751 5.000085420369268e-17
+  translation 1.4 0 0.075
   children [
     Pose {
       translation 0 0 0.1
       children [
         Shape {
-          appearance PBRAppearance {
-            baseColor 0.12 0.12 0.14
-            roughness 0.8
-            metalness 0
-          }
-          geometry Box {
-            size 0.025 0.025 0.05
-          }
+          appearance PBRAppearance { baseColor 0.12 0.12 0.14 roughness 0.8 metalness 0 }
+          geometry Box { size 0.025 0.025 0.05 }
         }
       ]
     }
@@ -122,16 +91,10 @@ DEF DEMO_BOX Solid {
   contactMaterial "demo-object"
   boundingObject Group {
     children [
-      Box {
-        size 0.15 0.15 0.15
-      }
+      Box { size 0.15 0.15 0.15 }
       Pose {
         translation 0 0 0.1
-        children [
-          Box {
-            size 0.025 0.025 0.05
-          }
-        ]
+        children [ Box { size 0.025 0.025 0.05 } ]
       }
     ]
   }
@@ -139,85 +102,50 @@ DEF DEMO_BOX Solid {
     density -1
     mass 0.25
   }
-  linearVelocity 6.427876043404229e-18 -7.005110261859314e-19 -2.55791661214324e-16
-  angularVelocity 6.902532920683853e-31 5.829645510107362e-17 6.698572759022861e-17
 }
 DEF PICK_BOX Solid {
-  translation 0.5131248423979147 -0.011790403935790996 0.014992151999999977
-  rotation -0.9835328453829975 -0.12779503521816646 0.1277950352181667 1.5873998091664256
+  translation 0.4 -0.1 0.04
   children [
     Shape {
       appearance PBRAppearance {
         baseColor 0.1 0.45 0.75
         roughness 0.7
       }
-      geometry Box {
-        size 0.03 0.03 0.08
-      }
+      geometry Box { size 0.03 0.03 0.08 }
     }
   ]
   name "pick-box"
   contactMaterial "demo-object"
-  boundingObject Box {
-    size 0.03 0.03 0.08
-  }
-  physics Physics {
-    density -1
-    mass 0.04
-  }
-  linearVelocity -4.077512380261624e-17 7.580763937057638e-17 5.015585933305703e-16
-  angularVelocity -6.039825719771153e-15 -9.67644222987384e-16 2.8196561349624176e-16
+  boundingObject Box { size 0.03 0.03 0.08 }
+  physics Physics { density -1 mass 0.04 }
 }
 YoubotManipulation {
-  hidden position_0_0 8159.591723171242
-  hidden position_0_1 10057.548908700417
-  hidden position_0_2 8157.320791328653
-  hidden position_0_3 10059.803581295715
-  hidden linearVelocity_0 8.238525399353798e-16 -1.7793359509253057e-19 -1.5583545971692926e-16
-  hidden angularVelocity_0 1.4157566409209332e-16 1.8864564158633615e-15 -7.399965438752236e-16
-  hidden position_3_0 -2.121158325344071e-10
-  hidden position_4_0 1.5700026343905054
-  hidden linearVelocity_4 1.1694165076130483e-15 2.964495840879248e-17 -4.006376951217812e-16
-  hidden angularVelocity_4 -5.24558320951985e-15 -6.252177196556969e-16 1.2539208996646504e-15
-  hidden rotation_5 0 -1 0 1.5700026343905056
-  hidden position_5_0 -2.635001475987898
-  hidden linearVelocity_5 1.193273474259454e-15 -9.458773316750982e-17 -1.230377031619221e-16
-  hidden angularVelocity_5 -2.1615399741397224e-15 6.0263356532977904e-15 -8.817712062367069e-16
-  hidden rotation_6 0 0.9999999999999999 0 2.635001475987898
-  hidden position_6_0 1.7800004229940354
-  hidden linearVelocity_6 1.3684033682531907e-15 -2.1696025966099847e-16 -1.5215047874948609e-16
-  hidden angularVelocity_6 1.4297061453344114e-14 -2.8741616016738085e-15 2.1180474914685192e-15
-  hidden rotation_7 0 -1 0 1.7800004229940354
-  hidden position_7_0 -4.050415902013661e-15
-  hidden linearVelocity_7 1.810790210289423e-15 -8.225517981884477e-16 -1.0046442330017381e-15
-  hidden angularVelocity_7 6.0198311084644685e-15 -7.223851961317829e-15 -2.1819948818454897e-15
-  hidden position_8_0 0.011000000011931747
-  hidden position_8_1 0.010999999988068242
-  hidden linearVelocity_8 1.2830612153017428e-15 -1.1536337668889325e-15 -9.05871216905307e-16
-  hidden angularVelocity_8 5.300302169946723e-15 -6.691919659544266e-15 -5.528223804245982e-16
-  hidden translation_9 0 0.011000000011931747 0.09
-  hidden linearVelocity_9 1.174360138134952e-15 -1.2642899603389677e-15 -1.3618735768735256e-15
-  hidden angularVelocity_9 5.414682068507797e-16 -1.0363118933650231e-14 4.653040543690602e-15
-  hidden translation_10 0 -0.010999999988068242 0.09
-  hidden linearVelocity_10 9.98887393482287e-16 -1.3401597178640722e-15 -1.4802973661668757e-15
-  hidden angularVelocity_10 2.5787119616227438e-15 3.458491197384195e-15 -1.4363057842519394e-14
-  hidden rotation_11 0 0.9999999999999999 0 4.017194452138691
-  hidden linearVelocity_11 3.1528860452630845e-16 1.6045704154984114e-16 3.2183676458054295e-16
-  hidden angularVelocity_11 -3.669307118635309e-15 -2.946215072267003e-14 -7.108921046903717e-16
-  hidden rotation_12 0 0.9999999999999999 0 4.452417213078724
-  hidden linearVelocity_12 6.324779667886479e-16 1.459513341621348e-16 3.2026791170740246e-16
-  hidden angularVelocity_12 2.339827530242666e-14 -3.8832815513332473e-14 -6.876432168672648e-16
-  hidden rotation_13 0 1 0 1.7462626095500386
-  hidden linearVelocity_13 6.261400189019345e-16 2.1570594649244565e-16 4.615727464415113e-16
-  hidden angularVelocity_13 5.728300600119447e-15 4.253011113093755e-14 -7.101572764473639e-16
-  hidden rotation_14 0 -1 0 5.859280805982488
-  hidden linearVelocity_14 9.298462067891817e-16 1.9743930396244146e-16 3.527372781260063e-17
-  hidden angularVelocity_14 -2.1306807381634936e-14 1.959134677944327e-14 -7.368321289260416e-16
-  translation 0.00016644274809121846 4.240881632241508e-06 0.10193777093015752
-  rotation -0.025520986728211657 0.9996742865702798 -2.5731062930437173e-06 0.0015831066619031555
+  hidden position_0_0 -1.1278584212826214e-09
+  hidden position_0_1 -8.544116525399659e-10
+  hidden position_0_2 1.1710894566833315e-09
+  hidden position_0_3 8.903342578261413e-10
+  hidden position_3_0 -1.1569304491710567e-06
+  hidden rotation_4 0 0 -1 1.1569290723670686e-06
+  hidden position_4_0 1.0773609435014209e-07
+  hidden rotation_5 0 -1 0 1.0745380149674385e-07
+  hidden position_5_0 1.6506477307358975e-07
+  hidden rotation_6 0 -1 0 1.6593230851978133e-07
+  hidden position_6_0 -1.3653243387453528e-09
+  hidden position_7_0 2.9830530434034605e-10
+  hidden position_8_0 0
+  hidden position_8_1 0
+  translation 0.00022154575471120073 4.2333633964145944e-06 0.10193771744428143
+  rotation -0.01910501367574832 0.9998174825639843 3.4447974017753594e-06 0.002110345492983813
   controller "youbot_web"
   supervisor TRUE
+  toolSlot [
+    DEF TCP Pose {
+      translation 0 0 0.12
+    }
+  ]
   bodySlot [
+    # One compact front sensor pod keeps the devices visually attached to the
+    # chassis and places the camera directly above the lidar.
     DEF FRONT_SENSOR_MOUNT Pose {
       translation 0.285 0 0.14
       children [
@@ -296,6 +224,8 @@ YoubotManipulation {
     }
     DEF FRONT_CAMERA Camera {
       translation 0.285 0 0.225
+      # Optical axis +X points forward; +Z stays up in the ENU robot frame.
+      rotation 0 0 1 0
       children [
         Shape {
           appearance PBRAppearance {
@@ -348,121 +278,6 @@ YoubotManipulation {
       height 180
       near 0.03
       far 7
-    }
-  ]
-  toolSlot [
-    DEF TCP Pose {
-      translation 0 0 0.12
-    }
-  ]
-}
-Cabinet {
-  hidden position_6_0 0.002978600427038573
-  hidden translation_7 -0.0005927406085080121 -8.827693674107184e-07 0
-  hidden rotation_7 0 0 0.9999999999999999 0.0029786004271008795
-  hidden position_10_0 0.01867979255232508
-  hidden translation_11 0.0031595031593907507 2.9510289894951747e-05 0
-  hidden rotation_11 0 0 1 0.018679792552318025
-  hidden position_14_0 0.08229207639203051
-  hidden translation_15 0.08229207639203051 0 0
-  hidden position_22_0 0.08277814475916251
-  hidden translation_23 0.08277814475916251 0 0
-  hidden position_30_0 0.008755664190864376
-  hidden translation_31 0.008755664190864376 0 0
-  hidden position_38_0 0.10755961591126795
-  hidden translation_39 0.10755961591126795 0 0
-  translation -5.08 0 0
-}
-Cabinet {
-  hidden position_6_0 0.0024959906583282504
-  hidden translation_7 -0.0004967016252676267 -6.198816308589095e-07 0
-  hidden rotation_7 0 0 1 0.0024959906583396666
-  hidden position_10_0 -0.009996065751129206
-  hidden translation_11 -0.0016908063635383353 8.450776159518725e-06 0
-  hidden rotation_11 0 0 -1 0.009996065751121212
-  hidden position_14_0 -0.005550370328518683
-  hidden translation_15 -0.005550370328518683 0 0
-  hidden position_22_0 -0.0016543409481251103
-  hidden translation_23 -0.0016543409481251103 0 0
-  hidden position_30_0 0.001636402466114406
-  hidden translation_31 0.001636402466114406 0 0
-  hidden position_38_0 0.15772173458319205
-  hidden translation_39 0.15772173458319205 0 0
-  translation -3.94 2.9 0
-  name "cabinet(1)"
-}
-DEF WEB_SURFACE_0 Pose {
-  children [
-    Shape {
-      appearance PBRAppearance {
-        baseColor 0.93 0.54 0.08
-        transparency 0.58
-        roughness 1
-        metalness 0
-      }
-      geometry IndexedFaceSet {
-        coord Coordinate {
-          point [
-            -22 -17 0.012
-            -6 -17 0.012
-            -6 -4 0.012
-            -22 -4 0.012
-          ]
-        }
-        coordIndex [
-          0, 1, 2, 3, -1
-        ]
-      }
-    }
-  ]
-}
-DEF WEB_SURFACE_1 Pose {
-  children [
-    Shape {
-      appearance PBRAppearance {
-        baseColor 0.93 0.54 0.08
-        transparency 0.58
-        roughness 1
-        metalness 0
-      }
-      geometry IndexedFaceSet {
-        coord Coordinate {
-          point [
-            -3.8 -17 0.013
-            3.8 -17 0.013
-            3.8 17 0.013
-            -3.8 17 0.013
-          ]
-        }
-        coordIndex [
-          0, 1, 2, 3, -1
-        ]
-      }
-    }
-  ]
-}
-DEF WEB_SURFACE_2 Pose {
-  children [
-    Shape {
-      appearance PBRAppearance {
-        baseColor 0.14 0.66 0.88
-        transparency 0.58
-        roughness 1
-        metalness 0
-      }
-      geometry IndexedFaceSet {
-        coord Coordinate {
-          point [
-            8 4.5 0.014
-            22 4.5 0.014
-            22 17 0.014
-            8 17 0.014
-          ]
-        }
-        coordIndex [
-          0, 1, 2, 3, -1
-        ]
-      }
     }
   ]
 }

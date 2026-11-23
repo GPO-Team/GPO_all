@@ -256,6 +256,8 @@ export default function PlannerLeftSidebar({
       {tab === "task" && <>
         <fieldset disabled={editingLocked} className="min-w-0">
           <PlannerTaskAlgorithmSection
+            locked={editingLocked}
+            lockReason={isOptimizing ? "optimizing" : "mission"}
             routeTaskKey={routeTaskKey}
             onRouteTaskChange={onRouteTaskChange}
             algorithmKey={algorithmKey}

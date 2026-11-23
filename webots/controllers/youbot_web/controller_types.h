@@ -8,6 +8,7 @@
 
 typedef struct {
   double x;
+  /* Legacy field name: this stores the world-plane Y coordinate. */
   double z;
   double heading_rad;
   int has_heading;
@@ -152,7 +153,6 @@ typedef struct {
   double unexpected_right_front_min_range;
   double unexpected_left_min_range;
   double unexpected_right_min_range;
-  double unexpected_rear_min_range;
   double expected_front_score;
   double unexpected_front_score;
   double unexpected_left_score;
@@ -165,7 +165,6 @@ typedef struct {
   int has_best_gap;
   int has_closest_unexpected;
   int unexpected_front_hit_count;
-  int unexpected_rear_hit_count;
 } LidarObstacleContext;
 
 MappingSurveyMode controller_parse_mapping_survey_mode(const char *mode);

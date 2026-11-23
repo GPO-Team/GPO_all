@@ -28,13 +28,10 @@ typedef struct {
   double right_front_corner_range;
   double left_obstacle_range;
   double right_obstacle_range;
-  double rear_obstacle_range;
-  double camera_front_range;
   double expected_front_range;
   double near_front_range;
   double left_lidar_context;
   double right_lidar_context;
-  int rear_obstacle_detected;
   int expected_zone_wall_ahead;
   int expected_zone_wall_close;
   int expected_zone_wall_slowdown;

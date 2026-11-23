@@ -7,8 +7,6 @@ typedef struct {
   const ZoneData *zones;
   const MapCell *persistent_map;
   int persistent_map_count;
-  const MapCell *camera_map;
-  int camera_map_count;
   const ObstacleTracePoint *obstacle_trace;
   int obstacle_trace_count;
   double now;

@@ -2,7 +2,6 @@
 #define YOUBOT_WEB_CONTROLLER_RUNTIME_H
 
 #include "controller_avoidance.h"
-#include "controller_mapping_obstacles.h"
 #include "controller_navigation_context.h"
 #include "controller_navigation_service.h"
 #include "controller_survey_state.h"
@@ -33,7 +32,6 @@ typedef struct {
   double z;
   double heading;
   int manual_relocation_detected;
-  const ControllerMappingObstacles *obstacles;
 } ControllerRuntimeSensorFrame;
 
 typedef enum {
@@ -61,7 +59,6 @@ typedef struct {
   double zone_clearance;
   double relocation_distance;
   double relocation_heading_rad;
-  bool adaptive_arrival;
 } ControllerRuntimeNavigationConfig;
 
 typedef enum {
