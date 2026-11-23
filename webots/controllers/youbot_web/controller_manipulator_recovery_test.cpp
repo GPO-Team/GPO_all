@@ -1,6 +1,7 @@
 #include "controller_manipulator.h"
 #include <cassert>
 #include <cstring>
+#include <cmath>
 
 static ControllerManipulator held_arm() {
   ControllerManipulator arm={};
@@ -18,6 +19,14 @@ static ControllerManipulatorSample measured(const ControllerManipulator &arm) {
   return sample;
 }
 int main() {
+  {
+    auto arm=held_arm();auto sample=measured(arm);
+    sample.joints[4]=2.5;
+    controller_manipulator_cancel(&arm,&sample);
+    assert(controller_manipulator_recover(&arm,&sample,arm.destination,1));
+    for(int i=2;i<=3;++i)
+      assert(std::fabs((arm.poses[i][4]-sample.joints[4])-(arm.poses[i][0]-sample.joints[0]))<1e-6);
+  }
   auto arm=held_arm();auto sample=measured(arm);
   controller_manipulator_cancel(&arm,&sample);
   assert(controller_manipulator_active(&arm));

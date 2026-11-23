@@ -1,5 +1,6 @@
 import { fork, spawn } from "node:child_process";
 import { once } from "node:events";
+import { createServer } from "node:net";
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -11,7 +12,28 @@ const root = path.resolve(import.meta.dirname, "..");
 const directory = await mkdtemp(path.join(os.tmpdir(), "gpo-docker-"));
 const project = `gpo-test-${Date.now()}`;
 const physics = process.argv.includes("--physics");
-const env = { ...process.env, STACK_PROJECT: project, STACK_WEB_STATE_DIR: path.join(directory, "state"), STACK_TOKEN_FILE: path.join(directory, "token") };
+const freePort = async () => {
+  const server = createServer();
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const selected = server.address().port;
+  await new Promise(resolve => server.close(resolve));
+  return selected;
+};
+const [frontendPort, telemetryPort, routePort, planningPort, gatewayPort, lockPort] =
+  await Promise.all(Array.from({ length: 6 }, freePort));
+const env = {
+  ...process.env,
+  STACK_PROJECT: project,
+  STACK_WEB_STATE_DIR: path.join(directory, "state"),
+  STACK_TOKEN_FILE: path.join(directory, "token"),
+  STACK_FRONTEND_PORT: String(frontendPort),
+  STACK_TELEMETRY_PORT: String(telemetryPort),
+  STACK_ROUTE_PORT: String(routePort),
+  STACK_PLANNING_PORT: String(planningPort),
+  STACK_GATEWAY_PORT: String(gatewayPort),
+  STACK_LOCK_PORT: String(lockPort),
+};
 let launcher, socket, telemetry;
 let logs = "";
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -24,7 +46,7 @@ const compose = (...args) => new Promise((resolve, reject) => {
   const child = spawn("docker", ["compose", "-p", project, ...args], { cwd: root, env, windowsHide: true, stdio: "inherit" });
   child.on("error", reject); child.on("exit", code => code === 0 ? resolve() : reject(new Error(`Compose exited ${code}`)));
 });
-const mission = async id => (await fetch(`http://127.0.0.1:9002/api/missions/${id}`)).json();
+const mission = async id => (await fetch(`http://127.0.0.1:${routePort}/api/missions/${id}`)).json();
 const send = command => new Promise((resolve, reject) => {
   const timer = setTimeout(() => { socket.off("message", receive); reject(new Error("ACK timeout")); }, 15000);
   const receive = data => { const ack = JSON.parse(data); if (ack.requestId === command.requestId) { clearTimeout(timer); socket.off("message", receive); resolve(ack); } };
@@ -39,12 +61,12 @@ try {
   const duplicate = fork(path.join(root, "scripts/start-stack.mjs"), ["--no-webots", "--no-build"], { cwd: root, env, windowsHide: true, stdio: ["ignore", "ignore", "ignore", "ipc"] });
   const [duplicateCode] = await once(duplicate, "exit");
   assert.equal(duplicateCode, 1, "A duplicate launcher must refuse to own the running stack");
-  assert.equal((await fetch("http://127.0.0.1:8080/health")).status, 200);
-  assert.match(await (await fetch("http://127.0.0.1:8080/dashboard")).text(), /<div id="root">/);
+  assert.equal((await fetch(`http://127.0.0.1:${frontendPort}/health`)).status, 200);
+  assert.match(await (await fetch(`http://127.0.0.1:${frontendPort}/dashboard`)).text(), /<div id="root">/);
   const scene = { polygons: [], surfaceZones: [], chargingStations: [], motion: { cruiseSpeedMps: 0.22, payloadKg: 0, batteryRange: 100 } };
-  const plan = await (await fetch("http://127.0.0.1:9003/api/solve-route", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ points: [{ x: 0, y: 0 }, { x: 1, y: 0 }], scene, task: "tsp" }) })).json();
+  const plan = await (await fetch(`http://127.0.0.1:${planningPort}/api/solve-route`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ points: [{ x: 0, y: 0 }, { x: 1, y: 0 }], scene, task: "tsp" }) })).json();
   assert.equal(plan.ok, true, JSON.stringify(plan));
-  socket = new WebSocket("ws://127.0.0.1:9002/ui"); await once(socket, "open");
+  socket = new WebSocket(`ws://127.0.0.1:${routePort}/ui`); await once(socket, "open");
   const command = createRouteCommand({ source: "docker-test", requestId: "docker-complete", payload: { type: "route", route: plan.route, seedRoute: plan.seedRoute, scene } });
   assert.equal((await send(command)).ok, true);
   const stateFile = path.join(directory, "state/robot_state.json");
@@ -53,14 +75,21 @@ try {
   const routeBefore = await readFile(path.join(directory, "state/route.csv"), "utf8");
   socket.terminate(); socket = null;
   await compose("kill", "-s", "SIGKILL", "route");
-  await compose("up", "-d", "--wait", "--wait-timeout", "40", "route");
+  await compose("start", "route");
+  await until(async () => {
+    try {
+      return (await fetch(`http://127.0.0.1:${routePort}/ready`, { signal: AbortSignal.timeout(1000) })).ok;
+    } catch {
+      return false;
+    }
+  }, "route restart", 90000);
   assert.equal((await mission("docker-complete")).status, "completed");
-  socket = new WebSocket("ws://127.0.0.1:9002/ui"); await once(socket, "open");
+  socket = new WebSocket(`ws://127.0.0.1:${routePort}/ui`); await once(socket, "open");
   assert.equal((await send(command)).ok, true);
   assert.equal(await readFile(path.join(directory, "state/route.csv"), "utf8"), routeBefore);
   assert.equal((await send(createRouteCommand({ source: "docker-test", requestId: "docker-cancel", payload: { type: "route", route: [{ x: 0, y: 0 }, { x: 18, y: 0 }], scene } }))).ok, true);
   if (physics) await until(async () => (await mission("docker-cancel")).status === "running", "robot movement");
-  assert.equal((await fetch("http://127.0.0.1:9002/api/missions/docker-cancel/cancel", { method: "POST" })).status, 202);
+  assert.equal((await fetch(`http://127.0.0.1:${routePort}/api/missions/docker-cancel/cancel`, { method: "POST" })).status, 202);
   if (!physics) await writeFile(stateFile, JSON.stringify({ pose: { x: 0, y: 0, z: 0, yaw: 0 }, navigation: { missionId: "docker-cancel", status: "mission_cancelled" } }));
   await until(async () => (await mission("docker-cancel")).status === "cancelled", "mission cancellation");
   if (physics) {
@@ -68,7 +97,7 @@ try {
     const last = JSON.parse(await readFile(stateFile, "utf8"));
     assert.ok(Math.hypot(last.pose.x - first.pose.x, last.pose.y - first.pose.y) < 0.05);
   }
-  telemetry = new WebSocket("ws://127.0.0.1:9001");
+  telemetry = new WebSocket(`ws://127.0.0.1:${telemetryPort}`);
   let observed = false;
   telemetry.on("message", data => { const event = JSON.parse(data); if (event.type === "telemetry.event" && event.payload?.pose) observed = true; });
   await once(telemetry, "open");

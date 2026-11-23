@@ -37,7 +37,44 @@ const solveRequest = (baseUrl, points = [{ x: 0, y: 0 }, { x: 1, y: 0 }]) =>
     }),
   });
 
+const prepareRequest = (baseUrl, batteryRange) =>
+  fetch(`${baseUrl}/api/prepare-route`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      seedRoute: [{ x: 0, y: 0 }, { x: 6, y: 0 }, { x: 6, y: 6 }],
+      scene: { polygons: [], surfaceZones: [], chargingStations: [], motion: { cruiseSpeedMps: 0.22, payloadKg: 0, batteryRange } },
+    }),
+  });
+
 describe("solver HTTP server", () => {
+  it("imports an uploaded graph file", async () => {
+    const baseUrl = await listenForTest({ solverExists: async () => true });
+    const response = await fetch(`${baseUrl}/api/import-graph`, {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream", "X-File-Name": encodeURIComponent("граф.csv") },
+      body: "x,y,type\n1,2,visit\n3,4,charge\n",
+    });
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.sourceName).toBe("граф.csv");
+    expect(body.graph.points.map((point) => point.kind)).toEqual(["visit", "charge"]);
+  });
+
+  it("re-plans an ordered route against the scene and reports energy shortages", async () => {
+    const baseUrl = await listenForTest({ solverExists: async () => true });
+    const prepared = await prepareRequest(baseUrl, 100);
+    const body = await prepared.json();
+    expect(prepared.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.planning.routeEnergy).toBeGreaterThan(0);
+    expect(body.planning.influenceRows.map((row) => row.key)).toEqual(["distance", "payload", "speed", "turns", "slip", "charging"]);
+    expect(body.route.length).toBeGreaterThanOrEqual(3);
+    const short = await prepareRequest(baseUrl, 1);
+    expect(short.status).toBe(422);
+    expect(await short.json()).toMatchObject({ ok: false, reason: "insufficient_range" });
+  });
+
   it("rejects untrusted browser origins and reflects only allowed origins", async () => {
     const baseUrl = await listenForTest({ solverExists: async () => true });
     const rejected = await fetch(`${baseUrl}/health`, { headers: { Origin: "https://untrusted.example" } });
@@ -185,5 +222,25 @@ describe("solver HTTP server", () => {
 
     expect((await first).status).toBe(200);
     expect((await second).status).toBe(200);
+  });
+  it("renders map exports to PNG on the server", async () => {
+    const baseUrl = await listenForTest({ solverExists: async () => true });
+    const exportMap = (body) => fetch(`${baseUrl}/api/map-export`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const cells = [{ x: 1, y: 2, confidence: 4 }, { x: -3, y: 0.5, confidence: 9 }];
+    for (const variant of ["lidar", "camera"]) {
+      const response = await exportMap({ variant, map: { cells, freeCells: cells } });
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("image/png");
+      expect(response.headers.get("x-file-name")).toMatch(/\.png$/);
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      expect([...bytes.slice(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+    }
+    const empty = await exportMap({ variant: "lidar", map: { cells: [] } });
+    expect(empty.status).toBe(400);
+    expect((await empty.json()).error).toContain("пустая");
   });
 });

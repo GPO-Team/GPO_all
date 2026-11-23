@@ -1,5 +1,7 @@
 # GPO
 
+PostgreSQL в Docker: [запуск базы и схема](docs/POSTGRES.md) (`npm run db:up`).
+
 [![React 19](https://img.shields.io/badge/React-19-20232A?logo=react)](https://react.dev/)
 [![Vite 7](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
 [![Webots](https://img.shields.io/badge/Webots-youBot-2563EB)](https://cyberbotics.com/)
@@ -43,6 +45,9 @@ Docker имеет к нему доступ, и безопасно переход
 - Считать порядок обхода через нативный C++ solver.
 - Отправлять маршрут в `Webots` и получать телеметрию обратно в UI.
 - Сохранять текущий граф в CSV и управлять переносом коробок из единой формы.
+- Описывать многоуровневые стеллажи, регистрировать коробки на приёмке и
+  подготавливать размещение с резервированием ячеек на странице `/warehouse`.
+  [Запуск и возможности складского модуля](docs/WAREHOUSE.md).
 
 ## Актуальная структура
 

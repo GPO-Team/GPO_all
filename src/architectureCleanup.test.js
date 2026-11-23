@@ -5,8 +5,8 @@ describe("architecture cleanup", () => {
   it("publishes bridge ports on loopback only", () => {
     const compose = readFileSync("compose.yaml", "utf8");
 
-    for (const port of [9001, 9002, 9003]) {
-      expect(compose).toContain(`127.0.0.1:${port}:${port}`);
+    for (const [name, port] of [["TELEMETRY", 9001], ["ROUTE", 9002], ["PLANNING", 9003]]) {
+      expect(compose).toContain(`127.0.0.1:${"${"}STACK_${name}_PORT:-${port}}:${port}`);
     }
   });
 
@@ -14,7 +14,7 @@ describe("architecture cleanup", () => {
     const compose = readFileSync("compose.yaml", "utf8");
 
     expect(compose).toContain("dockerfile: docker/frontend.Dockerfile");
-    expect(compose).toContain('127.0.0.1:8080:80');
+    expect(compose).toContain(`127.0.0.1:${"${"}STACK_FRONTEND_PORT:-8080}:80`);
     for (const service of ["planning", "route", "telemetry"]) {
       expect(compose).toContain(`bridge/processes/run-${service}-service.cjs`);
     }
@@ -74,7 +74,7 @@ describe("architecture cleanup", () => {
     expect(indexHtml).not.toContain("vite.svg");
   });
 
-  it("loads the dashboard and spreadsheet parser only when they are needed", () => {
+  it("loads the dashboard lazily and leaves spreadsheet parsing to the server", () => {
     const app = readFileSync("src/App.jsx", "utf8");
     const plannerFileImport = readFileSync(
       "src/features/planner/services/plannerFileImport.js",
@@ -82,7 +82,7 @@ describe("architecture cleanup", () => {
     );
 
     expect(app).toContain('lazy(() => import("./pages/Dashboard"))');
-    expect(plannerFileImport).not.toContain('import * as XLSX from "xlsx"');
-    expect(plannerFileImport).toContain('await import("xlsx")');
+    expect(plannerFileImport).not.toContain("xlsx");
+    expect(plannerFileImport).toContain("IMPORT_GRAPH_URL");
   });
 });

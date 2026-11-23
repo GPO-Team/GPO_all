@@ -25,7 +25,6 @@ const readStoredCruiseSpeed = () => {
 };
 
 export const usePlannerEnergySettings = ({
-  setEnergyWarning,
   setExpandedPoint,
   setHoveredPointIndex,
   setRouteEnergyStats,
@@ -48,8 +47,8 @@ export const usePlannerEnergySettings = ({
   const invalidateRoute = () => {
     setExpandedPoint(null);
     setHoveredPointIndex(null);
+    // The energy warning is re-evaluated by the route rebuild or the energy retry.
     setRouteEnergyStats(createEmptyRouteEnergyStats());
-    setEnergyWarning("");
   };
   const applyValue = (rawValue, currentValue, normalize, setValue) => {
     const nextValue = normalize(rawValue);

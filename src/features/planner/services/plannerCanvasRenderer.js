@@ -89,21 +89,21 @@ export const getAxisTickStep = (viewScale = 1) => {
 };
 
 export const drawPlannerBackground = (ctx, surfaceZones = DEFAULT_SURFACE_ZONES, options = {}) => {
-  const { annotate = true, axisLabels = true, border = true, grid = true, viewScale = 1 } = options;
+  const { annotate = true, axisLabels = true, border = true, grid = true, viewScale = 1, dark = false } = options;
   const annotationScale = Number.isFinite(viewScale) && viewScale > 0 ? viewScale : 1;
   const gradient = ctx.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-  gradient.addColorStop(0, "#fafafa");
-  gradient.addColorStop(1, "#e5e7eb");
+  gradient.addColorStop(0, dark ? "#101d2a" : "#eef4f9");
+  gradient.addColorStop(1, dark ? "#101d2a" : "#e5edf4");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = dark ? "#111f2c" : "#fbfdff";
   ctx.fillRect(DRAWING_LEFT, DRAWING_TOP, DRAWING_WIDTH, DRAWING_HEIGHT);
   ctx.strokeStyle = "#0f172a";
   ctx.lineWidth = 2;
   if (border) ctx.strokeRect(DRAWING_LEFT, DRAWING_TOP, DRAWING_WIDTH, DRAWING_HEIGHT);
   drawSurfaceZones(ctx, surfaceZones);
   if (grid) {
-    ctx.strokeStyle = "rgba(148, 163, 184, 0.18)";
+    ctx.strokeStyle = dark ? "rgba(99, 137, 159, 0.18)" : "rgba(113, 145, 171, 0.14)";
     ctx.lineWidth = 1;
     for (let x = -HALF_WIDTH; x <= HALF_WIDTH; x += 1) {
       const from = worldToCanvas(x, -HALF_HEIGHT);
@@ -115,7 +115,7 @@ export const drawPlannerBackground = (ctx, surfaceZones = DEFAULT_SURFACE_ZONES,
       const to = worldToCanvas(HALF_WIDTH, y);
       ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke();
     }
-    ctx.strokeStyle = "rgba(100, 116, 139, 0.28)";
+    ctx.strokeStyle = dark ? "rgba(122, 164, 184, 0.32)" : "rgba(96, 129, 154, 0.27)";
     ctx.lineWidth = 1.5;
     for (let x = -HALF_WIDTH; x <= HALF_WIDTH; x += 4) {
       const from = worldToCanvas(x, -HALF_HEIGHT);
@@ -133,7 +133,7 @@ export const drawPlannerBackground = (ctx, surfaceZones = DEFAULT_SURFACE_ZONES,
   const verticalAxisBottom = worldToCanvas(0, -HALF_HEIGHT);
   const horizontalAxisLeft = worldToCanvas(-HALF_WIDTH, 0);
   const horizontalAxisRight = worldToCanvas(HALF_WIDTH, 0);
-  ctx.strokeStyle = "rgba(15, 23, 42, 0.6)";
+  ctx.strokeStyle = dark ? "rgba(164, 194, 209, 0.7)" : "rgba(43, 70, 91, 0.65)";
   ctx.lineWidth = 1 / annotationScale;
   ctx.beginPath();
   ctx.moveTo(verticalAxisTop.x, verticalAxisTop.y);
@@ -142,7 +142,7 @@ export const drawPlannerBackground = (ctx, surfaceZones = DEFAULT_SURFACE_ZONES,
   ctx.lineTo(horizontalAxisRight.x, horizontalAxisRight.y);
   ctx.stroke();
   if (!axisLabels) return;
-  ctx.fillStyle = "#334155";
+  ctx.fillStyle = dark ? "#c5dbe8" : "#415d75";
   ctx.font = `500 ${12 / annotationScale}px 'Segoe UI', sans-serif`;
   const tickSize = 4 / annotationScale;
   const labelOffset = 9 / annotationScale;

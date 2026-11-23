@@ -73,5 +73,7 @@ int controller_object_transfer_floor_supported(ControllerObjectTransferRuntime *
     int floor_contact, double linear_speed, double angular_speed);
 ControllerManipulatorTarget controller_object_transfer_runtime_sample(
     const ControllerObjectTransferRuntime *runtime, double now);
+// Shared with the next mission's departure guard after DEMO_BOX unloading.
+ControllerManipulatorTarget controller_object_transfer_transport_pose();
 
 #endif

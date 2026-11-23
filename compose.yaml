@@ -32,7 +32,7 @@ services:
     environment:
       BRIDGE_BIND_HOST: 0.0.0.0
       SOLVER_PATH: /app/native/build/gpo_route_solver
-    ports: ['127.0.0.1:9003:9003']
+    ports: ['127.0.0.1:${STACK_PLANNING_PORT:-9003}:9003']
     healthcheck:
       test: [CMD, node, docker/healthcheck.cjs, '9003']
       interval: 5s
@@ -49,7 +49,7 @@ services:
     secrets: [gateway_token]
     extra_hosts: ['host.docker.internal:host-gateway']
     volumes: [missions:/data/missions]
-    ports: ['127.0.0.1:9002:9002']
+    ports: ['127.0.0.1:${STACK_ROUTE_PORT:-9002}:9002']
     healthcheck:
       test: [CMD, node, docker/healthcheck.cjs, '9002']
       interval: 5s
@@ -63,7 +63,7 @@ services:
     environment: *client
     secrets: [gateway_token]
     extra_hosts: ['host.docker.internal:host-gateway']
-    ports: ['127.0.0.1:9001:9001']
+    ports: ['127.0.0.1:${STACK_TELEMETRY_PORT:-9001}:9001']
     healthcheck:
       test: [CMD, node, docker/healthcheck.cjs, '9001']
       interval: 5s
@@ -82,7 +82,7 @@ services:
       planning: {condition: service_healthy}
       route: {condition: service_healthy}
       telemetry: {condition: service_healthy}
-    ports: ['127.0.0.1:8080:80']
+    ports: ['127.0.0.1:${STACK_FRONTEND_PORT:-8080}:80']
     restart: unless-stopped
     logging:
       driver: json-file

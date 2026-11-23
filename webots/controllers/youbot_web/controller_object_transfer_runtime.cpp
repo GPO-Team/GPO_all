@@ -2,10 +2,16 @@
 #include "controller_manipulator_kinematics.h"
 #include "controller_navigation_state.h"
 #include "controller_transfer_route.h"
+#include "controller_delivery.h"
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <chrono>
+ControllerManipulatorTarget controller_object_transfer_transport_pose() {
+  auto pose=controller_manipulator_service_target(CONTROLLER_MANIPULATOR_TRANSPORT);
+  pose.joints[0]=1.2;
+  return pose;
+}
 namespace {
 constexpr double kHandleOffset=0.115;
 constexpr double kHandleCenterOffset=kHandleOffset;
@@ -24,11 +30,6 @@ constexpr double kSupportContactTolerance=0.004;
 constexpr double kSettledLinearSpeed=0.025;
 constexpr double kSettledAngularSpeed=0.15;
 constexpr double kUprightMinimum=0.97;
-ControllerManipulatorTarget transport_pose() {
-  auto pose=controller_manipulator_service_target(CONTROLLER_MANIPULATOR_TRANSPORT);
-  pose.joints[0]=1.2;
-  return pose;
-}
 void object_handle_center(ControllerObjectTransferRuntime *r,double x,double y,double z,double pose[3]) {
   pose[0]=x;pose[1]=y;pose[2]=z+kHandleCenterOffset;
   const double *orientation=r->object.node ? wb_supervisor_node_get_orientation(r->object.node) : nullptr;
@@ -40,7 +41,7 @@ void object_handle_center(ControllerObjectTransferRuntime *r,double x,double y,d
 }
 void fail(ControllerObjectTransferRuntime *r,const char *error) {
   auto &s=r->service.state;
-  const auto parked=transport_pose();
+  const auto parked=controller_object_transfer_transport_pose();
   bool arm_parked=r->have_joint_measurement;
   for(int i=0;i<5;++i) arm_parked=arm_parked && std::fabs(s.joint_positions[i]-parked.joints[i])<0.05;
   const bool needs_recovery=s.attached || s.on_platform || !arm_parked;
@@ -75,16 +76,22 @@ void waypoint(ControllerObjectTransferRuntime *r,double x,double y,int pickup) {
       }
     }
   }
+  const double *object_orientation=pickup && r->object.node
+      ? wb_supervisor_node_get_orientation(r->object.node) : nullptr;
+  if(pickup && !object_orientation) {fail(r,"sensor_invalid");return;}
+  const double object_yaw=object_orientation ? std::atan2(object_orientation[3],object_orientation[0]) : 0.0;
   if(!controller_transfer_route_plan_dock(&zones,base[0],base[1],x,y,
-      (r->service.state.attached || r->service.state.on_platform) ? 0.50 : 0.36,pickup,&n->route)) {
+      (r->service.state.attached || r->service.state.on_platform) ? 0.50 : 0.36,pickup,&n->route,object_yaw)) {
     fail(r,"navigation_unreachable"); return;
   }
   const double *rotation=wb_supervisor_node_get_orientation(wb_supervisor_node_get_self());
   if(!rotation) {fail(r,"sensor_invalid");return;}
   const double heading=std::atan2(rotation[3],rotation[0]);
+  double linear_limit=0,angular_limit=0;
+  controller_delivery_motion_limits(r->service.state.attached || r->service.state.on_platform,
+      r->service.state.on_platform,r->linear_speed_limit,r->angular_speed_limit,&linear_limit,&angular_limit);
   r->service.state.navigation_timeout=controller_transfer_route_timeout(&n->route,base[0],base[1],heading,
-      std::fmin(r->linear_speed_limit,(r->service.state.attached || r->service.state.on_platform) ? .06 : .12),
-      std::fmin(r->angular_speed_limit,(r->service.state.attached || r->service.state.on_platform) ? .10 : .30));
+      linear_limit,angular_limit);
   if(r->service.state.navigation_timeout<=0) {fail(r,"sensor_invalid");return;}
   r->progress_pose[0]=base[0];r->progress_pose[1]=base[1];r->progress_pose[2]=heading;
   std::snprintf(n->route.command_id,sizeof(n->route.command_id),"%s",r->service.state.mission_id);
@@ -144,7 +151,7 @@ void front_clear_target(ControllerObjectTransferRuntime *r,double rx,double ry,d
       base[2]+kPlatformCargoHeight+kHandleOffset+kPlatformClearance,opening,now,rx,ry,heading);
 }
 void park_target(ControllerObjectTransferRuntime *r,double now) {
-  auto target=transport_pose();target.finger_opening=kOpen;
+  auto target=controller_object_transfer_transport_pose();target.finger_opening=kOpen;
   controller_manipulator_service_start_target(&r->manipulator,&target,
       r->service.state.joint_positions,r->service.state.finger_positions,now);
   std::memcpy(r->service.state.joint_targets,target.joints,sizeof(target.joints));
@@ -218,7 +225,7 @@ void configure(ControllerObjectTransferRuntime *r,double now,double rx,double ry
     case CONTROLLER_TRANSFER_RETURNING_ARM:
       if(!s.attached && !r->object.attached && (s.error_code[0] || s.cancel_pending)) {
         r->arm_phase=1;
-        auto parked=transport_pose();
+        auto parked=controller_object_transfer_transport_pose();
         parked.finger_opening=kOpen;
         controller_manipulator_service_start_target(&r->manipulator,&parked,s.joint_positions,s.finger_positions,now);
         std::memcpy(s.joint_targets,parked.joints,sizeof(parked.joints));
@@ -338,8 +345,9 @@ void controller_object_transfer_runtime_command(ControllerObjectTransferRuntime 
   const double *orientation=wb_supervisor_node_get_orientation(r->object.node);
   if(r->service.state.status==CONTROLLER_TRANSFER_RUNNING && orientation && r->navigation->route.count) {
     const double dock_heading=r->navigation->route.waypoints[r->navigation->route.count-1].heading_rad;
-    // The downward wrist rotates about -Z. Match the square handle before closing.
-    r->grip_roll=std::remainder(dock_heading-std::atan2(orientation[3],orientation[0]),3.14159265358979323846);
+    // The handle is square: all four faces are equivalent. A quarter-turn of
+    // the tilted wrist would incline the closing axis instead of aligning it.
+    r->grip_roll=std::remainder(dock_heading-std::atan2(orientation[3],orientation[0]),1.5707963267948966);
   }
 }
 int controller_object_transfer_runtime_allows_navigation(const ControllerObjectTransferRuntime *r) {
@@ -353,7 +361,7 @@ int controller_object_transfer_runtime_allows_navigation(const ControllerObjectT
   if(s.stage==CONTROLLER_TRANSFER_APPROACHING_OBJECT) return 1;
   if(s.stage!=CONTROLLER_TRANSFER_TRANSPORTING || !s.sensors_valid || !s.on_platform ||
       s.attached || s.gripper_closed) return 0;
-  const auto parked=transport_pose();
+  const auto parked=controller_object_transfer_transport_pose();
   for(int i=0;i<5;++i)
     if(!std::isfinite(s.joint_positions[i]) || std::fabs(s.joint_positions[i]-parked.joints[i])>.05) return 0;
   return std::fabs(s.finger_positions[0]-kOpen)<.003 && std::fabs(s.finger_positions[1]-kOpen)<.003;
@@ -593,7 +601,7 @@ void controller_object_transfer_runtime_step(ControllerObjectTransferRuntime *r,
   }
   if(arm_reached && s.stage==CONTROLLER_TRANSFER_RETURNING_ARM && r->arm_phase==0) {
     r->arm_phase=1;
-    const auto parked=transport_pose();
+    const auto parked=controller_object_transfer_transport_pose();
     controller_manipulator_service_start_target(&r->manipulator,&parked,s.joint_positions,s.finger_positions,now);
     std::memcpy(s.joint_targets,parked.joints,sizeof(parked.joints));arm_reached=0;
   }

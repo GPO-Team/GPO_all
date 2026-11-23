@@ -31,15 +31,16 @@ it("does not attribute an old controller error to a new mission", () => {
     telemetry={{manipulator:{missionId:"old-arm",stage:"failed",error:"object_missing"}}} />);
   expect(html).not.toContain("Объект не найден в мире Webots.");
 });
-it("explains an unreachable placement and shows the observed object position", () => {
+it("keeps the manipulator form compact without instructional copy", () => {
   const html = renderToStaticMarkup(<PlannerManipulatorSection connected
     mission={{missionId:"far-target",status:"failed",failureReason:"target_unreachable"}}
     telemetry={{manipulator:{missionId:"far-target",objectDef:"PICK_BOX",stage:"failed",error:"target_unreachable",objectPosition:{x:0.397144,y:0.104708,z:0.039992}}}} />);
   expect(html).toContain("Точка назначения недостижима даже после подъезда базы.");
   expect(html).toContain("Проверьте высоту центра объекта");
-  expect(html).toContain("X=0.397");
-  expect(html).toContain("Y=0.105");
-  expect(html).toContain("не смещение объекта");
+  expect(html).not.toContain("X=0.397");
+  expect(html).not.toContain("Y=0.105");
+  expect(html).not.toContain("не смещение объекта");
+  expect(html).not.toContain("Автоматическая доставка небольших объектов");
 });
 it("distinguishes an unreachable object from an unreachable destination", () => {
   const html = renderToStaticMarkup(<PlannerManipulatorSection connected

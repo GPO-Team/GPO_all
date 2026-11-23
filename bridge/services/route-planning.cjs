@@ -9,6 +9,7 @@ const prepareRoute = async ({ seedRoute, scene }) => {
   const { buildRouteWithEnergyStops } = await import("../../shared/planning/routeEnergy.js");
   const { sanitizeRouteForController } = await import("../../shared/planning/zonePlannerRouting.js");
   const { routeCrossesAnyLimitPolygon } = await import("../../shared/planning/zonePlannerPolygons.js");
+  const { analyzeRouteInfluence } = await import("../../shared/planning/routeInfluence.js");
   const options = { surfaceZones:snapshot.surfaceZones, speedMps:snapshot.motion.cruiseSpeedMps, payloadKg:snapshot.motion.payloadKg };
   const result = buildRouteWithEnergyStops({seedRoute:points, polygons:snapshot.polygons, surfaceZones:snapshot.surfaceZones,
     chargingStations:snapshot.chargingStations, batteryRangeMeters:snapshot.motion.batteryRange, energyOptions:options});
@@ -17,6 +18,7 @@ const prepareRoute = async ({ seedRoute, scene }) => {
   if (route.length < 2 || routeCrossesAnyLimitPolygon(route, snapshot.polygons)) {
     throw Object.assign(new Error("Final route is invalid after controller normalization."), {statusCode:422});
   }
-  return { route, seedRoute:points, scene:snapshot, sceneRevision:sceneRevision(snapshot), planning:{...result, route} };
+  const influenceRows = analyzeRouteInfluence(route, { ...options, stationStopCount: result.stationStopCount });
+  return { route, seedRoute:points, scene:snapshot, sceneRevision:sceneRevision(snapshot), planning:{...result, route, influenceRows} };
 };
 module.exports = { prepareRoute };

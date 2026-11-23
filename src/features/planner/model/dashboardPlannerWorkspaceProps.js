@@ -13,6 +13,7 @@ export const createCanvasProps = ({ state, runtime, derived, actions }) => ({
   telemetry: runtime.telemetry,
   mapLayers: state.sidebar?.plannerUiState?.mapLayers,
   editingLocked:actions.editingLocked,
+  isOptimizing:state.route?.isOptimizing,
   onCanvasClick: actions.addPointFromCanvas,
   onCanvasMouseDown: actions.handleCanvasMouseDown,
   onCanvasMouseMove: actions.handleCanvasMouseMove,
@@ -21,9 +22,8 @@ export const createCanvasProps = ({ state, runtime, derived, actions }) => ({
 });
 
 export const createLeftSidebarProps = ({ state, runtime, derived, actions }) => {
-  const { algorithm = {}, energy = {}, interaction = {}, limits = {}, route = {}, surfaces = {} } = state;
+  const { algorithm = {}, energy = {}, interaction = {}, limits = {}, route = {} } = state;
   const plannerModel = derived.plannerModel || {};
-  const viewModel = derived.viewModel || {};
   const edit=callback=>(...args)=>{if(actions.isEditingLocked?.()){route.setStatus?.("Изменение параметров заблокировано до остановки миссии.");return;}callback?.(...args);};
 
   return {
@@ -40,24 +40,31 @@ export const createLeftSidebarProps = ({ state, runtime, derived, actions }) => 
     onUpdatePointTask: actions.updatePointTask,
     activePointKind: interaction.activePointKind,
     onActivePointKindChange: interaction.activatePointPlacement || interaction.setActivePointKind,
+    visitPointMode: interaction.visitPointMode,
+    onVisitPointModeChange: actions.changeVisitPointMode,
     onClearVisitPoints: () => actions.clearPoints?.("visit"),
     onClearChargePoints: () => actions.clearPoints?.("charge"),
     onClearLimitPoints: () => actions.clearPoints?.("limit"),
     routeTaskKey: algorithm.routeTaskKey,
-    driveMode: algorithm.driveMode,
-    onDriveModeChange: actions.handleDriveModeChange,
     onRouteTaskChange: actions.handleRouteTaskChange,
     algorithmKey: algorithm.algorithmKey,
     onAlgorithmChange: actions.handleAlgorithmChange,
+    algorithmPrecision: derived.viewModel?.algorithmPrecision,
+    onAlgorithmPrecisionChange: actions.updateAlgorithmPrecision,
+    telemetry: derived.telemetryForSidebar,
+    mappingSurveyMode: state.mapping?.mappingSurveyMode,
+    mappingSurveyModes: MAPPING_SURVEY_MODES,
+    onMappingSurveyModeChange: state.mapping?.setMappingSurveyMode,
+    mapExportPromptOpen: interaction.mapExportPromptOpen,
+    onStartMappingSurvey: actions.startMappingSurvey,
+    onRequestMapExport: actions.requestMapExport,
+    onExportMapVariant: actions.exportMapImage,
+    onCancelMapExport: () => interaction.setMapExportPromptOpen?.(false),
     status: route.status,
     mission: runtime.mission?.state,
     onCancelMission: runtime.mission?.cancel,
-    onResumeMission: runtime.mission?.resume,
     energyWarning: route.energyWarning,
     routeBlocked: plannerModel.routeBlocked,
-    algorithmFields: viewModel.algorithmFields,
-    selectedAlgorithmParams: viewModel.selectedAlgorithmParams,
-    onAlgorithmParamChange: actions.updateAlgorithmParam,
     isOptimizing: route.isOptimizing,
     onOptimizeRoute: actions.optimizeRoute,
     onSendRoute: actions.sendRoute,
@@ -67,10 +74,6 @@ export const createLeftSidebarProps = ({ state, runtime, derived, actions }) => 
     onSelectRuntimeObstacle: actions.selectRuntimeObstacle,
     onEditRuntimeObstacle: actions.editRuntimeObstacle,
     onDeleteRuntimeObstacle: actions.deleteRuntimeObstacle,
-    onStartObjectTransfer: actions.startObjectTransfer,
-    onSetManipulatorPose: actions.setManipulatorPose,
-    manipulator: runtime.telemetry?.manipulator,
-    objectTransfer: runtime.telemetry?.objectTransfer,
     onClearAll: () => actions.clearPoints?.(),
     hasRoute: (route.optimizedRoute?.length || 0) > 0,
     routeLength: plannerModel.routeLength,
@@ -85,7 +88,6 @@ export const createLeftSidebarProps = ({ state, runtime, derived, actions }) => 
     onToggleZoneClosed: actions.toggleZoneClosed,
     onClearZone: actions.clearZone,
     onRemoveZone: actions.removeZone,
-    visitsInsideLimitCount: plannerModel.visitsInsideLimit?.length,
     polygonCount: plannerModel.polygons?.length,
     adjustedVisitCount: plannerModel.adjustedVisits?.length,
     activeZoneName: plannerModel.activeZoneName,
@@ -103,24 +105,12 @@ export const createLeftSidebarProps = ({ state, runtime, derived, actions }) => 
     routeEnergyStats: energy.routeEnergyStats,
     routeInfluenceRows: derived.routeInfluenceRows,
     routeTiming: runtime.routeTiming?.display,
-    surfaceZones: surfaces.surfaceZones,
-    activeSurfaceZoneId: surfaces.activeSurfaceZoneId,
-    activeSurfaceZone: viewModel.activeSurfaceZone,
-    activeSurfaceProfileKey: surfaces.activeSurfaceProfileKey,
-    onSurfaceProfileChange: actions.updateSurfaceProfile,
-    onCreateSurfaceZone: actions.createSurfaceZone,
-    onSelectSurfaceZone: actions.selectSurfaceZone,
-    onToggleSurfaceZoneClosed: actions.toggleSurfaceZoneClosed,
-    onClearSurfaceZone: actions.clearSurfaceZone,
-    onRemoveSurfaceZone: actions.removeSurfaceZone,
-    onClearAllSurfaceZones: actions.clearAllSurfaceZones,
   };
 };
 
 export const createRightSidebarProps = ({ state, runtime, derived, actions }) => {
-  const { algorithm = {}, interaction = {}, limits = {}, mapping = {} } = state;
+  const { interaction = {}, limits = {} } = state;
   const plannerModel = derived.plannerModel || {};
-  const viewModel = derived.viewModel || {};
 
   return {
     activeZone: plannerModel.activeZone,
@@ -140,29 +130,14 @@ export const createRightSidebarProps = ({ state, runtime, derived, actions }) =>
     telemetryWsUp: runtime.telemetryWsUp,
     mapLayers: state.sidebar?.plannerUiState?.mapLayers,
     onMapLayerChange: state.sidebar?.setMapLayerVisible,
-    status: state.route?.status,
     routeWsUp: runtime.routeWsUp,
     solverApiUp: runtime.solverApiUp,
-    mappingSurveyMode: mapping.mappingSurveyMode,
-    mappingSurveyModes: MAPPING_SURVEY_MODES,
-    onMappingSurveyModeChange: mapping.setMappingSurveyMode,
-    mapExportPromptOpen: interaction.mapExportPromptOpen,
-    onStartMappingSurvey: actions.startMappingSurvey,
     onStartPickPlace: actions.startPickPlace,
-    onStartObjectTransfer:actions.startObjectTransfer,onResumeMission:runtime.mission?.resume,
+    onStartObjectTransfer: actions.startObjectTransfer,
+    onResumeMission: runtime.mission?.resume,
     editingLocked:actions.editingLocked,
     mission: runtime.mission?.state,
     onCancelMission: runtime.mission?.cancel,
-    onRequestMapExport: actions.requestMapExport,
-    onExportMapVariant: actions.exportMapImage,
-    onCancelMapExport: () => interaction.setMapExportPromptOpen?.(false),
-    routeTaskKey: algorithm.routeTaskKey,
-    onRouteTaskChange: actions.handleRouteTaskChange,
-    algorithmKey: algorithm.algorithmKey,
-    onAlgorithmChange: actions.handleAlgorithmChange,
-    algorithmFields: viewModel.algorithmFields,
-    selectedAlgorithmParams: viewModel.selectedAlgorithmParams,
-    onAlgorithmParamChange: actions.updateAlgorithmParam,
     onCreateZone: actions.createZone,
     onSelectZone: actions.selectZone,
     onToggleZoneClosed: actions.toggleZoneClosed,

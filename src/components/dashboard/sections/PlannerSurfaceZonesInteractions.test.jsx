@@ -32,10 +32,11 @@ it("changes the clicked zone's type without changing its neighbor and exposes in
   const zoneTitle = (number) => zoneCard(number).querySelector(".flex-1").textContent;
   try {
     await act(async () => root.render(<Harness />));
-    expect(container.querySelector("details").open).toBe(false);
+    expect(container.querySelector("details").open).toBe(true);
     expect([...container.querySelectorAll("button")].find((button) => button.textContent === "Новая зона").closest("details")).toBeNull();
     await act(async () => container.querySelector("summary").click());
-    expect(container.querySelector("details").open).toBe(true);
+    expect(container.querySelector("details").open).toBe(false);
+    await act(async () => container.querySelector("summary").click());
     expect([...zoneCard(2).querySelectorAll("button")].find((button) => button.textContent === "Очистить зону").disabled).toBe(true);
     const select = zoneSelect(1);
     expect(select.value).toBe("rough");

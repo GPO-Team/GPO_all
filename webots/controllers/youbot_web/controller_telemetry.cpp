@@ -182,6 +182,7 @@ int controller_telemetry_write_snapshot(
       manipulator->stage ? manipulator->stage : "idle", safe_text(manipulator->error));
   fprintf(file, "    \"active\": %s, \"loadHeld\": %s, \"cancelPending\": %s,\n",
       json_bool(manipulator->active), json_bool(manipulator->load_held), json_bool(manipulator->cancel_pending));
+  fprintf(file, "    \"onPlatform\": %s,\n", json_bool(manipulator->on_platform));
   if(std::isfinite(manipulator->contacts[0]) && std::isfinite(manipulator->contacts[1]))
     fprintf(file, "    \"contacts\": [%.6f, %.6f],\n", manipulator->contacts[0], manipulator->contacts[1]);
   else fprintf(file, "    \"contacts\": null,\n");

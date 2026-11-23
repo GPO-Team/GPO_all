@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { worldToCanvas, canvasToWorld, DRAWING_WIDTH, DRAWING_HEIGHT } from "../../../lib/zonePlannerCoordinates";
-import { createViewport, getCanvasEventPosition, getMapScaleBar, screenToMap, zoomAt } from "./plannerViewport";
+import { createViewport, getCanvasEventPosition, getMapScaleBar, resizePan, screenToMap, zoomAt } from "./plannerViewport";
 
 describe("map viewport coordinates", () => {
+  it("preserves the map position in the centre when a sidebar changes its size", () => {
+    const pan = { x: 130, y: -70 };
+    const before = createViewport(1200, 800, 2, pan);
+    const after = createViewport(750, 800, 2, resizePan(before, 750, 800, pan));
+    const centreBefore = screenToMap(before, { x: 600, y: 400 });
+    const centreAfter = screenToMap(after, { x: 375, y: 400 });
+    expect(centreAfter.x).toBeCloseTo(centreBefore.x);
+    expect(centreAfter.y).toBeCloseTo(centreBefore.y);
+  });
   it.each([3, 12, 25, 55, 100, 400])("keeps the scale bar accurate at %s pixels per meter", (pixelsPerMeter) => {
     const bar = getMapScaleBar(pixelsPerMeter);
     expect(bar.width).toBeCloseTo(bar.meters * pixelsPerMeter);

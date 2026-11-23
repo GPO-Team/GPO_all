@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { clampZoom, createViewport, getCanvasEventPosition, zoomAt } from "../../features/planner/model/plannerViewport";
+import { clampZoom, createViewport, getCanvasEventPosition, resizePan, zoomAt } from "../../features/planner/model/plannerViewport";
 import { canvasToWorld, MAP_WORLD_HEIGHT, MAP_WORLD_WIDTH, SCALE } from "../../lib/zonePlannerCoordinates";
 import { dragRuntimeObstacle, getObstacleDragMode } from "../../features/planner/model/runtimeObstacles";
 import { INITIAL_TELEMETRY } from "../../lib/telemetry/dashboardTelemetryState";
@@ -80,6 +80,10 @@ export default function PlannerCanvas({
     const container = containerRef.current;
     const resize = () => {
       const view = viewRef.current;
+      const previous = viewportRef.current;
+      if (previous && (previous.width !== container.clientWidth || previous.height !== container.clientHeight)) {
+        view.pan = resizePan(previous, container.clientWidth, container.clientHeight, view.pan);
+      }
       const viewport = createViewport(container.clientWidth, container.clientHeight, view.zoom, view.pan);
       viewportRef.current = viewport;
       canvas.plannerViewport = viewport;

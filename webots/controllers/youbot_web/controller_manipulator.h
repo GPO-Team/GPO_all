@@ -33,11 +33,15 @@ typedef struct {
   const char *error;
   int load_held;
   int cancel_pending;
+  int require_support;
+  double stage_timeout;
 } ControllerManipulator;
 
 // Positions are relative to the robot origin (ENU). Dimensions: Webots R2025a Youbot.proto.
 int controller_manipulator_inverse(const double position[3], double joints[5], double grip_yaw = 0.0);
 void controller_manipulator_forward(const double joints[5], double position[3]);
+int controller_manipulator_approach(const double position[3],const double seed[5],double joints[5],double grip_yaw);
+void controller_manipulator_transfer_via(const double from[5],const double to[5],double via[5]);
 int controller_manipulator_start(ControllerManipulator *arm, const double source[3], const double destination[3]);
 int controller_manipulator_active(const ControllerManipulator *arm);
 double controller_manipulator_finger_target(const ControllerManipulator *arm, int finger);

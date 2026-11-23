@@ -24,6 +24,16 @@ async function until(condition,label,timeout=120000) {
   throw new Error(`Timeout: ${label}`);
 }
 const mission=async id=>(await fetch(`http://127.0.0.1:9002/api/missions/${id}`)).json();
+const warehouse=async(path="",body)=>{
+  const response=await fetch(`http://127.0.0.1:9002/api/warehouse${path}`,{
+    ...(body ? {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)} : {}),
+    signal:AbortSignal.timeout(15000),
+  });
+  const result=await response.json();
+  assert.equal(response.status,200,JSON.stringify(result));
+  assert.equal(result.ok,true,JSON.stringify(result));
+  return result;
+};
 async function connect(url) {
   const socket=new WebSocket(url);sockets.push(socket);await once(socket,"open");return socket;
 }
@@ -56,6 +66,24 @@ try {
   const telemetrySocket=await connect("ws://127.0.0.1:9001");
   telemetrySocket.on("message",data=>{const event=JSON.parse(data);if(event.type==="telemetry.event")telemetry=event.payload;});
   await until(()=>telemetry?.perception?.camera?.frameDataUrl,"robot camera");
+  const warehousePage=await fetch("http://127.0.0.1:8080/warehouse");
+  assert.equal(warehousePage.status,200,"warehouse frontend route must be served by nginx");
+  assert.match(await warehousePage.text(),/<div id="root">/);
+  let stored=await warehouse();
+  assert.equal(stored.warehouse.cargo.length,0,"test volume must start empty");
+  stored=await warehouse("/racks",{expectedRevision:stored.warehouse.revision,rack:{
+    id:"container-rack",code:"DOCKER",name:"Контейнерный стеллаж",x:-4,y:-4,yaw:0,
+    bays:1,placesPerBay:1,bayWidth:0.5,depth:0.5,
+    levels:[{supportZ:0.1,clearHeight:0.5,maxLoadKg:2}],
+  }});
+  stored=await warehouse("/cargo",{expectedRevision:stored.warehouse.revision,cargo:{
+    id:"container-box",label:"Коробка для проверки учёта",width:0.1,depth:0.1,height:0.1,massKg:1,
+  }});
+  stored=await warehouse("/tasks",{expectedRevision:stored.warehouse.revision,
+    id:"container-putaway",cargoId:"container-box",destinationId:"container-rack:1:1:1"});
+  assert.equal(stored.slots[0].reservedBy,"container-putaway");
+  assert.equal(stored.warehouse.cargo[0].locationId,"receiving","preparing must not move inventory");
+  const warehouseRevision=stored.warehouse.revision;
   assert.equal(telemetry.perception.camera.obstacleVisible,false,"the empty floor must not be classified as an obstacle");
   assert.equal(telemetry.navigation.status,"waiting_for_route","fresh stack must not move before a mission");
   const streaming=await connect("ws://127.0.0.1:8080/simulation/");
@@ -86,6 +114,14 @@ try {
   await compose("kill","-s","SIGKILL","route");
   await compose("up","-d","--wait","route");
   assert.equal((await mission("complete")).status,"completed");
+  stored=await warehouse();
+  assert.equal(stored.warehouse.revision,warehouseRevision,"warehouse revision must survive route crash");
+  assert.equal(stored.slots[0].reservedBy,"container-putaway","warehouse reservation must survive route crash");
+  assert.equal(stored.warehouse.cargo[0].locationId,"receiving");
+  stored=await warehouse("/tasks/container-putaway/cancel",{expectedRevision:stored.warehouse.revision});
+  assert.equal(stored.slots[0].reservedBy,null);
+  assert.equal(stored.warehouse.tasks[0].status,"cancelled");
+  console.log("PASS: warehouse frontend, private SQLite, reservation and cancellation after route crash");
   const nextSocket=await connect("ws://127.0.0.1:9002/ui");
   await compose("stop","simulator");
   await send(nextSocket,"restart-cancel",[{x:0,y:0},{x:0,y:2}]);

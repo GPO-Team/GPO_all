@@ -25,7 +25,7 @@ it("retains the controller failure reason in mission history", async () => {
   expect(await service.get("arm-failure")).toMatchObject({status:"failed",failureReason:"invalid_sensor"});
 });
 
-it("keeps a cancelled pick mission nonterminal while the controller retains its load", async () => {
+it.each(["loadHeld", "onPlatform"])("keeps a cancelled pick mission nonterminal while %s retains its load", async heldField => {
   directory = await mkdtemp(path.join(os.tmpdir(), "gpo-arm-held-"));
   const adapter = adapters.createWebotsFileAdapter({artifactStore:{writeRuntimeCommand:async()=>{}},stateDir:directory});
   const records = new Map();
@@ -34,9 +34,9 @@ it("keeps a cancelled pick mission nonterminal while the controller retains its 
   await service.submit({type:"pick_place",objectDef:"PICK_BOX",destination:{x:.4,y:.1,z:.04}}, {requestId:"held-pick"});
   await writeFile(path.join(directory,"robot_state.json"),JSON.stringify({
     navigation:{missionId:"held-pick",status:"manipulator_holding",finished:false},
-    manipulator:{missionId:"held-pick",stage:"holding_for_recovery",loadHeld:true,active:true,error:"unsafe_release"},
+    manipulator:{missionId:"held-pick",stage:"holding_for_recovery",[heldField]:true,active:true,error:"unsafe_release"},
   }));
-  expect(await service.cancel("held-pick")).toMatchObject({status:"holding_for_recovery",attached:true,errorCode:"unsafe_release"});
+  expect(await service.cancel("held-pick")).toMatchObject({status:"holding_for_recovery",attached:heldField==="loadHeld",onPlatform:heldField==="onPlatform",errorCode:"unsafe_release"});
   await expect(service.submit({type:"route",route:[{x:0,y:0},{x:1,y:0}]},{requestId:"competing-route"}))
     .rejects.toMatchObject({statusCode:409});
   await writeFile(path.join(directory,"robot_state.json"),JSON.stringify({

@@ -78,7 +78,7 @@ typedef struct {
   const char *object_def;
   const char *stage;
   const char *error;
-  int active, load_held, cancel_pending;
+  int active, load_held, cancel_pending, on_platform;
   int object_valid;
   double object_position[3];
   double contacts[2];

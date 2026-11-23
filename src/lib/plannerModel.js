@@ -7,7 +7,9 @@ import {
   routeCrossesAnyLimitPolygon,
 } from "./zonePlanner";
 
-export const INITIAL_ZONE = { id: "zone-1", name: "Зона 1", closed: false };
+import { INITIAL_ZONE } from "../../shared/planning/graphImport.js";
+
+export { INITIAL_ZONE };
 export const DRAG_HIT_RADIUS = 14;
 
 const buildZoneEntries = (limitZones) =>

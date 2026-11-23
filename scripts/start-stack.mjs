@@ -11,7 +11,19 @@ const options = parseOptions(process.argv.slice(2));
 const project = process.env.STACK_PROJECT || "gpo-stack";
 const tokenFile = path.resolve(root, process.env.STACK_TOKEN_FILE || "secrets/gateway-token");
 const stateDir = path.resolve(root, process.env.STACK_WEB_STATE_DIR || config.WEB_STATE_DIR);
-const env = { ...process.env, STACK_TOKEN_FILE: tokenFile, STACK_GATEWAY_URL: "http://host.docker.internal:9004" };
+const stackPorts = {
+  frontend: Number(process.env.STACK_FRONTEND_PORT || 8080),
+  telemetry: Number(process.env.STACK_TELEMETRY_PORT || 9001),
+  route: Number(process.env.STACK_ROUTE_PORT || 9002),
+  planning: Number(process.env.STACK_PLANNING_PORT || 9003),
+  gateway: Number(process.env.STACK_GATEWAY_PORT || 9004),
+  lock: Number(process.env.STACK_LOCK_PORT || 9005),
+};
+const env = {
+  ...process.env,
+  STACK_TOKEN_FILE: tokenFile,
+  STACK_GATEWAY_URL: `http://host.docker.internal:${stackPorts.gateway}`,
+};
 const children = [];
 const launcherLock = createServer();
 let gateway, simulator, currentCommand, finish, secretMount, interrupted = false, composeOwned = false, stopping = false;
@@ -61,7 +73,7 @@ async function stop() {
 try {
   if (options.webots && process.platform !== "win32") throw new Error("The graphical launcher requires Windows; use --no-webots for service testing.");
   // The OS releases this lock after crashes; no stale PID file can block recovery.
-  launcherLock.listen(9005, "127.0.0.1");
+  launcherLock.listen(stackPorts.lock, "127.0.0.1");
   await once(launcherLock, "listening");
   const token = await ensureToken(tokenFile);
   secretMount = await stageToken(token);
@@ -69,7 +81,7 @@ try {
   await run("docker", ["info"], true);
   const existing = await run("docker", ["compose", "-p", project, "ps", "--all", "--quiet"], true);
   if (existing.trim()) throw new Error(`Compose project ${project} already exists. Stop its launcher or run docker compose -p ${project} down first (without -v).`);
-  for (const port of [8080, 9001, 9002, 9003, 9004]) {
+  for (const port of [stackPorts.frontend, stackPorts.telemetry, stackPorts.route, stackPorts.planning, stackPorts.gateway]) {
     const server = createServer();
     server.listen(port, "0.0.0.0");
     await once(server, "listening");
@@ -86,12 +98,12 @@ try {
   await mkdir(stateDir, { recursive: true });
   gateway = fork(path.join(root, "scripts/gateway-child.cjs"), [], {
     cwd: root, windowsHide: true,
-    env: { ...env, GATEWAY_BIND_HOST: "0.0.0.0", GATEWAY_PORT: "9004", GATEWAY_TOKEN: "", GATEWAY_TOKEN_FILE: tokenFile, WEB_STATE_DIR: stateDir, LOG_DIR: "" },
+    env: { ...env, GATEWAY_BIND_HOST: "0.0.0.0", GATEWAY_PORT: String(stackPorts.gateway), GATEWAY_TOKEN: "", GATEWAY_TOKEN_FILE: tokenFile, WEB_STATE_DIR: stateDir, LOG_DIR: "" },
     stdio: ["ignore", "inherit", "inherit", "ipc"],
   });
   children.push(gateway);
   await waitFor(async () => {
-    try { return (await fetch("http://127.0.0.1:9004/ready", { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(1000) })).ok; }
+    try { return (await fetch(`http://127.0.0.1:${stackPorts.gateway}/ready`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(1000) })).ok; }
     catch { return false; }
   }, "gateway", 15000);
   if (options.build) await compose("build");
@@ -117,7 +129,7 @@ try {
       } catch { return false; }
     }, "Webots telemetry");
   }
-  console.log("Stack ready: http://127.0.0.1:8080 — press Ctrl+C to stop. Mission volume is preserved.");
+  console.log(`Stack ready: http://127.0.0.1:${stackPorts.frontend} — press Ctrl+C to stop. Mission volume is preserved.`);
   await new Promise(resolve => {
     finish = resolve;
     if (interrupted) resolve();

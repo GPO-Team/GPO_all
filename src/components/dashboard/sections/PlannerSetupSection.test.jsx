@@ -4,6 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 import PlannerSetupSection from "./PlannerSetupSection";
 
 describe("PlannerSetupSection", () => {
+  it("hides the long route success description but preserves errors", () => {
+    const success = renderToStaticMarkup(<PlannerSetupSection status="Маршрут построен: подробности расчёта" />);
+    const error = renderToStaticMarkup(<PlannerSetupSection status="Точка недоступна" routeBlocked />);
+    expect(success).not.toContain("подробности расчёта");
+    expect(error).toContain("Точка недоступна");
+  });
   it("preserves overview, point mode and route selectors order", () => {
     const html = renderToStaticMarkup(
       <PlannerSetupSection

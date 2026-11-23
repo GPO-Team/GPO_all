@@ -68,11 +68,9 @@ export const usePlannerLimitZoneEditor = ({
     setStatus("Точки выбранной зоны очищены.");
   };
 
+  // Any zone can be removed, including the last one; the next limit point
+  // placed on the map then creates a fresh zone (see ensureLimitZone).
   const removeZone = (zoneId) => {
-    if (limitZones.length === 1) {
-      clearZone(zoneId);
-      return;
-    }
     const next = removeLimitZoneState({
       zones: limitZones,
       points,
@@ -83,8 +81,22 @@ export const usePlannerLimitZoneEditor = ({
     setPoints(next.points);
     setActiveLimitZoneId(next.activeZoneId);
     clearRouteState({ dropSolvedRoute: false });
-    setStatus("Ограничивающая зона удалена.");
+    setStatus(
+      next.zones.length
+        ? "Ограничивающая зона удалена."
+        : "Ограничивающая зона удалена. Новая зона появится при следующей точке зоны."
+    );
   };
 
-  return { clearZone, createZone, removeZone, resetZones, selectZone, toggleZoneClosed };
+  const ensureLimitZone = () => {
+    const current = zoneEntries.find((zone) => zone.id === activeLimitZoneId) || zoneEntries[0];
+    if (current) return current;
+    const zone = createLimitZoneDraft(nextZoneNumber);
+    setLimitZones((previous) => [...previous, zone]);
+    setActiveLimitZoneId(zone.id);
+    setNextZoneNumber((previous) => previous + 1);
+    return zone;
+  };
+
+  return { clearZone, createZone, ensureLimitZone, removeZone, resetZones, selectZone, toggleZoneClosed };
 };

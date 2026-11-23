@@ -2,6 +2,7 @@ import { useDashboardPlannerEditors } from "./useDashboardPlannerEditors";
 import { useDashboardPlannerRouteLifecycle } from "./useDashboardPlannerRouteLifecycle";
 import { useDashboardPlannerRuntimeActions } from "./useDashboardPlannerRuntimeActions";
 import { usePlannerRouteSelection } from "./usePlannerRouteSelection";
+import { usePlannerUndo } from "./usePlannerUndo";
 import { useEffect, useLayoutEffect } from "react";
 import { downloadGraphCsv } from "../model/graphExport";
 
@@ -38,7 +39,6 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
     if (mission?.missionId) setIsSubmitting?.(false);
   }, [mission?.missionId, mission?.status, setIsSubmitting]);
   const routeLifecycle = useDashboardPlannerRouteLifecycle({
-    driveMode: algorithm.driveMode,
     editingLocked,
     isEditingLocked,
     editingLockRef: route.editingLockRef,
@@ -50,6 +50,7 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
     resetRouteTiming: runtime.routeTiming.reset,
     setActiveLimitZoneId: limits.setActiveLimitZoneId,
     setActivePointKind: interaction.setActivePointKind,
+    setVisitPointMode: interaction.setVisitPointMode,
     setActiveSurfaceProfileKey: surfaces.setActiveSurfaceProfileKey,
     setActiveSurfaceZoneId: surfaces.setActiveSurfaceZoneId,
     setAlgorithmKey: algorithm.setAlgorithmKey,
@@ -86,9 +87,7 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
   });
 
   const routeSelection = usePlannerRouteSelection({
-    setDriveMode: algorithm.setDriveMode,
     isEditingLocked,
-    algorithmKey: algorithm.algorithmKey,
     resetRouteTiming: runtime.routeTiming.reset,
     setAlgorithmKey: algorithm.setAlgorithmKey,
     setAlgorithmParams: algorithm.setAlgorithmParams,
@@ -145,7 +144,33 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
     onMissionSubmitted: runtime.mission?.track,
   });
 
+  const history = usePlannerUndo({
+    points: route.points,
+    limitZones: limits.limitZones,
+    activeLimitZoneId: limits.activeLimitZoneId,
+    nextZoneNumber: limits.nextZoneNumber,
+    isEditingLocked,
+    onLocked: refuseEdit,
+    onEmpty: () => route.setStatus("Отменять нечего."),
+    restore: (snapshot) => {
+      route.setPoints(snapshot.points);
+      limits.setLimitZones(snapshot.limitZones);
+      limits.setActiveLimitZoneId(snapshot.activeLimitZoneId);
+      limits.setNextZoneNumber(snapshot.nextZoneNumber);
+      routeSelection.clearRouteState();
+      route.setStatus("Последнее изменение отменено (Ctrl+Z).");
+    },
+  });
+
+  // The mode only picks the kind of the next placed point; existing points keep their kind.
+  const changeVisitPointMode = (kind) => {
+    if (!["visit", "free_visit"].includes(kind)) return;
+    interaction.setVisitPointMode?.(kind);
+    (interaction.activatePointPlacement || interaction.setActivePointKind)?.(kind);
+  };
+
   const operations = {
+    changeVisitPointMode,
     ...routeLifecycle,
     ...routeSelection,
     ...editors,
@@ -175,6 +200,7 @@ export const useDashboardPlannerActions = (state, runtime, derived) => {
     ...guarded,
     editingLocked,
     isEditingLocked,
+    undo: history.undo,
     exportGraphCsv: () => {
       downloadGraphCsv({
         points: route.points,

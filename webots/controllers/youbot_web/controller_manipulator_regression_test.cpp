@@ -125,12 +125,57 @@ static void grasp_requires_two_measured_contacts(void) {
   assert(arm.stage==MANIPULATOR_LIFT);
 }
 
+static void platform_release_requires_support_and_pickup_is_reachable(void) {
+  ControllerManipulator arm=prepare(MANIPULATOR_LOWER,2);
+  ControllerManipulatorSample sample=sample_at(&arm,2);
+  arm.require_support=1;
+  controller_manipulator_step(&arm,&sample,.2);
+  assert(arm.stage==MANIPULATOR_LOWER);
+  // A supported load can stop the motors before they reach their nominal pose.
+  sample.joints[1]+=.05;
+  sample.joints[4]=2.5;
+  sample.release_safe=1;
+  controller_manipulator_step(&arm,&sample,.2);
+  assert(arm.stage==MANIPULATOR_RELEASE);
+  assert(fabs(arm.targets[4]-sample.joints[4])<.01);
+  ControllerManipulator pickup={};
+  const double platform[]={-.07,.075,.0485+.04+.015};
+  const double destination[]={.4,.1,-.047};
+  assert(controller_manipulator_start(&pickup,platform,destination));
+  double above[3];
+  controller_manipulator_forward(pickup.poses[1],above);
+  assert(above[2]>platform[2]+.07);
+  for(int i=1;i<4;++i)
+    assert(fabs((pickup.poses[i][4]-pickup.poses[0][4])-(pickup.poses[i][0]-pickup.poses[0][0]))<1e-6);
+  double via[5];
+  controller_manipulator_transfer_via(pickup.poses[3],pickup.poses[1],via);
+  // The swing must stay above the platform rail, including the middle of the turn.
+  for(int step=0;step<=20;++step) {
+    double q[5],tcp[3];
+    for(int i=0;i<5;++i)q[i]=via[i]+(pickup.poses[1][i]-via[i])*step/20.0;
+    controller_manipulator_forward(q,tcp);
+    assert(tcp[2]>.17);
+  }
+  controller_manipulator_transfer_via(pickup.poses[1],pickup.poses[3],via);
+  for(int step=0;step<=20;++step) {
+    double q[5],tcp[3];
+    for(int i=0;i<5;++i)q[i]=pickup.poses[1][i]+(via[i]-pickup.poses[1][i])*step/20.0;
+    controller_manipulator_forward(q,tcp);
+    assert(tcp[2]>.17);
+  }
+  ControllerManipulator reverse_pickup={};reverse_pickup.grip_yaw=-.15;
+  const double reverse_source[]={.4,.1,-.047};
+  assert(controller_manipulator_start(&reverse_pickup,reverse_source,platform));
+  for(const auto &pose:reverse_pickup.poses)assert(pose[4]>=-2.92343 && pose[4]<=2.92343);
+}
+
 int main(int argc, char **argv) {
   void (*tests[])(void) = {invalid_joint_stops_at_measured_pose,
       cancellation_with_invalid_sensors_keeps_finite_targets, asymmetric_contact_is_not_an_empty_grasp,
       misplaced_load_is_not_released, displaced_object_during_retraction_is_not_success,
       source_movement_invalidates_the_approach, cancellation_preserves_each_finger_position,
-      stowing_keeps_motion_ownership_until_sensor_confirmation,grasp_requires_two_measured_contacts};
+      stowing_keeps_motion_ownership_until_sensor_confirmation,grasp_requires_two_measured_contacts,
+      platform_release_requires_support_and_pickup_is_reachable};
   const int selected = argc > 1 ? atoi(argv[1]) : 0;
   for (int i = 0; i < (int)(sizeof(tests)/sizeof(tests[0])); ++i) if (!selected || selected == i + 1) {
     tests[i]();

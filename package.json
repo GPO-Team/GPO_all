@@ -4,6 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "db:up": "docker compose -f compose.postgres.yaml up -d --wait postgres",
+    "db:stop": "docker compose -f compose.postgres.yaml stop postgres",
+    "db:logs": "docker compose -f compose.postgres.yaml logs --tail=100 -f postgres",
+    "db:psql": "docker compose -f compose.postgres.yaml exec postgres psql -U gpo -d gpo",
+    "db:check": "docker compose -f compose.postgres.yaml exec -T postgres psql -U gpo -d gpo -v ON_ERROR_STOP=1 -f /opt/gpo/check.sql",
     "prepare:viewer": "node scripts/prepare-webots-viewer.mjs",
     "dev": "vite --host 127.0.0.1",
     "bridge": "node ws-bridge.cjs",

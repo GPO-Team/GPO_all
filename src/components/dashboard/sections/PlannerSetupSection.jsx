@@ -7,7 +7,7 @@ const subtleButtonCls =
   "rounded-xl border border-stone-300 bg-stone-100 px-3 py-2 text-sm font-semibold text-stone-800 shadow-sm transition hover:bg-stone-200 hover:border-stone-400";
 
 export default function PlannerSetupSection({
-  kinds = ["visit", "charge", "limit", "surface"],
+  kinds = ["visit", "charge", "limit"],
   showOverview = true,
   showClear = true,
   activeZoneName,
@@ -16,40 +16,37 @@ export default function PlannerSetupSection({
   onClearChargePoints,
   onClearLimitPoints,
   onClearVisitPoints,
-  onClearSurfaceZones,
   polygonCount,
   routeBlocked,
   status,
   visitCount,
   zoneCount,
-  surfaceCount,
-  activePointKind="visit",onActivePointKindChange,editingLocked=false,
+  activePointKind="visit",onActivePointKindChange,editingLocked=false,isOptimizing=false,onVisitPointModeChange,
 }) {
   return (
     <>
       {showOverview && <div className="flex flex-wrap gap-2 text-sm text-slate-600">
-        {kinds.includes("visit") && <div>Точки посещения: <b>{visitCount || 0}</b><HelpHint label="Обозначения карты">Красные точки — посещения, зелёный значок — робот. Безопасно смещённых точек: {adjustedVisitCount || 0}.</HelpHint></div>}
+        {kinds.includes("visit") && <div>Точки посещения: <b>{visitCount || 0}</b><HelpHint label="Обозначения карты">Фиолетовые точки — посещения по порядку, бирюзовые — свободные точки. Робот отмечен бирюзовым значком. Безопасно смещённых точек: {adjustedVisitCount || 0}.</HelpHint></div>}
         {kinds.includes("charge") && <div>Зарядки: <b>{chargeCount || 0}</b><HelpHint label="Станции зарядки">Жёлтые точки — станции зарядки робота.</HelpHint></div>}
         {kinds.includes("limit") && <div>Зоны: <b>{zoneCount || 0}</b><HelpHint label="Ограничивающие зоны">Синие контуры — запретные зоны. Готовых контуров: {polygonCount || 0}. Активная зона: {activeZoneName}.</HelpHint></div>}
-        {kinds.includes("surface") && <div>Покрытия: <b>{surfaceCount || 0}</b><HelpHint label="Зоны покрытий">Каждое покрытие задаёт свойства участка карты. Замкнутые контуры участвуют в расчёте скорости и энергии маршрута.</HelpHint></div>}
       </div>}
-      <div className={cardCls}>
-        {kinds.includes("visit") && <div className="mb-3 grid grid-cols-2 gap-2" role="group" aria-label="Порядок точек">
-          {[["visit","По порядку · 1, 2, 3"],["free_visit","Без номера · короткий путь"]].map(([kind,label])=><button key={kind} type="button" disabled={editingLocked} aria-pressed={activePointKind===kind} onClick={()=>onActivePointKindChange?.(kind)} className={`rounded-lg border px-2 py-2 text-xs disabled:opacity-50 ${activePointKind===kind?"border-sky-600 bg-sky-50 text-sky-800":"border-stone-200"}`}>{label}</button>)}
+      <div className={`${cardCls} point-setup`}>
+        {kinds.includes("visit") && <div className="point-modes mb-3 grid grid-cols-2 gap-2" role="group" aria-label="Порядок точек">
+          {[["visit","По порядку · 1, 2, 3"],["free_visit","Без номера · короткий путь"]].map(([kind,label])=><button key={kind} type="button" disabled={editingLocked} aria-pressed={activePointKind===kind} onClick={()=>(onVisitPointModeChange || onActivePointKindChange)?.(kind)} className={`rounded-lg border px-2 py-2 text-xs disabled:opacity-50 ${activePointKind===kind?"border-sky-600 bg-sky-50 text-sky-800":"border-stone-200"}`}>{label}</button>)}
         </div>}
         <div className="text-xs font-semibold text-sky-800">
           {POINT_KIND_OPTIONS.filter((option) => kinds.includes(option.key)).map((option) => option.label).join(" · ")}
-          <HelpHint label="Добавление точек">Раздел меню сразу включает свой режим точек. Нажмите на карту, чтобы поставить точку; перетащите существующую для изменения позиции. Масштаб — колёсиком, перемещение карты — правой кнопкой или Alt + перетаскиванием.</HelpHint>
+          <HelpHint label="Добавление точек">«По порядку» — робот посещает точки в порядке добавления. «Без номера» — планировщик выбирает кратчайший путь после всех нумерованных точек. Режим действует на новые точки; их можно сочетать. Раздел меню сразу включает свой режим точек. Нажмите на карту, чтобы поставить точку; перетащите существующую для изменения позиции. Масштаб — колёсиком, перемещение карты — правой кнопкой или Alt + перетаскиванием. Ctrl+Z отменяет последнее изменение точек или зон.</HelpHint>
         </div>
-        <p className="mt-1 text-xs text-stone-600">{editingLocked ? "Миссия активна: точки заблокированы, линия маршрута сохранена." : "Нажмите на карту, чтобы поставить точку. Нумерованные точки посещаются в порядке добавления. Свободные точки вставляются в маршрут для сокращения пути."}</p>
+        <p className="point-instruction mt-1 text-xs text-stone-600">{editingLocked && !isOptimizing ? "Миссия активна: точки заблокированы." : "Нажмите на карту, чтобы поставить точку."}</p>
         {showClear && <div className="mt-3 grid gap-2">
           {kinds.includes("visit") && <button onClick={onClearVisitPoints} className={subtleButtonCls}>Очистить маршрутные точки</button>}
           {kinds.includes("charge") && <button onClick={onClearChargePoints} className={subtleButtonCls}>Очистить зарядки</button>}
           {kinds.includes("limit") && <button onClick={onClearLimitPoints} className={subtleButtonCls}>Очистить зоны</button>}
-          {kinds.includes("surface") && <button onClick={onClearSurfaceZones} className={subtleButtonCls}>Очистить покрытия</button>}
         </div>}
       </div>
-      {status && <div className={`text-xs ${routeBlocked ? "text-rose-700" : "text-emerald-700"}`}>{status}</div>}
+      {status && (routeBlocked || !status.startsWith("Маршрут построен:")) &&
+        <div className={`text-xs ${routeBlocked ? "text-rose-700" : "text-emerald-700"}`}>{status}</div>}
     </>
   );
 }

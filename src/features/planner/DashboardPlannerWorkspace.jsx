@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+import ThemeToggle from "../../components/ThemeToggle";
+import { clearSession } from "../../lib/auth/authSession";
 import PlannerCanvas from "../../components/dashboard/PlannerCanvas";
 import PlannerLeftSidebar from "../../components/dashboard/PlannerLeftSidebar";
 import PlannerRightSidebar from "../../components/dashboard/PlannerRightSidebar";
-import SidebarCollapseRail from "../../components/dashboard/SidebarCollapseRail";
 import PlannerSimulationSection from "../../components/dashboard/sections/PlannerSimulationSection";
 
 export default function DashboardPlannerWorkspace({
@@ -34,8 +35,16 @@ export default function DashboardPlannerWorkspace({
     setSidebarCollapsed(side, open);
   };
   return (
-    <div className="planner-workspace flex overflow-hidden bg-slate-100 text-slate-900">
-      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+    <div className="planner-workspace flex flex-col overflow-hidden bg-slate-100 text-slate-900">
+      <header className="app-header">
+        <span className="app-brand">GPO</span>
+        <span className="app-header-title">Планировщик маршрута</span>
+        <a href="/warehouse" className="app-nav-link">Склад и размещение</a>
+        <div className="app-header-spacer" />
+        <ThemeToggle />
+        <a className="app-nav-link" href="/login" onClick={clearSession}>Выйти</a>
+      </header>
+      <div className="relative flex min-h-0 flex-1 overflow-hidden workspace-body">
         <div
           hidden={!leftOpen}
           id="planner-left-panel"
@@ -46,17 +55,23 @@ export default function DashboardPlannerWorkspace({
             onCollapse={() => setSidebarCollapsed("leftCollapsed", true)}
           />
         </div>
-        {!leftOpen && (
-          <SidebarCollapseRail
-            side="left"
-            onExpand={() => toggle("leftCollapsed", false)}
-          />
-        )}
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">
           <nav
-            className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3 py-2"
+            className="workspace-viewbar flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-3 py-2"
             aria-label="Рабочее окно"
           >
+            {!leftOpen && (
+              <button
+                type="button"
+                onClick={() => toggle("leftCollapsed", false)}
+                aria-controls="planner-left-panel"
+                aria-expanded={false}
+                className="planner-panel-open"
+              >
+                Планировщик
+                <span aria-hidden>{">"}</span>
+              </button>
+            )}
             <button
               type="button"
               aria-pressed={view === "map"}
@@ -76,11 +91,25 @@ export default function DashboardPlannerWorkspace({
             >
               Симуляция · крупный вид
             </button>
-            {canvasProps.editingLocked && (
-              <span role="status" className="ml-auto text-xs text-amber-800">
-                Граф заблокирован на время миссии
-              </span>
-            )}
+            <div className="ml-auto flex items-center gap-3">
+              {canvasProps.editingLocked && !canvasProps.isOptimizing && (
+                <span role="status" className="text-xs text-amber-800">
+                  Граф заблокирован на время миссии
+                </span>
+              )}
+              {!rightOpen && (
+                <button
+                  type="button"
+                  onClick={() => toggle("rightCollapsed", false)}
+                  aria-controls="planner-right-panel"
+                  aria-expanded={false}
+                  className="planner-panel-open"
+                >
+                  <span aria-hidden>{"<"}</span>
+                  Телеметрия и карта
+                </button>
+              )}
+            </div>
           </nav>
           <div hidden={view !== "map"} className="flex min-h-0 flex-1">
             <PlannerCanvas {...canvasProps} />
@@ -101,12 +130,6 @@ export default function DashboardPlannerWorkspace({
             onCollapse={() => setSidebarCollapsed("rightCollapsed", true)}
           />
         </div>
-        {!rightOpen && (
-          <SidebarCollapseRail
-            side="right"
-            onExpand={() => toggle("rightCollapsed", false)}
-          />
-        )}
       </div>
     </div>
   );

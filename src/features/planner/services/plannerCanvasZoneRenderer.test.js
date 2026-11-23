@@ -5,6 +5,7 @@ describe("planner canvas zone renderer", () => {
   it("draws closed zone edges, points, and a label", () => {
     const ctx = {
       beginPath: vi.fn(), closePath: vi.fn(), fill: vi.fn(), fillText: vi.fn(), lineTo: vi.fn(),
+      save: vi.fn(), restore: vi.fn(), clip: vi.fn(), arc: vi.fn(),
       moveTo: vi.fn(), setLineDash: vi.fn(), stroke: vi.fn(),
     };
 
@@ -18,7 +19,8 @@ describe("planner canvas zone renderer", () => {
       ],
     }]);
 
-    expect(ctx.setLineDash).toHaveBeenCalledWith([10, 8]);
+    expect(ctx.clip).toHaveBeenCalledOnce();
+    expect(ctx.setLineDash).toHaveBeenCalledWith([]);
     expect(ctx.fillText).toHaveBeenCalledWith("No-go (замкнута)", expect.any(Number), expect.any(Number));
   });
 });

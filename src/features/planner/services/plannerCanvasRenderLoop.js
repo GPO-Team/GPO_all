@@ -30,14 +30,15 @@ export const startPlannerCanvasRenderLoop = ({
         const dpr = window.devicePixelRatio || 1;
         const width = Math.max(1, Math.round(viewport.width * dpr));
         const height = Math.max(1, Math.round(viewport.height * dpr));
-        const key = `${width}:${height}:${dpr}:${viewport.scale}:${viewport.x}:${viewport.y}`;
-        const state = { ...drawStateRef.current, viewScale: viewport.scale, markerScale: viewport.fitScale };
+        const dark = document.documentElement?.dataset?.theme === "dark";
+        const key = `${width}:${height}:${dpr}:${viewport.scale}:${viewport.x}:${viewport.y}:${dark}`;
+        const state = { ...drawStateRef.current, viewScale: viewport.scale, markerScale: viewport.fitScale, dark };
         if (!sceneCanvas) sceneCanvas = document.createElement("canvas");
         if (key !== lastViewport || lastState !== drawStateRef.current) {
           canvas.width = sceneCanvas.width = width;
           canvas.height = sceneCanvas.height = height;
           const scene = sceneCanvas.getContext("2d");
-          scene.fillStyle = "#f1f5f9";
+          scene.fillStyle = dark ? "#101d2a" : "#edf3f8";
           scene.fillRect(0, 0, width, height);
           scene.setTransform(dpr * viewport.scale, 0, 0, dpr * viewport.scale, dpr * viewport.x, dpr * viewport.y);
           renderPlannerCanvasScene(scene, state);

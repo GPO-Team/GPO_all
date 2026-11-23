@@ -26,6 +26,9 @@ export default function Home() {
             >
               Открыть планировщик
             </Link>
+            <Link to="/warehouse" className="inline-flex h-11 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 px-5 text-sm font-semibold !text-orange-800 transition hover:bg-orange-100">
+              Склад и размещение
+            </Link>
           </div>
         </div>
 

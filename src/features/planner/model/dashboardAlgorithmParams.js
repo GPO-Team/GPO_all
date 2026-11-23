@@ -1,6 +1,6 @@
-import { ALGORITHM_OPTIONS, getDefaultAlgorithmParams } from "../../../lib/routeAlgorithms";
+import { ALGORITHM_OPTIONS, DEFAULT_PRECISION, getAlgorithmPresetParams } from "../../../lib/routeAlgorithms";
 
-export const createDashboardAlgorithmParams = () =>
+export const createDashboardAlgorithmParams = (precision = DEFAULT_PRECISION) =>
   Object.fromEntries(
-    ALGORITHM_OPTIONS.map((option) => [option.key, getDefaultAlgorithmParams(option.key)])
+    ALGORITHM_OPTIONS.map((option) => [option.key, getAlgorithmPresetParams(option.key, precision)])
   );
