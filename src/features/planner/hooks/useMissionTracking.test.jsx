@@ -106,3 +106,22 @@ it("resumes a held transfer and keeps recovery errors visible while polling", as
   await act(async()=>exposed.mission.resume());
   expect(exposed.mission.state).toMatchObject({status:"holding_for_recovery",resumeDelivered:true,actionError:null});
 });
+
+it("keeps a successful cancellation when an older poll returns running", async () => {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  const pending = Promise.withResolvers();
+  const fetchMission = vi.fn(() => pending.promise);
+  missionClient.cancelMission.mockResolvedValue({ missionId: "arm", status: "cancelled" });
+  let mission;
+  function Harness() {
+    const currentMission = useMissionTracking({ fetchMission });
+    React.useEffect(() => { mission = currentMission; });
+    return null;
+  }
+  root = createRoot(document.createElement("div"));
+  await act(async () => root.render(<Harness />));
+  await act(async () => mission.track({ missionId: "arm", status: "running" }));
+  await act(async () => mission.cancel());
+  await act(async () => pending.resolve({ missionId: "arm", status: "running" }));
+  expect(mission.state.status).toBe("cancelled");
+});

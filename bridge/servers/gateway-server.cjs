@@ -31,6 +31,9 @@ const createGatewayServer = ({host,port,token="",service,telemetrySource,ready,c
       if(request.method==="GET" && pathname==="/health") return sendJson(response,200,envelope({service:"gateway"}));
       if(request.method==="GET" && pathname==="/ready") {await ready();return sendJson(response,200,envelope({service:"gateway"}));}
       if(request.method==="GET" && pathname==="/v1/telemetry") return sendJson(response,200,envelope({revision:`${bootId}:${revision}`,telemetry:latest,fresh:Date.now()-telemetryAt<5000}));
+      if (request.method === "GET" && pathname === "/v1/controller-session") {
+        return sendJson(response, 200, envelope(await service.getControllerSession()));
+      }
       if(request.method==="GET" && pathname.startsWith("/v1/feedback/")) {
         const id=validateMissionId(decodeURIComponent(pathname.slice("/v1/feedback/".length)));
         return sendJson(response,200,envelope(await service.getFeedback(id)));
@@ -42,7 +45,7 @@ const createGatewayServer = ({host,port,token="",service,telemetrySource,ready,c
         if(!body.payload || typeof body.payload!=="object") throw serviceError(400,"invalid_payload","Command payload required.");
         if(body.operation==="submit" && body.payload.commandId!==body.requestId) throw serviceError(400,"id_mismatch","Command identity mismatch.");
         if(body.operation==="cancel" && body.payload.missionId!==body.requestId) throw serviceError(400,"id_mismatch","Cancellation identity mismatch.");
-        return sendJson(response,200,envelope(await service.execute(body.operation,body.requestId,body.payload)));
+        return sendJson(response,200,envelope(await service.execute(body.operation,body.requestId,body.payload,body.controllerBootId)));
       }
       throw serviceError(404,"not_found","Endpoint not found.");
     } catch(error) {sendError(response,error);}

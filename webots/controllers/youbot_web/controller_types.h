@@ -19,6 +19,7 @@ typedef struct {
   int count;
   long long last_modified;
   char command_id[64];
+  char controller_boot_id[64];
 } RouteData;
 
 typedef enum {
@@ -87,6 +88,7 @@ typedef struct {
   int has_start_mapping_survey;
   int has_cancel_mission;
   int has_pick_place;
+  int pick_from_vision;
   char object_def[64];
   double target_x, target_y, target_z;
   int target_fields;
@@ -95,6 +97,7 @@ typedef struct {
   int has_resume_transfer;
   int has_manipulator_pose;
   char mission_id[64];
+  char controller_boot_id[64];
   char object_id[32];
   char scene_revision[96];
   char manipulator_pose[24];

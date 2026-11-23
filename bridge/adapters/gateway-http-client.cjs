@@ -29,7 +29,11 @@ const createGatewayClient = ({baseUrl, token = "", timeoutMs = 3000, retries = 1
   };
   return {
     ready:() => request("/ready"),
-    submit:command => request("/v1/commands", {operation:"submit",requestId:command.commandId,payload:command}),
+    getControllerSession: () => request("/v1/controller-session"),
+    submit: (command, controllerBootId) => request("/v1/commands", {
+      operation: "submit", requestId: command.commandId, payload: command,
+      ...(controllerBootId ? { controllerBootId } : {}),
+    }),
     update:(payload, requestId) => request("/v1/commands", {operation:"update",requestId,payload}).then(() => true),
     cancel:missionId => request("/v1/commands", {operation:"cancel",requestId:missionId,payload:{missionId}}),
     getFeedback:missionId => request(`/v1/feedback/${encodeURIComponent(missionId)}`),

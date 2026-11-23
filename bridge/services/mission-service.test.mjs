@@ -207,3 +207,30 @@ it("allows held recovery without cargo to park the manipulator", async () => {
   expect(await service.resume("park-recovery")).toMatchObject({resumeDelivered:true});
   expect(adapter.update).toHaveBeenCalledOnce();
 });
+
+it("waits for a controller before journaling a new mission", async () => {
+  const { adapter, service } = await setup();
+  adapter.getControllerSession = vi.fn(async () => null);
+  await expect(service.submit(payload, { requestId: "offline" }))
+    .rejects.toMatchObject({ code: "controller_unavailable" });
+  expect(await service.list()).toEqual([]);
+  expect(adapter.submit).not.toHaveBeenCalled();
+});
+
+it("never delivers a prepared mission after its controller session changes", async () => {
+  const { adapter, repository, service } = await setup();
+  adapter.getControllerSession = vi.fn(async () => "boot-first");
+  adapter.submit.mockRejectedValueOnce(new Error("delivery unavailable"));
+  await expect(service.submit(payload, { requestId: "before-restart" })).rejects.toThrow("delivery unavailable");
+  expect(await repository.get("before-restart")).toMatchObject({ status: "prepared", controllerBootId: "boot-first" });
+
+  adapter.getControllerSession.mockResolvedValue(null);
+  await service.reconcile();
+  expect(await repository.get("before-restart")).toMatchObject({ status: "prepared" });
+  adapter.getControllerSession.mockResolvedValue("boot-next");
+  await service.reconcile();
+  expect(await repository.get("before-restart")).toMatchObject({ status: "failed", errorCode: "controller_restarted" });
+  expect(adapter.submit).toHaveBeenCalledTimes(1);
+  await expect(service.submit(payload, { requestId: "after-restart" }))
+    .resolves.toMatchObject({ status: "persisted", controllerBootId: "boot-next" });
+});

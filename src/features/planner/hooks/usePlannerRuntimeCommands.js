@@ -24,8 +24,9 @@ export const usePlannerRuntimeCommands = ({
 }) => {
   const pendingManipulation = useRef(null);
   const pendingTransfer = useRef(null);
-  const startPickPlace = async ({ objectDef, destination }) => {
-    const payload = { type: "pick_place", objectDef, destination };
+  const startPickPlace = async ({ objectDef, source, destination }) => {
+    const selection = source === "vision" ? { source } : { objectDef };
+    const payload = { type: "pick_place", ...selection, destination };
     const identity = JSON.stringify(payload);
     if (pendingManipulation.current?.identity !== identity) {
       pendingManipulation.current = { identity, command: { ...payload, requestId: crypto.randomUUID() } };
@@ -37,7 +38,9 @@ export const usePlannerRuntimeCommands = ({
       onSent: acknowledgement => {
         if (pendingManipulation.current?.command === command) pendingManipulation.current = null;
         onMissionSubmitted?.(acknowledgement);
-        setStatus(`Миссия переноса объекта ${objectDef} сохранена. Ожидаем выполнения контроллером.`);
+        setStatus(source === "vision"
+          ? "Миссия сохранена. Контроллер ищет груз в поле зрения камеры."
+          : `Миссия переноса объекта ${objectDef} сохранена. Ожидаем выполнения контроллером.`);
       },
       onError: error => { rejection = error; setStatus(error.message); },
     });
@@ -156,11 +159,13 @@ export const usePlannerRuntimeCommands = ({
       payloadKg,
     });
     const modeLabel = getMappingSurveyModeLabel(mappingSurveyMode);
-    sendRouteChannelPayload(routeSocketRef, payload, {
-      onSent: () =>
+    return sendRouteChannelPayload(routeSocketRef, payload, {
+      onSent: acknowledgement => {
+        onMissionSubmitted?.(acknowledgement);
         setStatus(
           `Команда обследования сохранена bridge: скорость 0.8 м/с, сначала периметр, затем "${modeLabel}".`
-        ),
+        );
+      },
       onError: () => setStatus("Не удалось отправить команду объезда карты."),
     });
   };

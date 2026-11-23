@@ -464,6 +464,8 @@ int controller_app_lifecycle_run(int argc, char **argv) {
   runtime_command_reload_service.cancel_pick_place = controller_webots_manipulator_cancel;
   runtime_command_reload_service.motion_blocked = robot_motion_owned;
   route_zone_reload_service.motion_blocked = robot_motion_owned;
+  runtime_command_reload_service.controller_boot_id = object_transfer_runtime.boot_id;
+  route_zone_reload_service.controller_boot_id = object_transfer_runtime.boot_id;
   runtime_command_reload_service.last_modified = get_file_mtime(RUNTIME_COMMAND_PATH);
   runtime_command_reload_service.last_processed_id = controller_runtime_command_latest_id(RUNTIME_COMMAND_PATH);
 

@@ -63,7 +63,8 @@ const createRuntimeCommandText = (payload) => {
     const { validateMissionId } = require("../protocol/mission-contract.cjs");
     const command = validatePickPlace(payload);
     const target = command.destination;
-    return `id ${commandId}\ntype pick_place\nmission_id ${validateMissionId(payload.missionId)}\nobject_def ${command.objectDef}\ntarget_x ${target.x}\ntarget_y ${target.y}\ntarget_z ${target.z}\n`;
+    const source = command.source === "vision" ? "object_source vision" : `object_def ${command.objectDef}`;
+    return `id ${commandId}\ntype pick_place\nmission_id ${validateMissionId(payload.missionId)}\n${source}\ntarget_x ${target.x}\ntarget_y ${target.y}\ntarget_z ${target.z}\n`;
   }
   if (["transfer_object", "recover_transfer", "resume_transfer"].includes(payload?.type)) {
     const {validateMissionId}=require("../protocol/mission-contract.cjs");

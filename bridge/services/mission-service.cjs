@@ -10,22 +10,54 @@ const createMissionService = ({repository, adapter, now = () => new Date().toISO
   const serial = action => {const result=pending.then(action);pending=result.catch(()=>{});return result;};
   const all = () => repository.list();
   const save = async record => {await repository.save(record);return record;};
+  const interrupted = (record, controllerBootId) => save({
+    ...record, status: "failed", errorCode: "controller_restarted",
+    failureReason: "Webots restarted before the mission finished.",
+    controllerBootId, feedbackFresh: false, connectionError: null, updatedAt: now(),
+  });
   const deliver = async record => {
-    await adapter.submit(record.command);
+    const bootId = record.controllerBootId;
+    try {
+      if (bootId) await adapter.submit(record.command, bootId);
+      else await adapter.submit(record.command);
+    } catch (error) {
+      if (error.code === "controller_restarted") {
+        const currentBootId = await adapter.getControllerSession?.();
+        if (bootId && currentBootId && bootId !== currentBootId) return interrupted(record, currentBootId);
+      }
+      throw error;
+    }
     return save({...record,status:"persisted",updatedAt:now(),connectionError:null});
   };
   const refresh = async record => {
-    if(!record || terminalStates.has(record.status)) return record;
-    if(record.status==="prepared") record=await deliver(record);
-    if(record.status==="cancelling") {
-      // Submission may have reached the gateway before its reply was lost.
-      // Ensure the same command exists before sending its durable cancellation.
-      await adapter.submit(record.command);
-      await adapter.cancel(record.missionId);
+    if (!record || terminalStates.has(record.status)) return record;
+    let feedback = adapter.getControllerSession ? await adapter.getFeedback(record.missionId) : null;
+    const matched = feedback?.missionId === record.missionId;
+    if (adapter.getControllerSession && !(matched && terminalStates.has(feedback.status))) {
+      const currentBootId = matched && !feedback.cached && feedback.controllerBootId
+        ? feedback.controllerBootId : await adapter.getControllerSession();
+      const trackedBootId = record.controllerBootId || record.observedControllerBootId;
+      if (trackedBootId && currentBootId && trackedBootId !== currentBootId) return interrupted(record, currentBootId);
+      if (currentBootId && !trackedBootId && !matched) {
+        record = await save({ ...record, observedControllerBootId: currentBootId });
+      }
+      if (record.status === "prepared" && !matched && (!currentBootId || !record.controllerBootId)) {
+        return record;
+      }
     }
-    const feedback=await adapter.getFeedback(record.missionId);
+    if (record.status === "prepared" && !(matched && Object.hasOwn(feedback, "status"))) {
+      record = await deliver(record);
+      if (terminalStates.has(record.status)) return record;
+    }
+    if (record.status === "cancelling" && !(matched && terminalStates.has(feedback.status))) {
+      // A cancellation remains publishable without replaying an uncertain launch.
+      if (!adapter.getControllerSession) await adapter.submit(record.command);
+      await adapter.cancel(record.missionId);
+      feedback = null;
+    }
+    if (!feedback) feedback = await adapter.getFeedback(record.missionId);
     const matching=feedback?.missionId===record.missionId;
-    const rank={persisted:0,accepted:1,running:2,holding_for_recovery:3,cancelling:4,completed:5,failed:5,cancelled:5};
+    const rank={prepared:-1,persisted:0,accepted:1,running:2,holding_for_recovery:3,cancelling:4,completed:5,failed:5,cancelled:5};
     const resumed=record.status==="holding_for_recovery" && feedback?.status==="running" && !feedback.cached && Boolean(record.resumeRequestId);
     const safelyHeld=["object_transfer","pick_place"].includes(record.operationType) && feedback?.status==="holding_for_recovery";
     const status=matching && feedback.status in rank && (rank[feedback.status]>=rank[record.status] || resumed || safelyHeld) ? feedback.status : record.status;
@@ -72,10 +104,16 @@ const createMissionService = ({repository, adapter, now = () => new Date().toISO
         command={...command,route:result.route,scene:result.scene,motion:result.scene.motion,sceneRevision:result.sceneRevision,planning:result.planning};
       }
       if(operationType==="route" && command.route.length<2) throw serviceError(400,"invalid_route","At least two route points are required.");
-      record={missionId,operationType,fingerprint:hash,status:"prepared",createdAt:now(),updatedAt:now(),command};
+      const controllerBootId = await adapter.getControllerSession?.();
+      if (adapter.getControllerSession && !controllerBootId) {
+        throw serviceError(503, "controller_unavailable", "Webots controller telemetry is unavailable.");
+      }
+      record = { missionId, operationType, fingerprint: hash, status: "prepared", createdAt: now(),
+        updatedAt: now(), command, ...(controllerBootId ? { controllerBootId } : {}) };
       await save(record);
+      return deliver(record);
     }
-    return deliver(record);
+    return adapter.getControllerSession ? refresh(record) : deliver(record);
   });
   const cancel = missionId => serial(async()=>{
     let record=await repository.get(validateMissionId(missionId));
@@ -83,7 +121,10 @@ const createMissionService = ({repository, adapter, now = () => new Date().toISO
     if(terminalStates.has(record.status)) return record;
     record=await save({...record,status:"cancelling",updatedAt:now()});
     // Intent stays durable even when the gateway is unavailable.
-    try {return await refresh(record);} catch(error) {return save({...record,feedbackFresh:false,connectionError:error.message});}
+    try { return await refresh(record); } catch (error) {
+      const current = await repository.get(record.missionId);
+      return save({ ...current, feedbackFresh: false, connectionError: error.message });
+    }
   });
   const get = missionId => serial(async()=>{
     const record=await repository.get(validateMissionId(missionId));
@@ -95,7 +136,10 @@ const createMissionService = ({repository, adapter, now = () => new Date().toISO
   const reconcile = () => serial(async()=>{
     for(const record of await all()) {
       if(terminalStates.has(record.status)) continue;
-      try {await refresh(record);} catch(error) {await save({...record,feedbackFresh:false,connectionError:error.message});}
+      try {await refresh(record);} catch (error) {
+        const current = await repository.get(record.missionId);
+        if (!terminalStates.has(current.status)) await save({...current,feedbackFresh:false,connectionError:error.message});
+      }
     }
   });
   const update = (payload,{requestId=randomUUID()}={}) => serial(async()=>{

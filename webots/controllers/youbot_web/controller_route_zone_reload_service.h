@@ -15,6 +15,7 @@ typedef struct {
   void (*reset_avoidance_metrics)(void);
   void (*reset_navigation)(void);
   int (*motion_blocked)(void);
+  const char *controller_boot_id;
 } ControllerRouteZoneReloadService;
 
 void controller_route_zone_reload_service_init(

@@ -77,5 +77,17 @@ int main(void) {
   fclose(file);
   if (controller_runtime_command_load_file(path, &limits, &command)) return 27;
   remove(path);
+
+  file = fopen(path, "w");
+  if (!file) return 28;
+  fprintf(file, "id 48\ntype pick_place\nmission_id vision-1\nobject_source vision\ntarget_x 2\ntarget_y 1\ntarget_z 0.04\n");
+  fprintf(file, "id 49\ntype pick_place\nmission_id vision-2\nobject_source vision\nobject_def PICK_BOX\ntarget_x 2\ntarget_y 1\ntarget_z 0.04\n");
+  fclose(file);
+  const int vision_valid = controller_runtime_command_load_next_file(path, &limits, 47, &command) &&
+      command.has_pick_place && command.pick_from_vision && !command.object_def[0];
+  const int conflicting_valid = controller_runtime_command_load_next_file(path, &limits, 48, &command);
+  remove(path);
+  if (!vision_valid) return 29;
+  if (conflicting_valid) return 30;
   return 0;
 }

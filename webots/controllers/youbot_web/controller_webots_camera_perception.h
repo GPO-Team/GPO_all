@@ -51,6 +51,14 @@ typedef struct {
 } ControllerWebotsTrackedTarget;
 
 typedef struct {
+  int width;
+  int height;
+  double focal_px;
+  double position[3];
+  double orientation[9];
+} ControllerWebotsCameraProjection;
+
+typedef struct {
   int visible;
   int detection_count;
   double score;
@@ -61,6 +69,9 @@ typedef struct {
   int obstacle_lidar_confirmed;
   char obstacle_label[48];
 
+  double observed_at;
+  int lidar_available;
+  ControllerWebotsCameraProjection camera;
   int object_count;
   ControllerWebotsDetectedObject objects[MAX_CAMERA_DETECTED_OBJECTS];
 
@@ -116,6 +127,10 @@ int controller_webots_camera_perception_fuse_lidar(
 
 int controller_webots_camera_get_latest_perception(
     ControllerWebotsCameraPerception *out_perception);
+
+int controller_webots_camera_count_box_matches(
+    const ControllerWebotsCameraPerception *frame, const double position[3],
+    const double orientation[9], const double size[3]);
 
 int controller_webots_camera_get_best_target(
     double robot_x,

@@ -89,7 +89,7 @@ export async function login(credentials, options = {}) {
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  let response;
+  let response, payload;
   try {
     response = await fetchImpl(url, {
       method: "POST",
@@ -97,13 +97,14 @@ export async function login(credentials, options = {}) {
       body: JSON.stringify(body),
       signal: controller.signal,
     });
+    payload = await readJson(response);
+    controller.signal.throwIfAborted();
   } catch (error) {
     throw new AuthError(AUTH_ERROR_CODES.unavailable, error?.message || "Сервер недоступен");
   } finally {
     clearTimeout(timer);
   }
 
-  const payload = await readJson(response);
   if (response.ok) return parseLoginResponse(payload);
   const message = typeof payload?.error === "string" ? payload.error : "";
   if (response.status === 401 || response.status === 403) {

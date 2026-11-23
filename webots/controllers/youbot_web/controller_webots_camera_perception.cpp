@@ -822,6 +822,8 @@ int controller_webots_camera_perception_fuse_lidar(
       robot_z + sin(robot_heading) * sensor_local_x + cos(robot_heading) * sensor_local_y;
   const int lidar_ready =
       lidar_ranges && lidar_resolution > 1 && lidar_fov > 1e-6;
+  perception->observed_at = now_time;
+  perception->lidar_available = lidar_ready;
   const double focal_px = (0.5 * 320.0) / tan(0.5 * 1.05);
   const int horizon_y = 90;
 
@@ -989,6 +991,74 @@ int controller_webots_camera_get_latest_perception(
   if (!out_perception || !s_has_latest_perception) return 0;
   *out_perception = s_latest_perception;
   return 1;
+}
+
+int controller_webots_camera_count_box_matches(
+    const ControllerWebotsCameraPerception *frame, const double position[3],
+    const double orientation[9], const double size[3]) {
+  if (!frame || !position || !orientation || !size) return 0;
+  const auto &camera = frame->camera;
+  if (camera.width <= 0 || camera.height <= 0 || !std::isfinite(camera.focal_px) ||
+      camera.focal_px <= 0.0) return 0;
+  const double cx = 0.5 * camera.width;
+  const double cy = 0.5 * camera.height;
+  double left = INFINITY, right = -INFINITY, top = INFINITY, bottom = -INFINITY;
+  double near_depth = INFINITY, far_depth = -INFINITY;
+  for (int corner = 0; corner < 8; ++corner) {
+    double local[3];
+    for (int axis = 0; axis < 3; ++axis) {
+      if (!std::isfinite(size[axis]) || size[axis] <= 0.0) return 0;
+      local[axis] = (corner & (1 << axis) ? 0.5 : -0.5) * size[axis];
+    }
+    double relative[3], optical[3] = {};
+    for (int axis = 0; axis < 3; ++axis) {
+      relative[axis] = position[axis] - camera.position[axis];
+      for (int j = 0; j < 3; ++j) relative[axis] += orientation[axis * 3 + j] * local[j];
+    }
+    for (int axis = 0; axis < 3; ++axis) {
+      for (int j = 0; j < 3; ++j) optical[axis] += camera.orientation[j * 3 + axis] * relative[j];
+    }
+    // A Webots camera looks along +X. Image right and down are -Y and -Z.
+    const double depth = optical[0];
+    if (!std::isfinite(depth) || depth <= 0.0) return 0;
+    const double x = cx - camera.focal_px * optical[1] / depth;
+    const double y = cy - camera.focal_px * optical[2] / depth;
+    if (!std::isfinite(x) || !std::isfinite(y) ||
+        x < 0 || x >= camera.width || y < 0 || y >= camera.height) return 0;
+    left = std::min(left, x);
+    right = std::max(right, x);
+    top = std::min(top, y);
+    bottom = std::max(bottom, y);
+    near_depth = std::min(near_depth, depth);
+    far_depth = std::max(far_depth, depth);
+  }
+
+  int matches = 0;
+  // The detector samples every other pixel and can omit the object's outer edge.
+  constexpr double edge_tolerance_px = 5.0;
+  for (int index = 0; index < frame->object_count; ++index) {
+    const auto &object = frame->objects[index];
+    if (object.occluded_by_lidar || (!object.lidar_confirmed && !object.low_profile_confirmed) ||
+        fabs(object.min_x - left) > edge_tolerance_px ||
+        fabs(object.max_x - right) > edge_tolerance_px ||
+        fabs(object.min_y - top) > edge_tolerance_px ||
+        fabs(object.max_y - bottom) > edge_tolerance_px) continue;
+
+    // Intersect the detected foot of the object with the floor at world Z=0.
+    const double image_x = 0.5 * (object.min_x + object.max_x);
+    const double ray_z = camera.orientation[6] -
+        camera.orientation[7] * (image_x - cx) / camera.focal_px -
+        camera.orientation[8] * (object.max_y - cy) / camera.focal_px;
+    if (ray_z >= -1e-6) continue;
+    const double depth = -camera.position[2] / ray_z;
+    constexpr double floor_depth_tolerance_m = 0.10;
+    if (!std::isfinite(depth) || depth < near_depth - floor_depth_tolerance_m ||
+        depth > far_depth + floor_depth_tolerance_m) continue;
+    if (object.lidar_confirmed &&
+        hypot(object.world_x - position[0], object.world_z - position[1]) > 0.12) continue;
+    ++matches;
+  }
+  return matches;
 }
 
 int controller_webots_camera_get_best_target(

@@ -116,6 +116,10 @@ const createWarehouseService = ({
       invalid("Некорректный ID ячейки.");
   };
   return {
+    async ready() {
+      await repository.ready?.();
+      await load();
+    },
     get: snapshot,
     async suggestions(cargoId) {
       identifier(cargoId);

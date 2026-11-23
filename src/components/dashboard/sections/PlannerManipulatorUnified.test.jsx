@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
 import PlannerManipulatorSection from "./PlannerManipulatorSection";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-it("uses one form to select and dispatch either supported object", async () => {
+it("uses one form to dispatch manual and camera pickup", async () => {
   const node = document.createElement("div"),
     root = createRoot(node);
   const small = vi.fn(async () => {}),
@@ -42,6 +42,18 @@ it("uses one form to select and dispatch either supported object", async () => {
   );
   expect(small).toHaveBeenCalledWith({
     objectDef: "PICK_BOX",
+    destination: { x: 0.4, y: 0.1, z: 0.04 },
+  });
+  await act(async () => {
+    selector.value = "vision";
+    selector.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  expect(node.querySelector('input:not([type="number"])')).toBeNull();
+  await act(async () =>
+    node.querySelector("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
+  );
+  expect(small).toHaveBeenLastCalledWith({
+    source: "vision",
     destination: { x: 0.4, y: 0.1, z: 0.04 },
   });
   await act(async () => root.unmount());

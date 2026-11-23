@@ -55,8 +55,45 @@ static void check_closer_lidar_obstacle(void) {
   assert(fabs(perception.fallback_range_m - .8) < 1e-6);
 }
 
+static void check_box_association(void) {
+  ControllerWebotsCameraPerception frame{};
+  frame.camera = {.width = 320, .height = 180, .focal_px = 280,
+                  .position = {0, 0, .327},
+                  .orientation = {1, 0, 0, 0, 1, 0, 0, 0, 1}};
+  frame.object_count = 1;
+  auto &detection = frame.objects[0];
+  detection.min_x = 155;
+  detection.max_x = 165;
+  detection.min_y = 146;
+  detection.max_y = 167;
+  detection.low_profile_confirmed = 1;
+  detection.world_x = 1.2;
+  const double orientation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const double size[3] = {.03, .03, .08};
+  const double visible[3] = {1.2, 0, .04};
+  const double beside_detection[3] = {1.2, .08, .04};
+  const double behind_detection[3] = {1.36, 0, .04};
+  assert(controller_webots_camera_count_box_matches(&frame, visible, orientation, size) == 1);
+  assert(controller_webots_camera_count_box_matches(&frame, beside_detection, orientation, size) == 0);
+  assert(controller_webots_camera_count_box_matches(&frame, behind_detection, orientation, size) == 0);
+
+  detection.min_x = 0;
+  detection.max_x = 10;
+  detection.world_z = .64;
+  const double clipped[3] = {1.2, .68, .04};
+  assert(controller_webots_camera_count_box_matches(&frame, clipped, orientation, size) == 0);
+
+  detection.min_x = 155;
+  detection.max_x = 165;
+  detection.world_z = 0;
+  frame.objects[1] = detection;
+  frame.object_count = 2;
+  assert(controller_webots_camera_count_box_matches(&frame, visible, orientation, size) == 2);
+}
+
 int main(void) {
   check_recorded_empty_floor();
   check_closer_lidar_obstacle();
+  check_box_association();
   return 0;
 }

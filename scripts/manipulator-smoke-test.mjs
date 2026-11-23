@@ -10,11 +10,18 @@ import WebSocket from "ws";
 import sceneContract from "../bridge/protocol/scene-validation.cjs";
 const root=path.resolve(import.meta.dirname,"..");
 const afterDemo=process.argv.includes("--after-demo");
-const mobile=process.argv.includes("--mobile") || afterDemo;
+const visionEmpty=process.argv.includes("--vision-empty");
+const visionAmbiguous=process.argv.includes("--vision-ambiguous");
+const visionHidden=process.argv.includes("--vision-hidden");
+const visionReject=visionEmpty || visionAmbiguous || visionHidden;
+const vision=process.argv.includes("--vision") || visionReject;
+const mobile=process.argv.includes("--mobile") || afterDemo || vision;
 const nearObject=process.argv.includes("--near-object");
 const obstacle=process.argv.includes("--obstacle");
-const blocked=process.argv.includes("--blocked");
-const destination={x:mobile ? (obstacle ? 4 : nearObject ? 1 : 2) : 0.4,y:afterDemo ? 3 : mobile ? 1 : 0.1,z:0.04};
+const nestedBlocked=process.argv.includes("--nested-blocked");
+const blocked=process.argv.includes("--blocked") || nestedBlocked;
+const unsupportedHeight=process.argv.includes("--unsupported-height");
+const destination={x:mobile ? (obstacle ? 4 : nearObject ? 1 : 2) : 0.4,y:afterDemo ? 3 : mobile ? 1 : 0.1,z:unsupportedHeight ? 0.12 : 0.04};
 const directory=await mkdtemp(path.join(os.tmpdir(),"gpo-manipulator-"));
 await cp(path.join(root,"webots/protos"),path.join(directory,"protos"),{recursive:true});
 const children=[];
@@ -39,8 +46,55 @@ try {
   await mkdir(stateDir,{recursive:true});
   let world = await readFile(path.join(root,"webots/worlds/youbot_only.wbt"),"utf8");
   if(mobile && !nearObject && !afterDemo)world=world.replace(/(DEF PICK_BOX Solid\s*\{\s*translation\s+)[^\r\n]+/,(_line,prefix)=>`${prefix}${obstacle ? 3.4 : 1.4} -0.1 0.04`);
+  if(vision) {
+    world=world.replace(/(DEF DEMO_BOX Solid\s*\{\s*translation\s+)[^\r\n]+/,
+      (_line,prefix)=>`${prefix}1.4 3 0.075`);
+    world=world.replace(/DEF PICK_BOX Solid\s*\{\s*translation\s+[^\r\n]+/,
+      `DEF VISION_TEST_BOX Solid {\n  translation 1.45 ${visionEmpty || visionHidden ? 3 : -.18} 0.04`);
+    for(const y of [-1.25, 2.25]) {
+      world+=`\nSolid { translation 1.4 ${y} 0.45
+        children [ Shape {
+          appearance PBRAppearance { baseColor 0.3 0.35 0.4 metalness 0 roughness 1 }
+          geometry Box { size 1.8 0.45 0.9 }
+        } ]
+        boundingObject Box { size 1.8 0.45 0.9 }
+      }\n`;
+    }
+    if(visionAmbiguous) world+=`\nDEF SECOND_VISION_BOX Solid {
+      translation 1.45 0.25 0.04
+      children [ Shape {
+        appearance PBRAppearance { baseColor 0.1 0.45 0.75 roughness 0.7 }
+        geometry Box { size 0.03 0.03 0.08 }
+      } ]
+      boundingObject Box { size 0.03 0.03 0.08 }
+      physics Physics { density -1 mass 0.04 }
+    }\n`;
+    if(visionHidden) world+=`\nDEF VISIBLE_DECOY Solid {
+      name "visible decoy"
+      translation 1.45 -0.18 0.04
+      children [ Shape {
+        appearance PBRAppearance { baseColor 0.1 0.45 0.75 roughness 0.7 }
+        geometry Box { size 0.03 0.03 0.08 }
+      } ]
+      boundingObject Box { size 0.03 0.03 0.08 }
+    }
+    DEF HIDDEN_BOX Solid {
+      name "hidden cargo"
+      translation 1.45 -0.10 0.04
+      boundingObject Box { size 0.03 0.03 0.08 }
+      physics Physics { density -1 mass 0.04 }
+    }\n`;
+  }
   if(obstacle)world+='\nDEF DELIVERY_OBSTACLE Solid { translation 1.5 0 0.2 children [ Shape { geometry Box { size 0.1 0.4 0.4 } } ] boundingObject Box { size 0.1 0.4 0.4 } }\n';
-  if(blocked)world+=`\nDEF BLOCKED_DESTINATION Solid { translation ${destination.x} ${destination.y} 0.2 children [ Shape { geometry Box { size 0.3 0.3 0.4 } } ] boundingObject Box { size 0.3 0.3 0.4 } }\n`;
+  if(blocked) {
+    const obstacle = `DEF BLOCKED_DESTINATION Solid { translation 0 0 0.2
+      children [ Shape { geometry Box { size 0.3 0.3 0.4 } } ]
+      boundingObject Box { size 0.3 0.3 0.4 }
+    }`;
+    world+=nestedBlocked
+      ? `\nGroup { children [ Pose { translation ${destination.x} ${destination.y} 0 children [ ${obstacle} ] } ] }\n`
+      : "\n"+obstacle.replace("translation 0 0", `translation ${destination.x} ${destination.y}`)+"\n";
+  }
   await writeFile(path.join(directory,"worlds/test.wbt"), world);
   await copyFile(path.join(root,"webots/controllers/youbot_web/youbot_web.exe"),path.join(directory,"controllers/youbot_web/youbot_web.exe"));
   for(const name of ["gateway","route","planning","telemetry"])launch(process.execPath,[`bridge/processes/run-${name}-service.cjs`]);
@@ -51,6 +105,15 @@ try {
   socket=new WebSocket(`ws://127.0.0.1:${missionPort}/ui`);await once(socket,"open");
   await until(async () => (await readState()).simulationTime > 2, "settling");
   let before=await readState();
+  await until(async()=>{
+    const current=await readState();
+    if(current.simulationTime-before.simulationTime<.25) return false;
+    const stationary=current.manipulator.joints.every((angle,i)=>
+      Math.abs(angle-before.manipulator.joints[i])<.003 &&
+      Math.abs(angle-current.manipulator.targetJoints[i])<.015);
+    before=current;
+    return stationary;
+  },"arm settled before mission");
   assert.ok(Math.hypot(before.pose.x,before.pose.y)<0.015,
     `Robot started moving without a mission: ${JSON.stringify(before.pose)} at ${before.simulationTime}s`);
   runScenario: {
@@ -110,17 +173,37 @@ try {
     before=await readState();
     console.log(`DEMO_BOX placed; fetching PICK_BOX from ${JSON.stringify(before.pose)}`);
   }
-  const ack = await send({requestId:"arm-physics",type:"pick_place",objectDef:"PICK_BOX",destination});
+  const source = vision ? {source:"vision"} : {objectDef:"PICK_BOX"};
+  const ack = await send({requestId:"arm-physics",type:"pick_place",...source,destination});
   assert.equal(ack.ok,true,JSON.stringify(ack));
-  if(blocked) {
-    await until(async()=>(await getMission("arm-physics")).status==="failed","blocked destination rejection");
+  if(visionReject) {
+    const expectedError=visionAmbiguous ? "vision_ambiguous" : "vision_no_cargo";
+    await until(async()=>{
+      const mission=await getMission("arm-physics");
+      assert.ok(!["running","completed","holding_for_recovery"].includes(mission.status), JSON.stringify(mission));
+      return mission.status==="failed";
+    },expectedError);
+    const mission=await getMission("arm-physics");
+    const state=await readState();
+    assert.equal(mission.failureReason,expectedError);
+    assert.ok(Math.hypot(state.pose.x-before.pose.x,state.pose.y-before.pose.y)<.015);
+    assert.ok(state.manipulator.joints.every((angle,i)=>Math.abs(angle-before.manipulator.joints[i])<.01));
+    console.log(`Vision pickup reported ${expectedError} without moving the base or arm.`);
+    break runScenario;
+  }
+  if(blocked || unsupportedHeight) {
+    await until(async()=>{
+      const mission=await getMission("arm-physics");
+      assert.ok(!["running","completed","holding_for_recovery"].includes(mission.status), JSON.stringify(mission));
+      return mission.status==="failed";
+    },"unsafe destination rejection");
     const mission=await getMission("arm-physics"),state=await readState();
-    assert.equal(mission.failureReason,"delivery_path_blocked");
+    assert.equal(mission.failureReason,unsupportedHeight ? "unsupported_destination" : "delivery_path_blocked");
     assert.ok(Math.hypot(state.pose.x-before.pose.x,state.pose.y-before.pose.y)<0.01);
     assert.ok(Math.abs(state.manipulator.objectPosition.z-0.04)<0.005,"Picked up cargo despite blocked destination");
     await mkdir(path.join(root,"output/manipulator-smoke"),{recursive:true});
     await writeFile(path.join(root,"output/manipulator-smoke/mobile-delivery-blocked.json"),JSON.stringify({mission,state},null,2));
-    console.log("Blocked delivery rejected before driving or pickup.");
+    console.log(`Unsafe destination rejected before pickup: ${mission.failureReason}.`);
     break runScenario;
   }
   const observations=[];
@@ -198,6 +281,11 @@ try {
     assert.ok(observations.some(s=>s.manipulator.stage==="carrying"),"Base never carried the load");
     assert.ok(Math.hypot(final.pose.x,final.pose.y)>0.5,"Base never moved to the destination");
   } else assert.ok(Math.hypot(final.pose.x,final.pose.y)<0.015,"Base moved");
+  if(vision) {
+    assert.equal(final.manipulator.objectDef,"VISION_TEST_BOX");
+    console.log("Vision selected the box, carried it on the platform and delivered it.");
+    break runScenario;
+  }
   if(process.argv.includes("--route-after-delivery")) {
     const route=Array.from({length:100},(_value,index)=>{
       const angle=Math.PI+index*2*Math.PI/99;
@@ -240,9 +328,9 @@ try {
   assert.equal(badAck.ok,true);
   await until(async()=>(await getMission("arm-unreachable")).status==="failed","unreachable target rejection");
   const failedMission = await getMission("arm-unreachable");
-  assert.equal(failedMission.failureReason, "target_unreachable");
+  assert.equal(failedMission.failureReason, "unsupported_destination");
   const failed=await readState();
-  assert.equal(failed.manipulator.error,"target_unreachable");
+  assert.equal(failed.manipulator.error,"unsupported_destination");
   const missingAck=await send({requestId:"arm-missing",type:"pick_place",objectDef:"MISSING_BOX",destination:{x:0.4,y:0.1,z:0.04}});
   assert.equal(missingAck.ok,true);
   await until(async()=>(await getMission("arm-missing")).status==="failed","missing object rejection");

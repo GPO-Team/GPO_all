@@ -7,8 +7,9 @@ Planning, route и telemetry могут работать на другом хо�
 
 ## Хранение и резервные копии
 
-Route владеет `MISSION_STATE_DIR/records.sqlite`, gateway —
-`WEB_STATE_DIR/gateway-journal/records.sqlite`. Это локальные SQLite-хранилища;
+Route хранит миссии в `MISSION_STATE_DIR/records.sqlite`, склад —
+в `MISSION_STATE_DIR/warehouse/records.sqlite`, а gateway хранит журнал
+в `WEB_STATE_DIR/gateway-journal/records.sqlite`. Это локальные SQLite-хранилища;
 не размещайте их на сетевой файловой системе и не разделяйте между репликами.
 Planning и telemetry не требуют собственной постоянной базы.
 
@@ -22,13 +23,14 @@ Planning и telemetry не требуют собственной постоян�
 ```powershell
 New-Item -ItemType Directory backups/session-01
 node scripts/repository-backup.mjs export data/missions backups/session-01/missions.json
+node scripts/repository-backup.mjs export data/missions/warehouse backups/session-01/warehouse.json
 node scripts/repository-backup.mjs export web_state/gateway-journal backups/session-01/gateway.json
 Copy-Item web_state backups/session-01/web_state -Recurse
 ```
 
 Проверяйте код завершения каждой команды. Копия считается полной только после
-успеха всех трёх операций. Сохраняйте вместе версию приложения, world-файл и
-эти три результата. Секреты храните отдельно. Переносите готовые копии на другой
+успеха всех четырёх операций. Сохраняйте вместе версию приложения, world-файл и
+эти четыре результата. Секреты храните отдельно. Переносите готовые копии на другой
 диск; локальная папка `backups` не защищает от потери диска. SHA-256 обнаруживает
 повреждение экспорта, но не является подписью: используйте доверенные копии.
 
@@ -36,6 +38,7 @@ Copy-Item web_state backups/session-01/web_state -Recurse
 
 ```powershell
 node scripts/repository-backup.mjs import backups/session-01/missions.json data/missions-restored
+node scripts/repository-backup.mjs import backups/session-01/warehouse.json data/missions-restored/warehouse
 Copy-Item backups/session-01/web_state web_state-restored -Recurse
 node scripts/repository-backup.mjs import backups/session-01/gateway.json data/gateway-restored
 ```
@@ -44,12 +47,12 @@ node scripts/repository-backup.mjs import backups/session-01/gateway.json data/g
 нового `data/gateway-restored` после проверки путей. Исходные рабочие каталоги
 сохраните. Укажите `MISSION_STATE_DIR=./data/missions-restored` и
 `WEB_STATE_DIR=./web_state-restored`; передайте тот же `WEB_STATE_DIR` Webots.
-Запускайте gateway, planning, route, telemetry; проверьте `/ready` и историю
-миссий, затем открывайте Webots. Не восстанавливайте только одну базу из другой
+Запустите gateway, planning, route и telemetry, проверьте `/ready`, историю
+миссий и `GET /api/warehouse`. Сверьте ревизию, стеллажи, грузы и задания склада
+с исходным состоянием. Затем откройте Webots. Не восстанавливайте только одну базу из другой
 даты: журнал доставки и миссии должны соответствовать файлам симулятора.
-Восстановление незавершённой миссии может повторить подготовленную команду;
-автоматическое продолжение движения после перезапуска Webots не гарантируется.
-Поэтому штатные копии делаются при отсутствии активной миссии.
+Делайте штатные копии при отсутствии активной миссии. После перезапуска Webots
+проверьте её итоговый статус и состояние груза перед отправкой новой команды.
 
 Экспорт не включает таблицу владельца процесса. Импорт проверяет формат,
 контрольную сумму и идентификаторы до создания каталога, не перезаписывает

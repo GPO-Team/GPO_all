@@ -58,6 +58,10 @@ ControllerRuntimeCommandReloadResult controller_runtime_command_reload_service_r
     return CONTROLLER_RUNTIME_COMMAND_RELOAD_DUPLICATE;
   }
   service->last_processed_id = command.id;
+  if (command.controller_boot_id[0] &&
+      (!service->controller_boot_id || strcmp(command.controller_boot_id, service->controller_boot_id) != 0)) {
+    return CONTROLLER_RUNTIME_COMMAND_RELOAD_INVALID;
+  }
 
   if (command.has_transfer_object || command.has_recover_transfer ||
       command.has_resume_transfer || command.has_manipulator_pose) {

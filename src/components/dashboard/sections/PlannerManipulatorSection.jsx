@@ -30,12 +30,16 @@ const errors = {
   grip_lost: "Контакт с грузом потерян. Робот остановлен; требуется восстановить захват.",
   grasp_failed: "Двусторонний захват не подтверждён. Перевозка не началась.",
   platform_grasp_failed: "Не удалось захватить коробку с платформы. Робот остаётся занят.",
-  cargo_lost: "Коробка потеряла опору на платформе. Робот остановлен.",
+  cargo_lost: "Коробка упала с платформы. Робот остановил доставку.",
+  platform_contact_unknown: "Опора груза на платформе не подтверждена. Робот остановлен.",
   sensor_invalid: "Нет достоверных показаний датчиков. Движение остановлено.",
   transport_pose_invalid: "Рука или захват не готовы к безопасной перевозке. Робот остановлен.",
   transport_obstacle: "На пути обнаружено препятствие. Робот остановлен.",
   lidar_unavailable: "Нет данных датчика препятствий. Движение остановлено.",
   object_missing: "Объект не найден в мире Webots.",
+  vision_unavailable: "Нет свежих данных с камеры и лидара. Проверьте датчики.",
+  vision_no_cargo: "В поле зрения камеры нет подходящей коробки. Направьте робота на груз.",
+  vision_ambiguous: "В поле зрения несколько подходящих коробок. Оставьте в кадре одну или укажите её имя DEF.",
   source_unreachable:
     "Сам объект находится вне досягаемости руки. Подъезд базы не решает ограничение по высоте или доступу к захвату.",
   source_approach_unreachable:
@@ -52,6 +56,7 @@ const errors = {
     "Траектория руки пересекает препятствие или запретную зону. Освободите место для переноса.",
   unsafe_release:
     "Безопасно опустить груз сейчас невозможно. Освободите место под грузом и нажмите «Безопасно выгрузить».",
+  unsupported_destination: "В точке назначения не подтверждена опора. Укажите высоту центра коробки на полу.",
   unsupported_object_geometry:
     "Не удалось определить габариты объекта для безопасного переноса.",
   target_approach_unreachable:
@@ -80,6 +85,7 @@ export default function PlannerManipulatorSection({
   editingLocked = false,
 }) {
   const [objectDef, setObjectDef] = useState("PICK_BOX");
+  const [vision, setVision] = useState(false);
   const [destination, setDestination] = useState({
     x: "0.4",
     y: "0.1",
@@ -87,7 +93,8 @@ export default function PlannerManipulatorSection({
   });
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-  const demo = objectDef === "DEMO_BOX";
+  const demo = !vision && objectDef === "DEMO_BOX";
+  const selection = demo || objectDef === "PICK_BOX" ? objectDef : "custom";
   const remote = telemetry?.objectTransfer;
   const useRemote = demo || mission?.operationType === "object_transfer";
   const remoteStage =
@@ -138,7 +145,7 @@ export default function PlannerManipulatorSection({
       Object.entries(destination).map(([key, value]) => [key, Number(value)]),
     );
     if (
-      !/^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(objectDef) ||
+      (!vision && !/^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(objectDef)) ||
       Object.values(destination).some((value) => !value.trim()) ||
       Object.values(target).some((value) => !Number.isFinite(value)) ||
       Math.abs(target.x) > 22 ||
@@ -155,7 +162,9 @@ export default function PlannerManipulatorSection({
     setSending(true);
     try {
       if (demo) await onStartTransfer?.({ x: target.x, y: target.y });
-      else await onStart?.({ objectDef, destination: target });
+      else await onStart?.(vision
+        ? { source: "vision", destination: target }
+        : { objectDef, destination: target });
     } catch (failure) {
       setError(failure.message);
     } finally {
@@ -177,16 +186,11 @@ export default function PlannerManipulatorSection({
             <select
               aria-label="Выбор объекта для переноса"
               className={inputClass}
-              value={
-                demo
-                  ? "DEMO_BOX"
-                  : objectDef === "PICK_BOX"
-                    ? "PICK_BOX"
-                    : "custom"
-              }
+              value={vision ? "vision" : selection}
               onChange={(event) => {
                 const value = event.target.value;
-                setObjectDef(value === "custom" ? "" : value);
+                setVision(value === "vision");
+                setObjectDef(value === "custom" || value === "vision" ? "" : value);
                 setDestination(
                   value === "DEMO_BOX"
                     ? { x: "2", y: "0.6", z: "0.075" }
@@ -200,21 +204,24 @@ export default function PlannerManipulatorSection({
                 DEMO_BOX · большая коробка с ручкой
               </option>
               <option value="custom">Другой объект по имени DEF</option>
+              <option value="vision">По камере · видимая коробка</option>
             </select>
           </label>
-          <label className="block text-xs">
-            Объект (имя DEF в Webots)
-            <input
-              className={inputClass}
-              value={objectDef}
-              disabled={demo}
-              onChange={(event) => {
-                setObjectDef(event.target.value);
-                setError("");
-              }}
-              required
-            />
-          </label>
+          {!vision && (
+            <label className="block text-xs">
+              Объект (имя DEF в Webots)
+              <input
+                className={inputClass}
+                value={objectDef}
+                disabled={demo}
+                onChange={(event) => {
+                  setObjectDef(event.target.value);
+                  setError("");
+                }}
+                required
+              />
+            </label>
+          )}
           <div className="grid grid-cols-3 gap-2">
             {["x", "y", "z"].map((axis) => (
               <label key={axis} className="text-xs">
@@ -250,6 +257,7 @@ export default function PlannerManipulatorSection({
         {connected
           ? stages[arm?.stage] || "Ожидание"
           : "Нет свежей телеметрии или связи с bridge"}
+        {connected && vision && arm?.objectDef && ` · ${arm.objectDef}`}
       </div>
       {reportedError && (
         <p role="alert" className="mt-2 text-xs text-red-700">

@@ -1,26 +1,30 @@
 import { MISSION_API_BASE_URL } from "../../../lib/runtimeConfig";
-export const getMission = async (missionId,signal) => {
-  const response = await fetch(`${MISSION_API_BASE_URL}/api/missions/${encodeURIComponent(missionId)}`,{signal});
-  const result = await response.json();
-  if (!response.ok || !result.ok) throw new Error(result.error || "Состояние миссии недоступно.");
-  return result;
+
+const REQUEST_TIMEOUT_MS = 10000;
+const requestMission = async (path, message, { method = "GET", signal } = {}) => {
+  const controller = new AbortController();
+  const requestSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
+  const timer = setTimeout(() => controller.abort(new Error(message)), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${MISSION_API_BASE_URL}/api/missions${path}`, { method, signal: requestSignal });
+    const result = await response.json();
+    if (!response.ok || !result?.ok) throw new Error(result?.error || message);
+    return result;
+  } finally {
+    clearTimeout(timer);
+  }
 };
 
+export const getMission = (missionId, signal) =>
+  requestMission(`/${encodeURIComponent(missionId)}`, "Состояние миссии недоступно.", { signal });
+
 export const listMissions = async signal => {
-  const response = await fetch(`${MISSION_API_BASE_URL}/api/missions`,{signal});
-  const result = await response.json();
-  if (!response.ok || !result.ok) throw new Error(result.error || "История миссий недоступна.");
+  const result = await requestMission("", "История миссий недоступна.", { signal });
   return result.missions;
 };
-export const cancelMission = async missionId => {
-  const response = await fetch(`${MISSION_API_BASE_URL}/api/missions/${encodeURIComponent(missionId)}/cancel`,{method:"POST"});
-  const result = await response.json();
-  if (!response.ok || !result.ok) throw new Error(result.error || "Отмена миссии недоступна.");
-  return result;
-};
-export const resumeMission = async missionId => {
-  const response = await fetch(`${MISSION_API_BASE_URL}/api/missions/${encodeURIComponent(missionId)}/resume`,{method:"POST"});
-  const result = await response.json();
-  if (!response.ok || !result.ok) throw new Error(result.error || "Продолжение миссии недоступно.");
-  return result;
-};
+
+export const cancelMission = missionId =>
+  requestMission(`/${encodeURIComponent(missionId)}/cancel`, "Отмена миссии недоступна.", { method: "POST" });
+
+export const resumeMission = missionId =>
+  requestMission(`/${encodeURIComponent(missionId)}/resume`, "Продолжение миссии недоступно.", { method: "POST" });

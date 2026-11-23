@@ -30,6 +30,7 @@ typedef struct {
   double support_z,cargo_radius;
   double support_stable_since;
   int use_platform,on_platform;
+  bool platform_contact_unknown;
   double trajectory_origin[5], trajectory_target[5];
   double trajectory_via[5],trajectory_via_duration;
   double trajectory_started, trajectory_duration;

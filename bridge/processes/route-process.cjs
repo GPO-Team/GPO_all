@@ -28,7 +28,7 @@ const startRouteProcess = ({config=defaultConfig,createRouteServer=defaultCreate
   const timer=setInterval(()=>{tickPromise=tick();},1000);
   timer.unref();
   const server=createRouteServer({routeService,missionService,warehouseService,
-    ready:async()=>{await repository.ready();await adapter.ready();},
+    ready:async()=>{await repository.ready();await warehouseService.ready();await adapter.ready();},
     host:config.ROUTE_BIND_HOST || config.BRIDGE_HOST,port:config.ROUTE_PORT});
   const close=server.close;
   server.close=async()=>{

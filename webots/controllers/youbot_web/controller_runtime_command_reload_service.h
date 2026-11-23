@@ -27,6 +27,7 @@ typedef struct {
   long long last_modified;
   long long last_processed_id;
   int (*motion_blocked)(void);
+  const char *controller_boot_id;
 } ControllerRuntimeCommandReloadService;
 
 void controller_runtime_command_reload_service_init(

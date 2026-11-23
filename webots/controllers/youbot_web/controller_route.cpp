@@ -14,6 +14,7 @@ ControllerRouteLoadResult controller_route_load_file(const char *path, RouteData
   char line[256];
   while (fgets(line, sizeof(line), file)) {
     if (sscanf(line, "# command %63s", parsed.command_id) == 1) continue;
+    if (sscanf(line, "# controller_boot_id %63s", parsed.controller_boot_id) == 1) continue;
     if (line[0] == '\n' || line[0] == '\r' || line[0] == '#') continue;
     if (strncmp(line, "x,", 2) == 0 || strncmp(line, "x ", 2) == 0) continue;
     double x = 0.0, z = 0.0, heading = 0.0;

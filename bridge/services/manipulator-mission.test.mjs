@@ -41,3 +41,16 @@ it("rejects invalid arm targets before journaling movement", async () => {
   expect(await service.list()).toHaveLength(0);
   await expect(service.update(command)).rejects.toMatchObject({statusCode:400});
 });
+
+it("journals a vision pickup without a preselected Webots DEF", async () => {
+  const { service } = await setup();
+  const { objectDef, ...destinationCommand } = command;
+  const vision = { ...destinationCommand, source: "vision" };
+  await expect(service.submit({ ...vision, objectDef }, { requestId: "conflicting-arm" }))
+    .rejects.toMatchObject({ statusCode: 400 });
+  const result = await service.submit(vision, { requestId: "vision-arm" });
+  expect(result.operationType).toBe("pick_place");
+  const text = await readFile(path.join(directory, "runtime_command.txt"), "utf8");
+  expect(text).toContain("object_source vision\n");
+  expect(text).not.toContain("object_def");
+});

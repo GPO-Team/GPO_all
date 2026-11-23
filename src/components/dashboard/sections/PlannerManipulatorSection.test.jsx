@@ -48,3 +48,10 @@ it("distinguishes an unreachable object from an unreachable destination", () => 
   expect(html).toContain("Сам объект находится вне досягаемости руки.");
   expect(html).not.toContain("Точка назначения вне досягаемости руки.");
 });
+
+it("offers camera selection and explains an ambiguous camera view", () => {
+  const html = renderToStaticMarkup(<PlannerManipulatorSection connected
+    mission={{missionId:"vision-arm",status:"failed",failureReason:"vision_ambiguous"}} />);
+  expect(html).toContain('<option value="vision">По камере');
+  expect(html).toContain("В поле зрения несколько подходящих коробок.");
+});

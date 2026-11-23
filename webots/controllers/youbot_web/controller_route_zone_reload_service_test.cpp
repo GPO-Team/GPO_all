@@ -67,6 +67,15 @@ int main(void) {
   assert(strcmp(runtime.route.command_id, "arm-current") == 0);
   assert(reset_navigation_calls == 1);
   service.motion_blocked = NULL;
+  service.controller_boot_id = "boot-current";
+  strcpy(route_result.route.controller_boot_id, "boot-old");
+  controller_route_zone_reload_service_apply_route_result(&service, &route_result);
+  assert(strcmp(runtime.route.command_id, "arm-current") == 0);
+  assert(reset_navigation_calls == 1);
+  strcpy(route_result.route.controller_boot_id, "boot-current");
+  controller_route_zone_reload_service_apply_route_result(&service, &route_result);
+  assert(strcmp(runtime.route.command_id, "foreign-route") == 0);
+  assert(reset_navigation_calls == 2);
 
   ControllerRouteZoneServiceResult invalid_surface = {0};
   invalid_surface.surface_zones_status = CONTROLLER_ROUTE_ZONE_STATUS_ZONE_INVALID_ENTRY;

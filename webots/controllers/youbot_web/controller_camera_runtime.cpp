@@ -15,6 +15,7 @@
 
 #include <cmath>
 #include <string.h>
+#include <webots/supervisor.h>
 
 namespace {
 ControllerPerceptionCameraObservation s_held_observation = {};
@@ -134,6 +135,19 @@ static void update_obstacle_hint(ControllerCameraRuntime *runtime) {
       effective_fov,
       runtime->config.min_obstacle_score,
       &result);
+
+  const WbNodeRef camera = wb_supervisor_node_get_from_device(runtime->sensors->camera);
+  const double *camera_position = camera ? wb_supervisor_node_get_position(camera) : nullptr;
+  if (camera_position) {
+    memcpy(result.camera.position, camera_position, sizeof(result.camera.position));
+    const double *orientation = wb_supervisor_node_get_orientation(camera);
+    if (orientation) {
+      memcpy(result.camera.orientation, orientation, sizeof(result.camera.orientation));
+      result.camera.width = runtime->perception->camera.width;
+      result.camera.height = runtime->perception->camera.height;
+      result.camera.focal_px = 0.5 * result.camera.width / tan(0.5 * effective_fov);
+    }
+  }
 
   double robot_x = 0.0;
   double robot_z = 0.0;

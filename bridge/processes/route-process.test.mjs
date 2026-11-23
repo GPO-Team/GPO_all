@@ -32,3 +32,27 @@ it("closes all process resources even if server shutdown fails",async()=>{
   await expect(server.close()).rejects.toThrow("shutdown failed");
   expect(adapter.close).toHaveBeenCalledOnce();expect(repository.close).toHaveBeenCalledOnce();expect(warehouseStorage.close).toHaveBeenCalledOnce();
 });
+
+it("reports invalid warehouse data from route readiness and retries a recovered store", async () => {
+  const warehouseStorage = {
+    get: vi.fn().mockResolvedValueOnce({ missionId: "warehouse", warehouse: { schemaVersion: 999 } })
+      .mockResolvedValueOnce(null),
+  };
+  const createRouteServer = vi.fn(() => ({ close: async () => {} }));
+  const server = module.startRouteProcess({
+    config: { MISSION_STATE_DIR: "/missions" },
+    createSimulatorAdapter: () => ({ ready: async () => {} }),
+    createMissionRepository: () => ({ ready: async () => {} }),
+    createWarehouseStorage: () => warehouseStorage,
+    createRouteServer,
+  });
+  const { ready, warehouseService } = createRouteServer.mock.calls[0][0];
+  try {
+    await expect(ready()).rejects.toMatchObject({ statusCode: 503, code: "invalid_storage" });
+    await expect(ready()).resolves.toBeUndefined();
+    await expect(warehouseService.get()).resolves.toMatchObject({ warehouse: { revision: 0 } });
+    expect(warehouseStorage.get).toHaveBeenCalledTimes(2);
+  } finally {
+    await server.close();
+  }
+});

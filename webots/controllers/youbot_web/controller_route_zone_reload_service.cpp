@@ -85,6 +85,9 @@ void controller_route_zone_reload_service_apply_route_result(
     return;
   }
   if (!result->route_changed) return;
+  if (result->route.controller_boot_id[0] &&
+      (!service->controller_boot_id ||
+       strcmp(result->route.controller_boot_id, service->controller_boot_id) != 0)) return;
   controller_survey_lifecycle_accept_route(
       &service->runtime->route,
       &result->route,
