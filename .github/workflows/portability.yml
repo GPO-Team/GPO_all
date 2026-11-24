@@ -63,3 +63,4 @@ jobs:
         run: |
           npm run test:delivery:vision
           npm run test:delivery:safety
+          npm run test:warehouse:delivery

@@ -65,6 +65,7 @@ export const placementReasons = (cargo, slot) => {
     reasons.push("Недостаточно высоты: нужен верхний зазор 1 см.");
   if (cargo.massKg > slot.maxLoadKg + EPSILON)
     reasons.push("Масса превышает допустимую нагрузку ячейки.");
+  if (slot.occupiedBy) reasons.push("Ячейка занята грузом.");
   if (slot.reservedBy) reasons.push("Ячейка зарезервирована другим заданием.");
   return reasons;
 };

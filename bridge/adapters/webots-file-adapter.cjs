@@ -52,6 +52,9 @@ const observeWebotsMission = async (stateDir, missionId) => {
     return { controllerBootId, feedback: { missionId, status, observedAt,
       ...(controllerBootId ? { controllerBootId } : {}),
       ...(arm ? {stage:arm.stage,attached:arm.loadHeld === true,onPlatform:arm.onPlatform === true,errorCode:held ? reason || "unsafe_release" : null} : {}),
+      ...(status === "completed" && arm?.stage === "completed" && arm.objectPosition
+        ? {deliveryEvidence: {objectDef: arm.objectDef, objectPosition: arm.objectPosition,
+          loadHeld: arm.loadHeld, onPlatform: arm.onPlatform}} : {}),
       ...(status === "failed" && typeof reason === "string" && reason ? {error:reason.slice(0,128)} : {}),
     }};
   } catch (error) {

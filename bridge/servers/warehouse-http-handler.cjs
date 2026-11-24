@@ -43,7 +43,7 @@ const createWarehouseHttpHandler =
         };
         let handle = handlers[pathname];
         const rackMatch = pathname.match(/^\/api\/warehouse\/racks\/([^/]+)(\/delete)?$/);
-        const taskMatch = pathname.match(/^\/api\/warehouse\/tasks\/([^/]+)\/cancel$/);
+        const taskMatch = pathname.match(/^\/api\/warehouse\/tasks\/([^/]+)\/(cancel|start|stop)$/);
         if (rackMatch) {
           const id = decodeURIComponent(rackMatch[1]);
           handle = (body) =>
@@ -52,7 +52,8 @@ const createWarehouseHttpHandler =
               : warehouseService.updateRack(id, body);
         } else if (taskMatch) {
           const id = decodeURIComponent(taskMatch[1]);
-          handle = (body) => warehouseService.cancelTask(id, body);
+          const action = { start: "startTask", stop: "stopTask", cancel: "cancelTask" }[taskMatch[2]];
+          handle = (body) => warehouseService[action](id, body);
         }
         if (handle) return sendJson(response, 200, await handle(await readJson(request)));
       }

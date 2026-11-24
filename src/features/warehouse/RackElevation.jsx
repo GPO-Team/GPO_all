@@ -92,11 +92,11 @@ export default function RackElevation({ rack, slots, selectedSlotId, onSelect })
                   onFocus={() => onSelect(slot.id)}
                   onClick={() => onSelect(slot.id)}
                   onKeyDown={(event) => navigate(event, rowIndex, columnIndex)}
-                  className={`min-h-16 rounded-lg border px-2 py-2 text-left text-[10px] transition ${slot.reservedBy ? "border-orange-200 bg-orange-50 text-orange-800" : "border-stone-200 bg-stone-50 text-stone-600"} ${selectedSlotId === slot.id ? "ring-2 ring-orange-500" : "hover:border-orange-400"}`}
+                  className={`min-h-16 rounded-lg border px-2 py-2 text-left text-[10px] transition ${slot.occupiedBy ? "border-emerald-200 bg-emerald-50 text-emerald-800" : slot.reservedBy ? "border-orange-200 bg-orange-50 text-orange-800" : "border-stone-200 bg-stone-50 text-stone-600"} ${selectedSlotId === slot.id ? "ring-2 ring-orange-500" : "hover:border-orange-400"}`}
                 >
                   <strong className="block break-all text-xs">{slot.address}</strong>
                   <span id={`warehouse-cell-status-${slot.id}`}>
-                    {slot.reservedBy ? "Резерв" : "Свободно"}
+                    {slot.occupiedBy ? "Занята" : slot.reservedBy ? "Резерв" : "Свободно"}
                   </span>
                 </button>
               ))}

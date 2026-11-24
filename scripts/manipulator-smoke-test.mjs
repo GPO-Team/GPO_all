@@ -14,7 +14,11 @@ const visionEmpty=process.argv.includes("--vision-empty");
 const visionAmbiguous=process.argv.includes("--vision-ambiguous");
 const visionHidden=process.argv.includes("--vision-hidden");
 const visionReject=visionEmpty || visionAmbiguous || visionHidden;
-const vision=process.argv.includes("--vision") || visionReject;
+const warehouseRejection = process.argv.includes("--warehouse-wrong-cargo") ? "vision_wrong_cargo"
+  : process.argv.includes("--warehouse-outside-receiving") ? "cargo_outside_receiving" : null;
+const warehouseDelivery = process.argv.includes("--warehouse-delivery") || Boolean(warehouseRejection);
+const vision=process.argv.includes("--vision") || visionReject || warehouseDelivery;
+const visionDef = warehouseDelivery ? "PICK_BOX" : "VISION_TEST_BOX";
 const mobile=process.argv.includes("--mobile") || afterDemo || vision;
 const nearObject=process.argv.includes("--near-object");
 const obstacle=process.argv.includes("--obstacle");
@@ -41,6 +45,14 @@ const readState=async()=>{
   catch(error){if(attempt>=10 || (error.code!=="ENOENT" && !(error instanceof SyntaxError)))throw error;await delay(5);}
 };
 const getMission=async id=>(await fetch(`http://127.0.0.1:${missionPort}/api/missions/${id}`)).json();
+const warehouse = async (endpoint = "", body) => {
+  const response = await fetch(`http://127.0.0.1:${missionPort}/api/warehouse${endpoint}`, body
+    ? {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}
+    : {});
+  const result = await response.json();
+  assert.ok(response.ok, JSON.stringify(result));
+  return result;
+};
 const send=command=>new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error("ACK timeout")),15000);const receive=data=>{const ack=JSON.parse(data);if(ack.requestId===command.requestId){clearTimeout(timer);socket.off("message",receive);resolve(ack);}};socket.on("message",receive);socket.send(JSON.stringify(command));});
 try {
   await mkdir(path.join(directory,"worlds"),{recursive:true});
@@ -51,8 +63,8 @@ try {
     world=world.replace(/(DEF DEMO_BOX Solid\s*\{\s*translation\s+)[^\r\n]+/,
       (_line,prefix)=>`${prefix}1.4 3 0.075`);
     world=world.replace(/DEF PICK_BOX Solid\s*\{\s*translation\s+[^\r\n]+/,
-      `DEF VISION_TEST_BOX Solid {\n  translation 1.45 ${visionEmpty || visionHidden ? 3 : -.18} 0.04`);
-    for(const y of [-1.25, 2.25]) {
+      `DEF ${visionDef} Solid {\n  translation 1.45 ${visionEmpty || visionHidden ? 3 : -.18} 0.04`);
+    for(const y of warehouseDelivery ? [] : [-1.25, 2.25]) {
       world+=`\nSolid { translation 1.4 ${y} 0.45
         children [ Shape {
           appearance PBRAppearance { baseColor 0.3 0.35 0.4 metalness 0 roughness 1 }
@@ -190,17 +202,56 @@ try {
     before=await readState();
     console.log(`DEMO_BOX placed; fetching PICK_BOX from ${JSON.stringify(before.pose)}`);
   }
-  const source = vision ? {source:"vision"} : {objectDef:"PICK_BOX"};
-  const ack = await send({requestId:"arm-physics",type:"pick_place",...source,destination});
-  assert.equal(ack.ok,true,JSON.stringify(ack));
+  let missionId = "arm-physics";
+  const taskId = "warehouse-demo";
+  const cargoId = "demo-cargo";
+  let slotId;
+  if (warehouseDelivery) {
+    let store = await warehouse();
+    store = await warehouse("/stations", {expectedRevision:store.warehouse.revision,
+      stations:store.warehouse.stations.map((station) => station.id === "receiving"
+        ? {...station,x:warehouseRejection === "cargo_outside_receiving" ? .8 : 1.45,y:-.18} : station)});
+    store = await warehouse("/racks", {expectedRevision:store.warehouse.revision, rack:{
+      id:"floor",code:"A",name:"Floor",x:destination.x,y:destination.y,yaw:0,
+      bays:1,placesPerBay:1,bayWidth:.25,depth:.25,levels:[{supportZ:0,clearHeight:.25,maxLoadKg:1}],
+    }});
+    slotId = store.slots[0].id;
+    store = await warehouse("/cargo", {expectedRevision:store.warehouse.revision, cargo:{
+      id:cargoId,label:"Vision box",width:.03,depth:.03,height:.08,massKg:.04,
+      objectDef:warehouseRejection === "vision_wrong_cargo" ? "OTHER_BOX" : visionDef,
+    }});
+    store = await warehouse("/tasks", {expectedRevision:store.warehouse.revision,
+      id:taskId,cargoId,destinationId:slotId});
+    store = await warehouse("/tasks/warehouse-demo/start", {expectedRevision:store.warehouse.revision});
+    missionId = store.warehouse.tasks[0].missionId;
+    assert.ok(missionId);
+    assert.equal(store.slots[0].reservedBy,taskId);
+    assert.equal(store.warehouse.cargo[0].locationId,"receiving");
+    if (warehouseRejection) {
+      await until(async () => (await warehouse()).warehouse.tasks[0].status === "attention", warehouseRejection);
+      const rejected = await warehouse();
+      const state = await readState();
+      assert.equal(rejected.warehouse.tasks[0].failureReason,warehouseRejection);
+      assert.equal(rejected.warehouse.cargo[0].locationId,"receiving");
+      assert.equal(rejected.slots[0].reservedBy,taskId);
+      assert.ok(Math.hypot(state.pose.x-before.pose.x,state.pose.y-before.pose.y)<.015);
+      assert.ok(state.manipulator.joints.every((angle,i)=>Math.abs(angle-before.manipulator.joints[i])<.01));
+      console.log("Warehouse retained its reservation without motion:",warehouseRejection);
+      break runScenario;
+    }
+  } else {
+    const source = vision ? {source:"vision"} : {objectDef:"PICK_BOX"};
+    const ack = await send({requestId:missionId,type:"pick_place",...source,destination});
+    assert.equal(ack.ok,true,JSON.stringify(ack));
+  }
   if(visionReject) {
     const expectedError=visionAmbiguous ? "vision_ambiguous" : "vision_no_cargo";
     await until(async()=>{
-      const mission=await getMission("arm-physics");
+      const mission=await getMission(missionId);
       assert.ok(!["running","completed","holding_for_recovery"].includes(mission.status), JSON.stringify(mission));
       return mission.status==="failed";
     },expectedError);
-    const mission=await getMission("arm-physics");
+    const mission=await getMission(missionId);
     const state=await readState();
     assert.equal(mission.failureReason,expectedError);
     assert.ok(Math.hypot(state.pose.x-before.pose.x,state.pose.y-before.pose.y)<.015);
@@ -210,11 +261,11 @@ try {
   }
   if(blocked || unsupportedHeight) {
     await until(async()=>{
-      const mission=await getMission("arm-physics");
+      const mission=await getMission(missionId);
       assert.ok(!["running","completed","holding_for_recovery"].includes(mission.status), JSON.stringify(mission));
       return mission.status==="failed";
     },"unsafe destination rejection");
-    const mission=await getMission("arm-physics"),state=await readState();
+    const mission=await getMission(missionId),state=await readState();
     assert.equal(mission.failureReason,unsupportedHeight ? "unsupported_destination" : "delivery_path_blocked");
     assert.ok(Math.hypot(state.pose.x-before.pose.x,state.pose.y-before.pose.y)<0.01);
     assert.ok(Math.abs(state.manipulator.objectPosition.z-0.04)<0.005,"Picked up cargo despite blocked destination");
@@ -245,9 +296,9 @@ try {
     }
     assert.ok(!injectedRoute || state.navigation.missionId !== "foreign-route", "A route update preempted an active manipulator mission");
     assert.ok(!injectedRuntime || !["foreign-survey","foreign-arm"].includes(state.navigation.missionId), "A runtime command preempted an active manipulator mission");
-    if(state.manipulator?.missionId==="arm-physics" && state.manipulator.stage!==lastStage){ lastStage=state.manipulator.stage; observations.push(state); console.log(lastStage,JSON.stringify(state.manipulator)); }
-    const m=await getMission("arm-physics");
-    if(["failed","holding_for_recovery"].includes(m.status))throw new Error(JSON.stringify(state));
+    if(state.manipulator?.missionId===missionId && state.manipulator.stage!==lastStage){ lastStage=state.manipulator.stage; observations.push(state); console.log(lastStage,JSON.stringify(state.manipulator)); }
+    const m=await getMission(missionId);
+    if(["failed","holding_for_recovery"].includes(m.status))throw new Error(JSON.stringify({mission:m,state}));
     return m.status==="completed";
   },"physical pick-place",mobile ? 180000 : 90000);
   const final=await readState();
@@ -299,7 +350,19 @@ try {
     assert.ok(Math.hypot(final.pose.x,final.pose.y)>0.5,"Base never moved to the destination");
   } else assert.ok(Math.hypot(final.pose.x,final.pose.y)<0.015,"Base moved");
   if(vision) {
-    assert.equal(final.manipulator.objectDef,"VISION_TEST_BOX");
+    assert.equal(final.manipulator.objectDef,visionDef);
+    if (warehouseDelivery) {
+      await until(async () => {
+        const {warehouse:inventory,slots} = await warehouse();
+        if (inventory.tasks[0].status === "attention") throw new Error(JSON.stringify(inventory.tasks[0]));
+        if (inventory.tasks[0].status !== "completed") return false;
+        assert.equal(inventory.cargo[0].locationId,slotId);
+        assert.equal(slots[0].occupiedBy,cargoId);
+        assert.equal(slots[0].reservedBy,null);
+        return true;
+      }, "warehouse inventory confirmed delivery", 15000);
+      console.log("Warehouse confirmed the physical delivery and recorded the cargo in its slot.");
+    }
     console.log("Vision selected the box, carried it on the platform and delivered it.");
     break runScenario;
   }

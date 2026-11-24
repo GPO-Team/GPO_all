@@ -84,6 +84,8 @@ const createMissionService = ({repository, adapter, now = () => new Date().toISO
         onPlatform:feedback.onPlatform === undefined ? record.onPlatform : Boolean(feedback.onPlatform),
         controllerBootId:feedback.controllerBootId ?? record.controllerBootId,
         objectPose:feedback.objectPose ?? record.objectPose,manipulator:feedback.manipulator ?? record.manipulator} : {}),
+      ...(matching && status === "completed" && feedback.deliveryEvidence
+        ? {deliveryEvidence:feedback.deliveryEvidence} : {}),
       ...(matching && status === "failed" && typeof feedback.error === "string" ? {failureReason:feedback.error.slice(0,128)} : {}),
       ...(matching ? {lastFeedbackAt:feedback.observedAt || now()} : {}),
       updatedAt:status!==record.status ? now() : record.updatedAt};

@@ -14,14 +14,14 @@ const startRouteProcess = ({config=defaultConfig,createRouteServer=defaultCreate
   const repository=createMissionRepository({directory:config.MISSION_STATE_DIR});
   const warehouseStorage=createWarehouseStorage({directory:path.join(config.MISSION_STATE_DIR,"warehouse")});
   const warehouseRepository=createWarehouseRepository({repository:warehouseStorage});
-  const warehouseService=createWarehouseService({repository:warehouseRepository});
   const missionService=createMissionService({repository,adapter});
+  const warehouseService=createWarehouseService({repository:warehouseRepository,missionService});
   const routeService=createRouteService({missionService});
   let inFlight=false, stopped=false, tickPromise;
   const tick=async()=>{
     if(inFlight || stopped)return;
     inFlight=true;
-    try {await repository.ready();await missionService.reconcile();}
+    try {await repository.ready();await missionService.reconcile();await warehouseService.reconcile();}
     catch(error){console.error(JSON.stringify({service:"missions",code:"reconcile_failed",error:error.message}));}
     finally {inFlight=false;}
   };

@@ -403,3 +403,40 @@ it("requires reloading station drafts when another client has changed the statio
   await click("Загрузить актуальные станции");
   expect(host.querySelector('[aria-label="Приёмка: X, м"]').value).toBe("-9");
 });
+
+it("starts a floor delivery and updates the reserved slot when the mission completes", async () => {
+  vi.useFakeTimers();
+  try {
+    const state = snapshot();
+    const rack = {
+      id:"floor",code:"A",name:"Floor",x:2,y:1,yaw:0,bays:1,placesPerBay:1,bayWidth:.25,
+      depth:.25,levels:[{supportZ:0,clearHeight:.25,maxLoadKg:1}],
+    };
+    const [slot] = buildSlots(rack);
+    state.slots.push({...slot,reservedBy:"job"});
+    state.warehouse.racks.push(rack);
+    state.warehouse.cargo.push({id:"box",objectDef:"PICK_BOX",width:.03,depth:.03,height:.08,locationId:"receiving"});
+    const task = {id:"job",cargoId:"box",destinationId:slot.id,status:"prepared"};
+    state.warehouse.tasks.push(task);
+    const api = vi.fn(async (path) => {
+      if (path === "/tasks/job/start") {
+        Object.assign(task,{status:"executing",missionId:"warehouse-1",missionStatus:"running"});
+        state.warehouse.revision += 1;
+      }
+      return structuredClone(state);
+    });
+    await act(async () => root.render(<WarehouseWorkspace api={api} />));
+    await click("Запустить робота");
+    expect(api).toHaveBeenCalledWith("/tasks/job/start",{body:{expectedRevision:0}});
+    expect(host.textContent).toContain("Робот выполняет задачу");
+    task.status = "completed";
+    state.warehouse.cargo[0].locationId = slot.id;
+    Object.assign(state.slots[0],{reservedBy:null,occupiedBy:"box"});
+    state.warehouse.revision += 1;
+    await act(async () => vi.advanceTimersByTimeAsync(1500));
+    expect(host.textContent).toContain("Доставленные грузы (1)");
+    expect(host.textContent).toContain("Занята");
+  } finally {
+    vi.useRealTimers();
+  }
+});

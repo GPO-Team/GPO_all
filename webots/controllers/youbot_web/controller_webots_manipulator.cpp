@@ -690,6 +690,17 @@ void controller_webots_manipulator_start(const RuntimeCommand *command) {
     delivery_fail(&sample, vision_error);
     return;
   }
+  if (command->pickup_fields &&
+      strcmp(manipulator->object_def, command->pickup_def) != 0) {
+    delivery_fail(&sample, "vision_wrong_cargo");
+    return;
+  }
+  if (command->pickup_fields &&
+      (!sample.object_valid ||
+       hypot(manipulator->object_world[0] - command->pickup_x, manipulator->object_world[1] - command->pickup_y) > .25)) {
+    delivery_fail(&sample, "cargo_outside_receiving");
+    return;
+  }
   manipulator->use_platform=controller_delivery_use_platform(
       manipulator->object_world[0],manipulator->object_world[1],command->target_x,command->target_y);
   WbNodeRef cargo=wb_supervisor_node_get_from_def(manipulator->object_def);

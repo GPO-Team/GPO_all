@@ -9,6 +9,27 @@ import StationEditor from "./StationEditor";
 import CargoPanel from "./CargoPanel";
 import LayoutTransfer from "./LayoutTransfer";
 
+const taskLabels = {
+  prepared: "Подготовлена",
+  launching: "Отправка ожидает подтверждения",
+  executing: "Робот выполняет задачу",
+  attention: "Требуется вмешательство",
+};
+const deliveryErrors = {
+  vision_no_cargo: "Камера не обнаружила коробку.",
+  vision_ambiguous: "Камера видит несколько коробок.",
+  vision_unavailable: "Не удалось получить данные камеры.",
+  vision_wrong_cargo: "Камера распознала другую коробку.",
+  cargo_outside_receiving: "Коробка вне зоны приёмки.",
+  unsupported_destination: "Высота или опора ячейки недоступна роботу.",
+  delivery_path_blocked: "Робот не может безопасно проехать или разместить груз.",
+  delivery_unconfirmed: "Положение груза после выгрузки не подтверждено.",
+  controller_restarted: "Контроллер перезапустился во время миссии.",
+  holding_for_recovery: "Робот удерживает груз. Проверьте манипулятор.",
+  unsafe_release: "Робот остановился и удерживает груз. Безопасная выгрузка пока недоступна.",
+  cancelled: "Миссия остановлена.",
+};
+
 export default function WarehouseWorkspace({ api = warehouseApi }) {
   const [snapshot, setSnapshot] = useState(null);
   const [pending, setPending] = useState(false);
@@ -54,6 +75,31 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
     };
   }, [refresh]);
 
+  const watchMission = snapshot?.warehouse.tasks.some((task) => ["launching", "executing"].includes(task.status) ||
+    task.missionStatus === "holding_for_recovery");
+  useEffect(() => {
+    if (!watchMission) return;
+    let stopped = false;
+    let reading = false;
+    const timer = setInterval(async () => {
+      if (busy.current || reading) return;
+      reading = true;
+      try {
+        const next = await api("");
+        if (!stopped) setSnapshot((current) =>
+          next.warehouse.revision > current.warehouse.revision ? next : current);
+      } catch {
+        // Keep the last confirmed state and allow the next poll to recover.
+      } finally {
+        reading = false;
+      }
+    }, 1500);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [api, watchMission]);
+
   const mutate = async (path, payload = {}, revision = snapshot?.warehouse.revision) => {
     if (busy.current || !snapshot) return false;
     busy.current = true;
@@ -69,7 +115,7 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
       return next;
     } catch (failure) {
       let message = failure.message || "Изменения не сохранены";
-      if (failure.status === 409) {
+      if (failure.status === 409 || path.endsWith("/start")) {
         try {
           const next = await api("");
           if (alive.current) {
@@ -131,8 +177,10 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
     warehouse?.racks.find((rack) => rack.id === selectedRackId) || warehouse?.racks[0];
   const selectedSlots = snapshot?.slots.filter((slot) => slot.rackId === selectedRack?.id) || [];
   const selectedSlot = selectedSlots.find((slot) => slot.id === selectedSlotId);
-  const activeTasks = warehouse?.tasks.filter((task) => task.status === "prepared") || [];
-  const locked = selectedSlots.some((slot) => slot.reservedBy);
+  const activeTasks = warehouse?.tasks.filter((task) => Object.hasOwn(taskLabels, task.status)) || [];
+  const completedTasks = warehouse?.tasks.filter((task) => task.status === "completed") || [];
+  const receivingCount = warehouse?.cargo.filter((cargo) => cargo.locationId === "receiving").length;
+  const locked = selectedSlots.some((slot) => slot.reservedBy || slot.occupiedBy);
   const editedRack = draft?.id ? warehouse?.racks.find((rack) => rack.id === draft.id) : null;
   const draftConflict = Boolean(draft?.id && JSON.stringify(editedRack) !== draftBaseRack);
   const editRack = (rack) => {
@@ -213,7 +261,7 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
             {[
               ["Стеллажи", warehouse.racks.length],
               ["Ячейки", snapshot.slots.length],
-              ["Грузы на приёмке", warehouse.cargo.length],
+              ["Грузы на приёмке", receivingCount],
               ["Подготовленные задачи", activeTasks.length],
             ].map(([label, count]) => (
               <div key={label} className="rounded-2xl border border-stone-200 bg-white px-5 py-4">
@@ -319,7 +367,7 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
                 />
                 {locked && (
                   <p className="mt-3 text-xs text-orange-700">
-                    Редактирование заблокировано: отмените задачи, резервирующие этот стеллаж.
+                    Редактирование заблокировано, пока у стеллажа есть резервы или размещённый груз.
                   </p>
                 )}
                 {selectedSlot && (
@@ -329,50 +377,91 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
                     просвет {selectedSlot.clearHeight} м · до {selectedSlot.maxLoadKg} кг
                     <br />
                     Опора Z = {selectedSlot.supportZ} м ·{" "}
-                    {selectedSlot.reservedBy ? "Зарезервировано" : "Свободно"}
+                    {selectedSlot.occupiedBy ? `Груз ${selectedSlot.occupiedBy}` : selectedSlot.reservedBy ? "Зарезервировано" : "Свободно"}
                     <br />
                     Доступ робота не проверен
                   </div>
                 )}
               </Panel>
-              <Panel title="Задачи размещения" eyebrow="03 / Подготовка">
-                <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 p-4 text-xs leading-relaxed text-orange-900">
-                  Подготовка резервирует ячейку. Груз остаётся на приёмке. Задачи не запускают
-                  робота и не подтверждают физическое перемещение.
-                </div>
+              <Panel title="Задачи размещения">
+                <p className="mb-4 text-xs text-stone-600">
+                  Робот доставляет коробку с указанным DEF в напольную ячейку. Расположите коробку
+                  в поле зрения камеры в пределах 25 см от точки приёмки.
+                </p>
                 {activeTasks.length === 0 ? (
                   <p className="text-sm text-stone-500">
                     Активных задач пока нет. Подберите ячейку для зарегистрированного груза.
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    {activeTasks.map((task) => (
-                      <div key={task.id} className="rounded-xl border border-stone-200 p-4">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <strong className="text-sm">{task.cargoId}</strong>
-                            <p className="mt-1 text-sm text-stone-600">
-                              Приёмка →{" "}
-                              {snapshot.slots.find((slot) => slot.id === task.destinationId)
-                                ?.address || task.destinationId}
-                            </p>
-                            <p className="mt-1 text-xs font-semibold text-orange-700">
-                              Подготовлена · ячейка в резерве
-                            </p>
+                    {activeTasks.map((task) => {
+                      const slot = snapshot.slots.find((item) => item.id === task.destinationId);
+                      const cargo = warehouse.cargo.find((item) => item.id === task.cargoId);
+                      const supported = cargo?.objectDef && slot?.supportZ === 0 &&
+                        cargo.width <= .05 && cargo.depth <= .05 && cargo.height >= .03 &&
+                        cargo.height <= .12 && Math.hypot(.05, .05) < Math.min(slot.width, slot.depth);
+                      const anotherMission = activeTasks.some((item) => item.id !== task.id && item.missionId);
+                      const canStop = task.status === "executing" || task.missionStatus === "holding_for_recovery";
+                      const canReturn = task.status === "attention" &&
+                        ["failed", "cancelled", "completed"].includes(task.missionStatus);
+                      const taskPath = `/tasks/${encodeURIComponent(task.id)}`;
+                      return (
+                        <div key={task.id} className="rounded-xl border border-stone-200 p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <strong className="text-sm">{task.cargoId}</strong>
+                              <p className="mt-1 text-sm text-stone-600">
+                                Приёмка →{" "}
+                                {slot?.address || task.destinationId}
+                              </p>
+                              <p className="mt-1 text-xs font-semibold text-orange-700">
+                                {taskLabels[task.status]} · ячейка в резерве
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {supported && ["prepared", "launching"].includes(task.status) && (
+                                <Button primary disabled={pending || anotherMission} onClick={() => mutate(`${taskPath}/start`)}>
+                                  {task.status === "launching" ? "Повторить отправку" : "Запустить робота"}
+                                </Button>
+                              )}
+                              {task.status === "prepared" && (
+                                <Button disabled={pending} onClick={() => mutate(`${taskPath}/cancel`)}>
+                                  Отменить задачу
+                                </Button>
+                              )}
+                              {canStop && (
+                                <Button disabled={pending || task.missionStatus === "cancelling"} onClick={() => mutate(`${taskPath}/stop`)}>
+                                  {task.missionStatus === "cancelling" ? "Остановка запрошена" : "Остановить робота"}
+                                </Button>
+                              )}
+                              {canReturn && (
+                                <Button disabled={pending} onClick={() => mutate(`${taskPath}/cancel`, {confirmReturned: true})}>
+                                  Подтвердить возврат груза на приёмку
+                                </Button>
+                              )}
+                            </div>
                           </div>
-                          <Button
-                            disabled={pending}
-                            onClick={() => mutate(`/tasks/${encodeURIComponent(task.id)}/cancel`)}
-                          >
-                            Отменить задачу
-                          </Button>
+                          {task.status === "prepared" && !supported && (
+                            <p className="mt-2 text-xs text-stone-500">Для запуска нужны DEF, коробка до 5 × 5 см высотой 3–12 см и подходящая напольная ячейка.</p>
+                          )}
+                          {task.failureReason && (
+                            <p className="mt-2 text-xs text-red-700">{deliveryErrors[task.failureReason] || task.failureReason}</p>
+                          )}
+                          {task.missionId && <p className="mt-2 break-all text-xs text-stone-500">Миссия {task.missionId}</p>}
                         </div>
-                        <p className="mt-2 break-all font-mono text-[10px] text-stone-400">
-                          {task.id}
-                        </p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
+                )}
+                {completedTasks.length > 0 && (
+                  <details className="mt-4 text-xs text-stone-500">
+                    <summary className="cursor-pointer">Доставленные грузы ({completedTasks.length})</summary>
+                    {completedTasks.map((task) => (
+                      <p key={task.id} className="mt-2 break-all">
+                        {task.cargoId} · {snapshot.slots.find((slot) => slot.id === task.destinationId)?.address || task.destinationId}
+                      </p>
+                    ))}
+                  </details>
                 )}
                 {warehouse.tasks.some((task) => task.status === "cancelled") && (
                   <details className="mt-4 text-xs text-stone-500">

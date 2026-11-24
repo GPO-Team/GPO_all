@@ -9,6 +9,8 @@ const {
   validateCargo,
   checkRevision,
 } = require("../protocol/warehouse-validation.cjs");
+const { terminalStates } = require("../protocol/mission-contract.cjs");
+const { validatePickPlace } = require("../protocol/manipulator-validation.cjs");
 const { validateStoredWarehouse } = require("../protocol/warehouse-state-validation.cjs");
 
 const emptyWarehouse = () => ({
@@ -25,6 +27,7 @@ const emptyWarehouse = () => ({
 });
 const createWarehouseService = ({
   repository,
+  missionService,
   now = () => new Date().toISOString(),
   createId = randomUUID,
 }) => {
@@ -50,9 +53,9 @@ const createWarehouseService = ({
           }
           state = structuredClone(saved ?? emptyWarehouse());
           state.taskArchive = (state.taskArchive ?? []).concat(
-            state.tasks.filter((task) => task.status === "cancelled"),
+            state.tasks.filter((task) => ["cancelled", "completed"].includes(task.status)),
           );
-          state.tasks = state.tasks.filter((task) => task.status === "prepared");
+          state.tasks = state.tasks.filter((task) => !["cancelled", "completed"].includes(task.status));
           return state;
         })
         .catch((error) => {
@@ -67,9 +70,14 @@ const createWarehouseService = ({
     const reservations = new Map(
       warehouse.tasks.map((task) => [task.destinationId, task.id]),
     );
+    const occupied = new Map(warehouse.cargo.filter((cargo) => cargo.locationId !== "receiving")
+      .map((cargo) => [cargo.locationId, cargo.id]));
     return warehouse.racks
       .flatMap(buildSlots)
-      .map((slot) => ({ ...slot, reservedBy: reservations.get(slot.id) || null }));
+      .map((slot) => ({
+        ...slot, reservedBy: reservations.get(slot.id) || null,
+        ...(occupied.has(slot.id) ? { occupiedBy: occupied.get(slot.id) } : {}),
+      }));
   };
   const snapshot = async () => {
     const { taskArchive, ...warehouse } = await load();
@@ -84,30 +92,38 @@ const createWarehouseService = ({
   };
   const activeTasks = (warehouse) => warehouse.tasks;
   const rackUnlocked = (warehouse, id) => {
+    if (warehouse.cargo.some((cargo) => cargo.locationId.startsWith(id + ":")))
+      conflict("rack_occupied", "На стеллаже находится груз.");
     if (activeTasks(warehouse).some((task) => task.destinationId.startsWith(`${id}:`)))
       conflict("rack_reserved", "Стеллаж используется подготовленным заданием.");
   };
   const noPreparedTasks = (warehouse) => {
     if (activeTasks(warehouse).length)
-      conflict("tasks_prepared", "Сначала отмените подготовленные задания.");
+      conflict("tasks_prepared", "Сначала завершите или отмените задания размещения.");
+  };
+  const serial = (action) => {
+    const result = pending.then(action);
+    pending = result.catch(() => {});
+    return result;
+  };
+  const publish = async (next) => {
+    next.revision += 1;
+    await repository.save(structuredClone(next));
+    state = next;
   };
   const mutate = (input, change, retry) => {
     // Capture caller-owned input before waiting behind another mutation.
     const body = structuredClone(input);
-    const result = pending.then(async () => {
+    return serial(async () => {
       object(body, "Запрос");
       const current = await load();
       if (retry && retry(current, body)) return snapshot();
       checkRevision(body.expectedRevision, current.revision);
       const next = structuredClone(current);
       await change(next, body);
-      next.revision = current.revision + 1;
-      await repository.save(structuredClone(next));
-      state = next;
+      await publish(next);
       return snapshot();
     });
-    pending = result.catch(() => {});
-    return result;
   };
   const normalizedRacks = async (racks) => validateRacks(racks, await geometry);
   const taskCommand = (body) => {
@@ -118,6 +134,59 @@ const createWarehouseService = ({
       !/^[A-Za-z0-9_-]{1,63}:\d{1,2}:\d{1,2}:\d{1,2}$/.test(body.destinationId)
     )
       invalid("Некорректный ID ячейки.");
+  };
+  const deliveryContext = async (warehouse, task) => {
+    const cargo = warehouse.cargo.find((item) => item.id === task.cargoId);
+    const slot = (await slotsFor(warehouse)).find((item) => item.id === task.destinationId);
+    const receiving = warehouse.stations.find((station) => station.id === "receiving");
+    if (!cargo?.objectDef) conflict("unbound_cargo", "У груза нет имени DEF объекта Webots.");
+    if (!slot || slot.supportZ !== 0 || slot.occupiedBy)
+      conflict("unsupported_slot", "Робот доставляет только в свободную напольную ячейку.");
+    if (cargo.width > .05 || cargo.depth > .05 || cargo.height < .03 || cargo.height > .12)
+      conflict("unsupported_cargo_size", "Для захвата по камере нужна коробка до 5 × 5 см и высотой от 3 до 12 см.");
+    // The camera accepts boxes up to 5 cm wide and deep. Keep their full
+    // envelope inside the slot even when the registered dimensions are smaller.
+    const radius = Math.hypot(.05, .05) / 2;
+    if (radius >= Math.min(slot.width, slot.depth) / 2)
+      conflict("insufficient_robot_clearance", "Диагональ груза не оставляет места для безопасного размещения.");
+    const command = validatePickPlace({
+      type: "pick_place", source: "vision",
+      pickup: { objectDef: cargo.objectDef, x: receiving.x, y: receiving.y },
+      destination: { x: slot.x, y: slot.y, z: cargo.height / 2 },
+    });
+    const rack = warehouse.racks.find((item) => item.id === slot.rackId);
+    return { command, cargo, slot, radius, yaw: rack.yaw };
+  };
+  const deliveredAt = (evidence, { command, slot, radius, yaw }) => {
+    const pose = evidence?.objectPosition;
+    if (evidence?.objectDef !== command.pickup.objectDef || evidence.loadHeld !== false ||
+        evidence.onPlatform !== false || !pose || ![pose.x, pose.y, pose.z].every(Number.isFinite))
+      return false;
+    const dx = pose.x - slot.x, dy = pose.y - slot.y;
+    const localX = dx * Math.cos(yaw) + dy * Math.sin(yaw);
+    const localY = -dx * Math.sin(yaw) + dy * Math.cos(yaw);
+    return Math.hypot(dx, dy) <= .05 && Math.abs(pose.z - command.destination.z) <= .012 &&
+      Math.abs(localX) + radius <= slot.width / 2 && Math.abs(localY) + radius <= slot.depth / 2;
+  };
+  const syncTask = async (warehouse, task, mission) => {
+    if (mission?.missionId !== task.missionId) return false;
+    const before = JSON.stringify(task);
+    task.missionStatus = mission.status;
+    if (mission.status === "completed") {
+      const delivery = await deliveryContext(warehouse, task);
+      if (deliveredAt(mission.deliveryEvidence, delivery)) {
+        delivery.cargo.locationId = task.destinationId;
+        warehouse.tasks = warehouse.tasks.filter((item) => item.id !== task.id);
+        warehouse.taskArchive.push({ ...task, status: "completed", completedAt: now() });
+        return true;
+      }
+    }
+    const blocked = terminalStates.has(mission.status) || mission.status === "holding_for_recovery";
+    task.status = blocked ? "attention" : "executing";
+    task.failureReason = blocked
+      ? (mission.status === "completed" ? "delivery_unconfirmed" : mission.failureReason || mission.errorCode || mission.status)
+      : null;
+    return JSON.stringify(task) !== before;
   };
   return {
     async ready() {
@@ -189,6 +258,8 @@ const createWarehouseService = ({
         const normalized = validateCargo(cargo);
         if (warehouse.cargo.some((item) => item.id === normalized.id))
           conflict("id_conflict", "Груз с таким ID уже существует.");
+        if (normalized.objectDef && warehouse.cargo.some((item) => item.objectDef === normalized.objectDef))
+          conflict("object_already_registered", "Этот объект Webots уже зарегистрирован.");
         if (warehouse.cargo.length >= 2000) invalid("Допускается не более 2000 грузов.");
         warehouse.cargo.push({ ...normalized, createdAt: now() });
       }),
@@ -231,23 +302,90 @@ const createWarehouseService = ({
           return true;
         },
       ),
+    startTask: (id, body) => serial(async () => {
+      identifier(id);
+      object(body, "Запрос");
+      if (!missionService) throw warehouseError(503, "robot_unavailable", "Сервис робота недоступен.");
+      const next = structuredClone(await load());
+      const task = next.tasks.find((item) => item.id === id);
+      if (!task) {
+        if (next.taskArchive.some((item) => item.id === id && item.status === "completed")) return snapshot();
+        missing("Задание");
+      }
+      if (!["prepared", "launching"].includes(task.status)) return snapshot();
+      const { command } = await deliveryContext(next, task);
+      if (task.status === "prepared") {
+        checkRevision(body.expectedRevision, next.revision);
+        if (next.tasks.some((item) => item.id !== id && item.status !== "prepared"))
+          conflict("warehouse_robot_busy", "Сначала завершите текущее задание робота.");
+        task.status = "launching";
+        task.missionId = "warehouse-" + randomUUID();
+        await publish(next);
+      }
+      let mission;
+      try {
+        mission = await missionService.submit(command, { requestId: task.missionId });
+      } catch (error) {
+        if (error.code === "mission_active" && !(await missionService.get(task.missionId))) {
+          const restored = structuredClone(await load());
+          const queued = restored.tasks.find((item) => item.id === id);
+          queued.status = "prepared";
+          delete queued.missionId;
+          await publish(restored);
+        }
+        throw error;
+      }
+      const updated = structuredClone(await load());
+      const currentTask = updated.tasks.find((item) => item.id === id);
+      if (await syncTask(updated, currentTask, mission)) await publish(updated);
+      return snapshot();
+    }),
+    reconcile: () => serial(async () => {
+      if (!missionService) return;
+      const current = await load();
+      const tracked = current.tasks.find((task) => task.missionId);
+      if (!tracked) return;
+      const mission = await missionService.get(tracked.missionId);
+      if (!mission) return;
+      const next = structuredClone(current);
+      const task = next.tasks.find((item) => item.id === tracked.id);
+      if (await syncTask(next, task, mission)) await publish(next);
+    }),
+    stopTask: (id) => serial(async () => {
+      identifier(id);
+      const next = structuredClone(await load());
+      const task = next.tasks.find((item) => item.id === id);
+      if (!task) missing("Задание");
+      if (task.status !== "executing" && task.missionStatus !== "holding_for_recovery")
+        conflict("task_not_running", "У задания нет выполняющейся миссии.");
+      const mission = await missionService.cancel(task.missionId);
+      if (await syncTask(next, task, mission)) await publish(next);
+      return snapshot();
+    }),
     cancelTask: (id, body) =>
       mutate(
         body,
-        async (warehouse) => {
+        async (warehouse, { confirmReturned }) => {
           const index = warehouse.tasks.findIndex((task) => task.id === id);
           if (index < 0) missing("Задание");
-          const [task] = warehouse.tasks.splice(index, 1);
+          const task = warehouse.tasks[index];
+          const returned = confirmReturned === true && task.status === "attention" &&
+            terminalStates.has(task.missionStatus);
+          if (task.status !== "prepared" && !returned)
+            conflict("task_in_execution", "Резерв можно снять только после остановки миссии и возврата груза на приёмку.");
+          warehouse.tasks.splice(index, 1);
           warehouse.taskArchive.push({ ...task, status: "cancelled", cancelledAt: now() });
         },
         (warehouse) => {
           identifier(id);
-          return warehouse.taskArchive.some((task) => task.id === id);
+          return warehouse.taskArchive.some((task) => task.id === id && task.status === "cancelled");
         },
       ),
     importLayout: (body) =>
       mutate(body, async (warehouse, { layout }) => {
         noPreparedTasks(warehouse);
+        if (warehouse.cargo.some((cargo) => cargo.locationId !== "receiving"))
+          conflict("layout_occupied", "На складе есть размещённый груз.");
         object(layout, "План склада");
         if (layout.schemaVersion !== 1) invalid("Неподдерживаемая версия плана склада.");
         if (!Array.isArray(layout.racks)) invalid("Требуется список стеллажей.");

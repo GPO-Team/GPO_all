@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -476,4 +476,73 @@ it("restores a full legacy history without consuming capacity or forgetting canc
   expect(retry.warehouse.revision).toBe(3);
   expect(retry.warehouse.tasks.find((task) => task.id === "old-0").status).toBe("cancelled");
   expect(retry.slots[0].reservedBy).toBe("fresh");
+});
+
+const setupFloorDelivery = async () => {
+  const repository = memoryRepository();
+  const missions = { get: vi.fn(async () => null), submit: vi.fn(async (_command, {requestId}) => ({ missionId:requestId, status: "persisted" })) };
+  const makeService = () => warehouseModule.createWarehouseService({ repository, missionService: missions });
+  const service = makeService();
+  await service.createRack({ rack: rack({levels:[{ supportZ: 0, clearHeight: .8, maxLoadKg: 20 }]}), expectedRevision: 0 });
+  await service.registerCargo({ cargo: cargo("box1", {objectDef:"PICK_BOX",width:.03,depth:.03,height:.08}), expectedRevision: 1 });
+  const destinationId = "rack1:1:1:1";
+  await service.prepareTask({ id:"job", cargoId:"box1", destinationId, expectedRevision:2 });
+  return { repository, missions, makeService, service, destinationId };
+};
+
+it("keeps a floor slot reserved until the linked vision mission verifies delivery", async () => {
+  const { missions, makeService, service, destinationId } = await setupFloorDelivery();
+  const running = await service.startTask("job", {expectedRevision:3});
+  const task = running.warehouse.tasks[0];
+  expect(task).toMatchObject({status:"executing", missionId:expect.any(String)});
+  expect(missions.submit).toHaveBeenCalledWith(
+    {type:"pick_place",source:"vision",pickup:{objectDef:"PICK_BOX",x:-8,y:-6},destination:{x:-.5,y:0,z:.04}},
+    {requestId:task.missionId},
+  );
+  expect(running.warehouse.cargo[0].locationId).toBe("receiving");
+  expect(running.slots[0].reservedBy).toBe("job");
+  await expect(service.cancelTask("job", {expectedRevision:running.warehouse.revision})).rejects.toMatchObject({code:"task_in_execution"});
+  missions.get.mockResolvedValue({missionId:task.missionId,status:"completed",deliveryEvidence:{
+    objectDef:"PICK_BOX",objectPosition:{x:-.49,y:0,z:.04},loadHeld:false,onPlatform:false,
+  }});
+  const restarted = makeService();
+  await restarted.reconcile();
+  const delivered = await restarted.get();
+  expect(delivered.warehouse.tasks[0]).toMatchObject({status:"completed",missionId:task.missionId});
+  expect(delivered.warehouse.cargo[0].locationId).toBe(destinationId);
+  expect(delivered.slots[0]).toMatchObject({reservedBy:null,occupiedBy:"box1"});
+  expect(missions.submit).toHaveBeenCalledOnce();
+});
+
+it("preserves the same mission ID after a lost launch response and reconciles it after restart", async () => {
+  const { missions, makeService, service } = await setupFloorDelivery();
+  missions.submit.mockRejectedValueOnce(new Error("lost reply"));
+  await expect(service.startTask("job", {expectedRevision:3})).rejects.toThrow("lost reply");
+  const pending = (await service.get()).warehouse.tasks[0];
+  expect(pending.status).toBe("launching");
+  const restarted = makeService();
+  await restarted.reconcile();
+  expect(missions.submit).toHaveBeenCalledTimes(1);
+  await restarted.startTask("job", {expectedRevision:3});
+  expect(missions.submit.mock.calls.map(([, options]) => options.requestId))
+    .toEqual([pending.missionId, pending.missionId]);
+});
+
+it("retains the reservation for a completion with no verified cargo position", async () => {
+  const { missions, service } = await setupFloorDelivery();
+  const running = await service.startTask("job", {expectedRevision:3});
+  missions.get.mockResolvedValue({
+    missionId: running.warehouse.tasks[0].missionId, status:"completed",
+    deliveryEvidence:{objectDef:"PICK_BOX",objectPosition:{x:0,y:0,z:.04},loadHeld:false,onPlatform:false},
+  });
+  await service.reconcile();
+  const attention = await service.get();
+  expect(attention.warehouse.tasks[0]).toMatchObject({status:"attention",failureReason:"delivery_unconfirmed"});
+  expect(attention.warehouse.cargo[0].locationId).toBe("receiving");
+  expect(attention.slots[0].reservedBy).toBe("job");
+  await expect(service.cancelTask("job", {expectedRevision:attention.warehouse.revision}))
+    .rejects.toMatchObject({code:"task_in_execution"});
+  const cancelled = await service.cancelTask("job", {expectedRevision:attention.warehouse.revision, confirmReturned:true});
+  expect(cancelled.warehouse.tasks[0].status).toBe("cancelled");
+  expect(cancelled.slots[0].reservedBy).toBeNull();
 });

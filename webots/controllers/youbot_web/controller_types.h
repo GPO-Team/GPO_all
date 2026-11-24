@@ -89,6 +89,9 @@ typedef struct {
   int has_cancel_mission;
   int has_pick_place;
   int pick_from_vision;
+  char pickup_def[64];
+  double pickup_x, pickup_y;
+  int pickup_fields;
   char object_def[64];
   double target_x, target_y, target_z;
   int target_fields;
