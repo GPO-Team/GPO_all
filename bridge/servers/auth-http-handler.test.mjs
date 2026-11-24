@@ -15,8 +15,12 @@ describe("auth API before storage and email are connected", () => {
       expect(await invalid.json()).toMatchObject({ code: "invalid_input", errors: { email: expect.any(String), displayName: expect.any(String), password: expect.any(String) } });
       const valid = { email: "test@example.com", displayName: "Robot_operator", password: "a long passphrase" };
       expect((await post("register", valid)).status).toBe(503);
+      expect((await post("register", { ...valid, email: "user@пример.рф" })).status).toBe(503);
+      expect((await post("register", { ...valid, email: "user@example.123" })).status).toBe(400);
+      expect((await post("register", { ...valid, email: "user@1.1.1.1" })).status).toBe(400);
+      expect((await post("register", { ...valid, displayName: "---" })).status).toBe(400);
       expect((await post("login", { identifier: valid.email, password: valid.password })).status).toBe(503);
-      expect((await post("login", { identifier: "Иван_42", password: "password" })).status).toBe(503);
+      expect((await post("login", { identifier: "Ivan_42", password: "password" })).status).toBe(503);
       expect((await post("login", { identifier: "bad name", password: "password" })).status).toBe(400);
       expect((await post("forgot-password", { email: valid.email })).status).toBe(503);
       expect((await post("reset-password", { token: "bad", password: valid.password })).status).toBe(400);

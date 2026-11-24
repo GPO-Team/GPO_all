@@ -16,7 +16,7 @@ it("checks registration fields and password confirmation before sending", async 
   const register = vi.fn().mockRejectedValue(new Error("offline"));
   await act(async () => root.render(<LoginForm onSubmit={vi.fn()} api={{ register }} />));
   await click("Регистрация");
-  await set("email", "user@example.com"); await set("displayName", "Иван");
+  await set("email", "user@example.com"); await set("displayName", "Ivan");
   await set("password", "очень длинный пароль"); await set("confirmPassword", "другой пароль");
   await click("Зарегистрироваться");
   expect(container.textContent).toContain("Пароли не совпадают.");
@@ -39,8 +39,8 @@ it("accepts a login as well as an email and rejects invalid input", async () => 
   await set("identifier", "bad name"); await set("password", "password"); await click("Войти");
   expect(onSubmit).not.toHaveBeenCalled();
   expect(container.querySelector('input[name="identifier"]').getAttribute("aria-invalid")).toBe("true");
-  await set("identifier", "Иван_42"); await click("Войти");
-  expect(onSubmit).toHaveBeenCalledWith({ identifier: "Иван_42", password: "password" });
+  await set("identifier", "Ivan_42"); await click("Войти");
+  expect(onSubmit).toHaveBeenCalledWith({ identifier: "Ivan_42", password: "password" });
 });
 
 it("reveals a password only while the eye button is hovered or focused", async () => {
