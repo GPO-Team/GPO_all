@@ -9,6 +9,9 @@ typedef struct {char mission_id[64];char object_id[32];double destination_x;doub
   int sensors_valid; int grip_evidence; int release_evidence; int cancel_pending;
   char controller_boot_id[64];
   unsigned int recovery_epoch;
+  char resume_request_id[64];
+  unsigned int resume_recovery_epoch;
+  const char *resume_error_code;
   double navigation_timeout;
   double navigation_last_progress_at;
 } ControllerObjectTransferState;

@@ -52,6 +52,14 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Build complete Linux simulator stack
+        id: build-simulator
         run: docker compose -f compose.yaml -f compose.simulator.yaml build
       - name: Verify physics, streaming and recovery through real services
         run: npm run test:container
+      - name: Verify camera pickup and safety in Webots
+        if: ${{ !cancelled() && steps.build-simulator.outcome == 'success' }}
+        env:
+          GPO_WEBOTS_TEST_IMAGE: gpo-webots:local
+        run: |
+          npm run test:delivery:vision
+          npm run test:delivery:safety

@@ -17,6 +17,7 @@ const emptyWarehouse = () => ({
   racks: [],
   cargo: [],
   tasks: [],
+  taskArchive: [],
   stations: [
     { id: "receiving", kind: "receiving", name: "Приёмка", x: -8, y: -6 },
     { id: "shipping", kind: "shipping", name: "Отгрузка", x: 8, y: -6 },
@@ -48,6 +49,10 @@ const createWarehouseService = ({
             }
           }
           state = structuredClone(saved ?? emptyWarehouse());
+          state.taskArchive = (state.taskArchive ?? []).concat(
+            state.tasks.filter((task) => task.status === "cancelled"),
+          );
+          state.tasks = state.tasks.filter((task) => task.status === "prepared");
           return state;
         })
         .catch((error) => {
@@ -60,17 +65,16 @@ const createWarehouseService = ({
   const slotsFor = async (warehouse) => {
     const { buildSlots } = await geometry;
     const reservations = new Map(
-      warehouse.tasks
-        .filter((task) => task.status === "prepared")
-        .map((task) => [task.destinationId, task.id]),
+      warehouse.tasks.map((task) => [task.destinationId, task.id]),
     );
     return warehouse.racks
       .flatMap(buildSlots)
       .map((slot) => ({ ...slot, reservedBy: reservations.get(slot.id) || null }));
   };
   const snapshot = async () => {
-    const warehouse = structuredClone(await load());
-    return { ok: true, warehouse, slots: await slotsFor(warehouse) };
+    const { taskArchive, ...warehouse } = await load();
+    const slots = await slotsFor(warehouse);
+    return { ok: true, warehouse: structuredClone({ ...warehouse, tasks: warehouse.tasks.concat(taskArchive) }), slots };
   };
   const missing = (label) => {
     throw warehouseError(404, "not_found", `${label} не найден.`);
@@ -78,7 +82,7 @@ const createWarehouseService = ({
   const conflict = (code, message) => {
     throw warehouseError(409, code, message);
   };
-  const activeTasks = (warehouse) => warehouse.tasks.filter((task) => task.status === "prepared");
+  const activeTasks = (warehouse) => warehouse.tasks;
   const rackUnlocked = (warehouse, id) => {
     if (activeTasks(warehouse).some((task) => task.destinationId.startsWith(`${id}:`)))
       conflict("rack_reserved", "Стеллаж используется подготовленным заданием.");
@@ -205,7 +209,6 @@ const createWarehouseService = ({
             conflict("cargo_reserved", "Для груза уже подготовлено задание.");
           const reasons = (await geometry).placementReasons(cargo, slot);
           if (reasons.length) conflict("placement_conflict", reasons.join(" "));
-          if (warehouse.tasks.length >= 10000) invalid("Достигнут предел в 10000 заданий.");
           warehouse.tasks.push({
             id: command.id,
             cargoId: cargo.id,
@@ -217,7 +220,8 @@ const createWarehouseService = ({
         },
         (warehouse, command) => {
           taskCommand(command);
-          const existing = warehouse.tasks.find((task) => task.id === command.id);
+          const existing = warehouse.tasks.find((task) => task.id === command.id) ??
+            warehouse.taskArchive.find((task) => task.id === command.id);
           if (!existing) return false;
           if (
             existing.cargoId !== command.cargoId ||
@@ -231,14 +235,14 @@ const createWarehouseService = ({
       mutate(
         body,
         async (warehouse) => {
-          const task = warehouse.tasks.find((item) => item.id === id);
-          if (!task) missing("Задание");
-          task.status = "cancelled";
-          task.cancelledAt = now();
+          const index = warehouse.tasks.findIndex((task) => task.id === id);
+          if (index < 0) missing("Задание");
+          const [task] = warehouse.tasks.splice(index, 1);
+          warehouse.taskArchive.push({ ...task, status: "cancelled", cancelledAt: now() });
         },
         (warehouse) => {
           identifier(id);
-          return warehouse.tasks.some((task) => task.id === id && task.status === "cancelled");
+          return warehouse.taskArchive.some((task) => task.id === id);
         },
       ),
     importLayout: (body) =>

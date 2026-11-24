@@ -5,7 +5,7 @@ const publicMission = mission => ({ok:true,missionId:mission.missionId,operation
   sceneRevision:mission.command?.sceneRevision,createdAt:mission.createdAt,updatedAt:mission.updatedAt,
   feedbackFresh:mission.feedbackFresh,lastFeedbackAt:mission.lastFeedbackAt,connectionError:mission.connectionError,
   stage:mission.stage,progress:mission.progress,errorCode:mission.errorCode,attached:mission.attached,onPlatform:mission.onPlatform,
-  recoveryEpoch:mission.recoveryEpoch,controllerRecoveryEpoch:mission.controllerRecoveryEpoch,resumeDelivered:mission.resumeDelivered,
+  recoveryEpoch:mission.recoveryEpoch,controllerRecoveryEpoch:mission.controllerRecoveryEpoch,resumeDelivered:mission.resumeDelivered,resumeError:mission.resumeError,
   controllerBootId:mission.controllerBootId,objectPose:mission.objectPose,manipulator:mission.manipulator});
 const createMissionHttpHandler = ({missionService,getStatus,ready=async()=>true}) => async(request,response)=>{
   if(!isAllowedOrigin(request.headers.origin))return sendJson(response,403,{ok:false,error:"Origin is not allowed."});

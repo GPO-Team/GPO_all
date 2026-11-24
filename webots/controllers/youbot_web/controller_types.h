@@ -95,6 +95,9 @@ typedef struct {
   int has_transfer_object;
   int has_recover_transfer;
   int has_resume_transfer;
+  char resume_request_id[64];
+  unsigned int resume_recovery_epoch;
+  int has_resume_recovery_epoch;
   int has_manipulator_pose;
   char mission_id[64];
   char controller_boot_id[64];

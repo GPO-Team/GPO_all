@@ -35,6 +35,7 @@ int controller_runtime_command_load_next_file(
     long long id = 0;
     double numeric = 0.0;
     char token[64];
+    unsigned int epoch = 0;
 
     if (sscanf(line, " id %lld", &id) == 1) {
       if (parsed.id > after_id) break;
@@ -78,6 +79,11 @@ int controller_runtime_command_load_next_file(
       parsed.target_fields |= 4;
     } else if (sscanf(line, " mission_id %63s", token) == 1) {
       strcpy(parsed.mission_id, token);
+    } else if (sscanf(line, " resume_request_id %63s", token) == 1) {
+      strcpy(parsed.resume_request_id, token);
+    } else if (sscanf(line, " resume_recovery_epoch %u", &epoch) == 1) {
+      parsed.resume_recovery_epoch = epoch;
+      parsed.has_resume_recovery_epoch = 1;
     } else if (sscanf(line, " controller_boot_id %63s", token) == 1) {
       strcpy(parsed.controller_boot_id, token);
     } else if (sscanf(line, " pose %23s", token) == 1) {
@@ -155,6 +161,8 @@ int controller_runtime_command_load_next_file(
       (parsed.pick_from_vision == (parsed.object_def[0] != '\0')) || parsed.target_fields != 7 ||
       !std::isfinite(parsed.target_x) || !std::isfinite(parsed.target_y) || !std::isfinite(parsed.target_z) ||
       parsed.target_z < 0.015 || parsed.target_z > 1.0)) return 0;
+  if (parsed.has_resume_transfer &&
+      ((parsed.resume_request_id[0] != '\0') != (parsed.has_resume_recovery_epoch != 0))) return 0;
   if ((parsed.has_transfer_object || parsed.has_resume_transfer || parsed.has_recover_transfer) && !parsed.mission_id[0]) return 0;
   if (parsed.has_transfer_object && (!parsed.object_id[0] || !std::isfinite(parsed.destination_x) || !std::isfinite(parsed.destination_y))) return 0;
   if (parsed.has_manipulator_pose && !parsed.manipulator_pose[0]) return 0;

@@ -454,3 +454,26 @@ describe("warehouse service", () => {
     await expect(service.get()).rejects.toMatchObject({ statusCode: 503, code: "invalid_storage" });
   });
 });
+
+it("restores a full legacy history without consuming capacity or forgetting cancelled request IDs", async () => {
+  const repository = memoryRepository();
+  await setup(repository);
+  const legacy = await repository.load();
+  const date = "2026-10-28T00:00:00.000Z";
+  const destinationId = "rack1:1:1:1";
+  legacy.tasks = Array.from({ length: 10000 }, (_, index) => ({
+    id: `old-${index}`, cargoId: "box1", sourceId: "receiving", destinationId,
+    status: "cancelled", createdAt: date, cancelledAt: date,
+  }));
+  await repository.save(legacy);
+  const restored = warehouseModule.createWarehouseService({ repository });
+  const command = { expectedRevision: 2, id: "fresh", cargoId: "box1", destinationId };
+  const created = await restored.prepareTask(command);
+  expect(created.slots[0].reservedBy).toBe("fresh");
+  expect(created.warehouse.tasks).toHaveLength(10001);
+  const restarted = warehouseModule.createWarehouseService({ repository });
+  const retry = await restarted.prepareTask({ ...command, id: "old-0" });
+  expect(retry.warehouse.revision).toBe(3);
+  expect(retry.warehouse.tasks.find((task) => task.id === "old-0").status).toBe("cancelled");
+  expect(retry.slots[0].reservedBy).toBe("fresh");
+});

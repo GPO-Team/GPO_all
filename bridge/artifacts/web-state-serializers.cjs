@@ -74,7 +74,14 @@ const createRuntimeCommandText = (payload) => {
     const x=normalizeNumber(payload.destination?.x,0);
     const y=normalizeNumber(payload.destination?.y,0);
     const revision=String(payload.sceneRevision || "").trim();
-    return `id ${commandId}\ntype ${payload.type}\nmission_id ${missionId}\nobject_id ${objectId}\ndestination_x ${x}\ndestination_y ${y}\nscene_revision ${revision}\n`;
+    let recovery = "";
+    if (payload.type === "resume_transfer" && payload.recoveryEpoch !== undefined) {
+      if (!Number.isInteger(payload.recoveryEpoch) || payload.recoveryEpoch < 0 || payload.recoveryEpoch > 0xffffffff) {
+        throw new Error("Invalid recovery epoch.");
+      }
+      recovery = `resume_request_id ${validateMissionId(payload.requestKey)}\nresume_recovery_epoch ${payload.recoveryEpoch}\n`;
+    }
+    return `id ${commandId}\ntype ${payload.type}\nmission_id ${missionId}\nobject_id ${objectId}\ndestination_x ${x}\ndestination_y ${y}\nscene_revision ${revision}\n${recovery}`;
   }
   if (payload?.type === "cancel_mission") {
     const {validateMissionId}=require("../protocol/mission-contract.cjs");

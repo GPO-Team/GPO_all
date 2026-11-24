@@ -117,5 +117,36 @@ int main() {
   assert(!controller_object_transfer_runtime_allows_navigation(&transfer));
   std::strcpy(navigation.route.command_id,"new-route");
   assert(controller_object_transfer_runtime_allows_navigation(&transfer));
+  transfer.service.state.status=CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY;
+  transfer.service.state.recovery_epoch=2;
+  transfer.service.state.sensors_valid=0;
+  transfer.service.state.attached=1;
+  RuntimeCommand resume={};
+  std::strcpy(resume.mission_id,"failed-transfer");
+  std::strcpy(resume.resume_request_id,"attempt-1");
+  resume.has_resume_transfer=1;
+  resume.has_resume_recovery_epoch=1;
+  resume.resume_recovery_epoch=2;
+  controller_object_transfer_runtime_command(&transfer,&resume,10);
+  assert(transfer.service.state.status==CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY);
+  assert(!std::strcmp(transfer.service.state.resume_request_id,"attempt-1"));
+  assert(!std::strcmp(transfer.service.state.resume_error_code,"invalid_sensor"));
+
+  transfer.service.state.sensors_valid=1;
+  transfer.service.state.grip_evidence=1;
+  transfer.object.attached=1;
+  std::strcpy(resume.resume_request_id,"old-epoch");
+  resume.resume_recovery_epoch=1;
+  controller_object_transfer_runtime_command(&transfer,&resume,11);
+  assert(transfer.service.state.status==CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY);
+  assert(!std::strcmp(transfer.service.state.resume_error_code,"recovery_changed"));
+
+  std::strcpy(resume.resume_request_id,"attempt-2");
+  resume.resume_recovery_epoch=2;
+  controller_object_transfer_runtime_command(&transfer,&resume,12);
+  assert(transfer.service.state.status==CONTROLLER_TRANSFER_RUNNING);
+  assert(!std::strcmp(transfer.service.state.resume_request_id,"attempt-2"));
+  assert(transfer.service.state.resume_recovery_epoch==2);
+  assert(!transfer.service.state.resume_error_code);
   return 0;
 }

@@ -1,7 +1,7 @@
 // Real Webots physics test. Starts an isolated world and independent services.
 import {spawn} from "node:child_process";
 import {createServer} from "node:net";
-import {mkdtemp,mkdir,cp,copyFile,readFile,writeFile,rm} from "node:fs/promises";
+import {mkdtemp,mkdir,chmod,cp,copyFile,readFile,writeFile,rm} from "node:fs/promises";
 import {once} from "node:events";
 import os from "node:os";
 import path from "node:path";
@@ -23,16 +23,18 @@ const blocked=process.argv.includes("--blocked") || nestedBlocked;
 const unsupportedHeight=process.argv.includes("--unsupported-height");
 const destination={x:mobile ? (obstacle ? 4 : nearObject ? 1 : 2) : 0.4,y:afterDemo ? 3 : mobile ? 1 : 0.1,z:unsupportedHeight ? 0.12 : 0.04};
 const directory=await mkdtemp(path.join(os.tmpdir(),"gpo-manipulator-"));
-await cp(path.join(root,"webots/protos"),path.join(directory,"protos"),{recursive:true});
+const webotsImage = process.env.GPO_WEBOTS_TEST_IMAGE;
+const containerName = `gpo-${path.basename(directory).toLowerCase()}`;
+const worldPath = path.join(directory, "worlds", "test.wbt");
 const children=[];
 const armSamples=[];
 let socket;
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const freePort=async()=>{const s=createServer();s.listen(0,"127.0.0.1");await once(s,"listening");const p=s.address().port;await new Promise(r=>s.close(r));return p;};
-const [gatewayPort,missionPort,planningPort,telemetryPort,webotsPort]=await Promise.all(Array.from({length:5},freePort));
+const [gatewayPort,missionPort,webotsPort]=await Promise.all(Array.from({length:3},freePort));
 const stateDir=path.join(directory,"state");
-const env={...process.env,BRIDGE_BIND_HOST:"127.0.0.1",ROUTE_BIND_HOST:"127.0.0.1",TELEMETRY_BIND_HOST:"127.0.0.1",SOLVER_BIND_HOST:"127.0.0.1",GATEWAY_BIND_HOST:"127.0.0.1",GATEWAY_PORT:String(gatewayPort),GATEWAY_URL:`http://127.0.0.1:${gatewayPort}`,GATEWAY_TOKEN:"physics-test",ROUTE_PORT:String(missionPort),SOLVER_PORT:String(planningPort),TELEMETRY_PORT:String(telemetryPort),MISSION_STATE_DIR:path.join(directory,"missions"),WEB_STATE_DIR:stateDir,MOCK_TELEMETRY:"0"};
-const launch=(exe,args)=>{const p=spawn(exe,args,{cwd:root,env,stdio:["ignore","pipe","pipe"],windowsHide:true});p.logs="";p.stdout.on("data",d=>p.logs+=d);p.stderr.on("data",d=>p.logs+=d);children.push(p);return p;};
+const env={...process.env,BRIDGE_BIND_HOST:"127.0.0.1",ROUTE_BIND_HOST:"127.0.0.1",GATEWAY_BIND_HOST:"127.0.0.1",GATEWAY_PORT:String(gatewayPort),GATEWAY_URL:`http://127.0.0.1:${gatewayPort}`,GATEWAY_TOKEN:"physics-test",ROUTE_PORT:String(missionPort),MISSION_STATE_DIR:path.join(directory,"missions"),WEB_STATE_DIR:stateDir};
+const launch=(exe,args)=>{const p=spawn(exe,args,{cwd:root,env,stdio:["ignore","pipe","pipe"],windowsHide:true});p.logs="";p.on("error",error=>{p.launchError=error;});p.stdout.on("data",d=>p.logs+=d);p.stderr.on("data",d=>p.logs+=d);children.push(p);return p;};
 const until=async(condition,label,timeout=90000,interval=200)=>{const deadline=Date.now()+timeout;while(Date.now()<deadline){if(await condition())return;await delay(interval);}throw new Error(`Timeout: ${label}`);};
 const readState=async()=>{
   for(let attempt=0;;++attempt)try{return JSON.parse(await readFile(path.join(stateDir,"robot_state.json"),"utf8"));}
@@ -42,7 +44,6 @@ const getMission=async id=>(await fetch(`http://127.0.0.1:${missionPort}/api/mis
 const send=command=>new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error("ACK timeout")),15000);const receive=data=>{const ack=JSON.parse(data);if(ack.requestId===command.requestId){clearTimeout(timer);socket.off("message",receive);resolve(ack);}};socket.on("message",receive);socket.send(JSON.stringify(command));});
 try {
   await mkdir(path.join(directory,"worlds"),{recursive:true});
-  await mkdir(path.join(directory,"controllers","youbot_web"),{recursive:true});
   await mkdir(stateDir,{recursive:true});
   let world = await readFile(path.join(root,"webots/worlds/youbot_only.wbt"),"utf8");
   if(mobile && !nearObject && !afterDemo)world=world.replace(/(DEF PICK_BOX Solid\s*\{\s*translation\s+)[^\r\n]+/,(_line,prefix)=>`${prefix}${obstacle ? 3.4 : 1.4} -0.1 0.04`);
@@ -95,13 +96,29 @@ try {
       ? `\nGroup { children [ Pose { translation ${destination.x} ${destination.y} 0 children [ ${obstacle} ] } ] }\n`
       : "\n"+obstacle.replace("translation 0 0", `translation ${destination.x} ${destination.y}`)+"\n";
   }
-  await writeFile(path.join(directory,"worlds/test.wbt"), world);
-  await copyFile(path.join(root,"webots/controllers/youbot_web/youbot_web.exe"),path.join(directory,"controllers/youbot_web/youbot_web.exe"));
-  for(const name of ["gateway","route","planning","telemetry"])launch(process.execPath,[`bridge/processes/run-${name}-service.cjs`]);
-  for(const port of [missionPort,planningPort,telemetryPort])await until(async()=>{try{return (await fetch(`http://127.0.0.1:${port}/ready`)).ok;}catch{return false;}},`service ${port}`,15000);
+  await writeFile(worldPath, world);
+  if (webotsImage) {
+    // The host bridge and the simulator user share only this disposable state directory.
+    await chmod(stateDir, 0o777);
+  } else {
+    await cp(path.join(root,"webots/protos"),path.join(directory,"protos"),{recursive:true});
+    await mkdir(path.join(directory,"controllers","youbot_web"),{recursive:true});
+    await copyFile(path.join(root,"webots/controllers/youbot_web/youbot_web.exe"),path.join(directory,"controllers/youbot_web/youbot_web.exe"));
+  }
+  for(const name of ["gateway","route"])launch(process.execPath,[`bridge/processes/run-${name}-service.cjs`]);
+  await until(async()=>{try{return (await fetch(`http://127.0.0.1:${missionPort}/ready`)).ok;}catch{return false;}},"route and gateway readiness",15000);
   const webotsHome=process.env.WEBOTS_HOME || "C:/Program Files/Webots";
-  const simulator=launch(path.join(webotsHome,"msys64/mingw64/bin/webots.exe"),["--batch","--minimize","--no-rendering","--mode=fast","--stdout","--stderr",`--port=${webotsPort}`,path.join(directory,"worlds/test.wbt")]);
-  await until(async()=>{if(simulator.exitCode!==null)throw new Error(simulator.logs);try{const state=JSON.parse(await readFile(path.join(stateDir,"robot_state.json"),"utf8"));return Boolean(state.pose);}catch{return false;}},"controller telemetry");
+  const webotsArgs = ["--batch", "--no-rendering", "--mode=fast", "--stdout", "--stderr"];
+  const simulator = webotsImage
+    ? launch("docker", ["run", "--rm", "--init", "--name", containerName, "--shm-size=256m",
+      "--env", "LIBGL_ALWAYS_SOFTWARE=1",
+      "--mount", `type=bind,source=${stateDir},target=/data/webots`,
+      "--mount", `type=bind,source=${worldPath},target=/project/worlds/test.wbt,readonly`,
+      "--entrypoint", "xvfb-run", webotsImage, "--auto-servernum",
+      "--server-args=-screen 0 1280x720x24", "webots", ...webotsArgs, "/project/worlds/test.wbt"])
+    : launch(path.join(webotsHome,"msys64/mingw64/bin/webots.exe"),
+      ["--minimize", ...webotsArgs, `--port=${webotsPort}`, worldPath]);
+  await until(async()=>{if(simulator.launchError)throw simulator.launchError;if(simulator.exitCode!==null)throw new Error(simulator.logs);try{const state=JSON.parse(await readFile(path.join(stateDir,"robot_state.json"),"utf8"));return Boolean(state.pose);}catch{return false;}},"controller telemetry");
   socket=new WebSocket(`ws://127.0.0.1:${missionPort}/ui`);await once(socket,"open");
   await until(async () => (await readState()).simulationTime > 2, "settling");
   let before=await readState();
@@ -399,8 +416,12 @@ try {
   throw error;
 } finally {
   socket?.terminate();
+  if (webotsImage) {
+    const cleanup = spawn("docker", ["rm", "-f", containerName], { windowsHide: true, stdio: "ignore" });
+    await once(cleanup, "exit").catch(() => {});
+  }
   for(const child of children.reverse()){
-    if(child.exitCode!==null || child.signalCode)continue;
+    if(!child.pid || child.exitCode!==null || child.signalCode)continue;
     if(process.platform==="win32") {const killer=spawn("taskkill",["/PID",String(child.pid),"/T","/F"],{windowsHide:true,stdio:"ignore"});await once(killer,"exit");}
     else child.kill("SIGTERM");
   }

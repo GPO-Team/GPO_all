@@ -96,7 +96,7 @@ export default function PlannerManipulatorSection({
   const demo = !vision && objectDef === "DEMO_BOX";
   const selection = demo || objectDef === "PICK_BOX" ? objectDef : "custom";
   const remote = telemetry?.objectTransfer;
-  const useRemote = demo || mission?.operationType === "object_transfer";
+  const useRemote = mission?.missionId ? mission.operationType === "object_transfer" : demo;
   const remoteStage =
     {
       approaching_object: "driving_to_object",
@@ -257,7 +257,7 @@ export default function PlannerManipulatorSection({
         {connected
           ? stages[arm?.stage] || "Ожидание"
           : "Нет свежей телеметрии или связи с bridge"}
-        {connected && vision && arm?.objectDef && ` · ${arm.objectDef}`}
+        {connected && arm?.missionId && arm.objectDef && ` · ${arm.objectDef}`}
       </div>
       {reportedError && (
         <p role="alert" className="mt-2 text-xs text-red-700">

@@ -49,6 +49,9 @@ int main(void) {
   ControllerObjectTransferState transfer = {};
   transfer.stage = CONTROLLER_TRANSFER_TRANSPORTING;
   transfer.on_platform = 1;
+  strcpy(transfer.resume_request_id, "resume-42");
+  transfer.resume_recovery_epoch = 2;
+  transfer.resume_error_code = "invalid_sensor";
     transfer.finger_contacts[0] = 1;
   snapshot.object_transfer = &transfer;
 
@@ -83,6 +86,7 @@ int main(void) {
   if (!strstr(json, "\"loadHeld\": true")) return 22;
   if (!strstr(json, "\"cancelPending\": true")) return 23;
   if (!strstr(json, "\"objectPosition\": {\"x\": 0.000000, \"y\": 0.000000, \"z\": 0.120000}")) return 24;
+  if (!strstr(json, "\"resumeResult\": {\"requestId\": \"resume-42\", \"recoveryEpoch\": 2, \"errorCode\": \"invalid_sensor\"}")) return 26;
   free(json);
   if (fopen(temp_path, "rb") != NULL) return 11;
   return 0;

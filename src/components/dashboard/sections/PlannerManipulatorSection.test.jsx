@@ -55,3 +55,11 @@ it("offers camera selection and explains an ambiguous camera view", () => {
   expect(html).toContain('<option value="vision">По камере');
   expect(html).toContain("В поле зрения несколько подходящих коробок.");
 });
+
+it("identifies the observed cargo when a vision mission is restored with the default form", () => {
+  const telemetry = { manipulator: { missionId: "vision-resumed", objectDef: "VISION_TEST_BOX", stage: "carrying" } };
+  const markup = (missionId) => renderToStaticMarkup(<PlannerManipulatorSection connected
+    mission={{ missionId, status: "running", operationType: "pick_place" }} telemetry={telemetry} />);
+  expect(markup("vision-resumed")).toContain("VISION_TEST_BOX");
+  expect(markup("another-mission")).not.toContain("VISION_TEST_BOX");
+});

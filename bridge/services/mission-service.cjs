@@ -58,7 +58,12 @@ const createMissionService = ({repository, adapter, now = () => new Date().toISO
     if (!feedback) feedback = await adapter.getFeedback(record.missionId);
     const matching=feedback?.missionId===record.missionId;
     const rank={prepared:-1,persisted:0,accepted:1,running:2,holding_for_recovery:3,cancelling:4,completed:5,failed:5,cancelled:5};
-    const resumed=record.status==="holding_for_recovery" && feedback?.status==="running" && !feedback.cached && Boolean(record.resumeRequestId);
+    const resumeResult = feedback?.resumeResult;
+    const matchedResume = matching && !feedback.cached && record.resumeRequestId &&
+      resumeResult?.requestId === record.resumeRequestId &&
+      resumeResult.recoveryEpoch === (record.controllerRecoveryEpoch ?? 0);
+    const resumed = record.status === "holding_for_recovery" && feedback?.status === "running" &&
+      matchedResume && resumeResult.errorCode === null;
     const safelyHeld=["object_transfer","pick_place"].includes(record.operationType) && feedback?.status==="holding_for_recovery";
     const status=matching && feedback.status in rank && (rank[feedback.status]>=rank[record.status] || resumed || safelyHeld) ? feedback.status : record.status;
     const validRecoveryEpoch=matching && !feedback.cached && Number.isSafeInteger(feedback.recoveryEpoch) && feedback.recoveryEpoch>=0;
@@ -66,9 +71,13 @@ const createMissionService = ({repository, adapter, now = () => new Date().toISO
     const advancedRecovery=validRecoveryEpoch && feedback.recoveryEpoch>(record.controllerRecoveryEpoch || 0);
     const enteredRecovery=status==="holding_for_recovery" && (record.status!==status || advancedRecovery);
     const leftRecovery=record.status==="holding_for_recovery" && status!==record.status;
+    const rejectedResume = matchedResume && !enteredRecovery && !leftRecovery &&
+      status === "holding_for_recovery" &&
+      ["invalid_sensor", "attachment_unconfirmed", "recovery_changed"].includes(resumeResult.errorCode);
     const updated={...record,status,controllerRecoveryEpoch,
-      ...(enteredRecovery ? {recoveryEpoch:(record.recoveryEpoch || 0)+1,resumeRequestId:null,resumeDelivered:false} : {}),
-      ...(leftRecovery ? {resumeRequestId:null,resumeDelivered:false} : {}),
+      ...(rejectedResume ? {resumeRequestId:null,resumeDelivered:false,resumeError:resumeResult.errorCode} : {}),
+      ...(enteredRecovery ? {recoveryEpoch:(record.recoveryEpoch || 0)+1,resumeRequestId:null,resumeDelivered:false,resumeError:null} : {}),
+      ...(leftRecovery ? {resumeRequestId:null,resumeDelivered:false,resumeError:null} : {}),
       feedbackFresh:Boolean(matching && !feedback.cached),connectionError:null,
       ...(matching ? {stage:feedback.stage ?? null,progress:feedback.progress ?? record.progress,
         errorCode:feedback.errorCode ?? null,attached:feedback.attached === undefined ? record.attached : Boolean(feedback.attached),
@@ -163,8 +172,11 @@ const createMissionService = ({repository, adapter, now = () => new Date().toISO
     if(record.resumeDelivered)return record;
     const resumeRequestId=record.resumeRequestId || randomUUID();
     if(!record.resumeRequestId)record=await save({...record,resumeRequestId,updatedAt:now()});
-    await adapter.update({type:"resume_transfer",missionId:record.missionId,destination:record.command.destination},resumeRequestId);
-    return save({...record,resumeDelivered:true,connectionError:null,updatedAt:now()});
+    await adapter.update({
+      type:"resume_transfer",missionId:record.missionId,destination:record.command.destination,
+      recoveryEpoch:record.controllerRecoveryEpoch ?? 0,controllerBootId:record.controllerBootId,
+    },resumeRequestId);
+    return save({...record,resumeDelivered:true,resumeError:null,connectionError:null,updatedAt:now()});
   });
   return {submit,cancel,get,reconcile,update,resume,list:()=>serial(all),drain:()=>pending};
 };

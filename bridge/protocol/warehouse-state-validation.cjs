@@ -28,7 +28,7 @@ const validateStoredWarehouse = (state, geometry) => {
     !Array.isArray(state.cargo) ||
     state.cargo.length > 2000 ||
     !Array.isArray(state.tasks) ||
-    state.tasks.length > 10000
+    (state.taskArchive !== undefined && !Array.isArray(state.taskArchive))
   )
     invalid("Некорректные списки грузов или заданий.");
   const cargo = new Map();
@@ -43,7 +43,10 @@ const validateStoredWarehouse = (state, geometry) => {
   const taskIds = new Set(),
     reservedCargo = new Set(),
     reservedSlots = new Set();
-  for (const task of state.tasks) {
+  const archive = state.taskArchive ?? [];
+  if (archive.some((task) => task?.status !== "cancelled"))
+    invalid("В архиве склада допустимы только отменённые задания.");
+  for (const task of state.tasks.concat(archive)) {
     object(task, "Сохранённое задание");
     identifier(task.id);
     identifier(task.cargoId);

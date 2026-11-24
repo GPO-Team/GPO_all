@@ -52,3 +52,10 @@ describe("web state serializers", () => {
       .toThrow("Unsupported manipulator pose.");
   });
 });
+
+it("serializes the exact recovery epoch and request key for resume feedback", () => {
+  const request = {type:"resume_transfer",commandId:12,missionId:"mission",requestKey:"resume-1",recoveryEpoch:0};
+  expect(createRuntimeCommandText(request)).toContain("resume_request_id resume-1\nresume_recovery_epoch 0\n");
+  expect(() => createRuntimeCommandText({...request,recoveryEpoch:-1})).toThrow("Invalid recovery epoch");
+  expect(() => createRuntimeCommandText({...request,requestKey:undefined})).toThrow();
+});

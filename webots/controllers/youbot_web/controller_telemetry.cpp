@@ -157,6 +157,13 @@ int controller_telemetry_write_snapshot(
   fprintf(file, "    \"errorCode\": \"%s\",\n", transfer ? transfer->error_code : "");
   fprintf(file, "    \"controllerBootId\": \"%s\",\n", transfer ? safe_command_id(transfer->controller_boot_id) : "");
   fprintf(file, "    \"recoveryEpoch\": %u,\n", transfer ? transfer->recovery_epoch : 0);
+  if(transfer && transfer->resume_request_id[0]) {
+    fprintf(file, "    \"resumeResult\": {\"requestId\": \"%s\", \"recoveryEpoch\": %u, \"errorCode\": ",
+        safe_command_id(transfer->resume_request_id),transfer->resume_recovery_epoch);
+    if(transfer->resume_error_code) fprintf(file, "\"%s\"",transfer->resume_error_code);
+    else fprintf(file, "null");
+    fprintf(file, "},\n");
+  }
   fprintf(file, "    \"objectPose\": {\"x\": %.6f, \"y\": %.6f, \"z\": %.6f},\n",
       transfer ? transfer->object_pose[0] : 0, transfer ? transfer->object_pose[1] : 0, transfer ? transfer->object_pose[2] : 0);
   fprintf(file, "    \"objectUp\": {\"x\": %.6f, \"y\": %.6f, \"z\": %.6f},\n",
