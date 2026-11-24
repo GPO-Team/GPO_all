@@ -21,8 +21,10 @@ it("rebuilds current sources and falls back to CPU when WSLg mounts are unavaila
   const h = harness(args => args[0] === "run" && { code: 1, output: "no dxg" });
   await runContainerStack({ run: h.run, revision: "abc123-dirty", log: () => {} });
   expect(h.calls.some(({ args }) => args.includes("build"))).toBe(true);
-  const up = h.calls.find(({ args }) => args.includes("up"));
+  const up = h.calls.find(({ args }) => args.includes("up") && args.includes("compose.simulator.yaml"));
   expect(up.args).not.toContain("compose.simulator.gpu-wslg.yaml");
+  expect(up.args).toContain("compose.warehouse-postgres.yaml");
+  expect(h.calls.some(({args}) => args.includes("up") && args.includes("compose.postgres.yaml"))).toBe(true);
   expect(up.options.env).toMatchObject({ WEBOTS_RENDERER: "cpu", GPO_SOURCE_REVISION: "abc123-dirty" });
 });
 
@@ -30,7 +32,7 @@ it("selects WSLg with automatic OpenGL fallback when its device and mounts exist
   const h = harness();
   await runContainerStack({ run: h.run, args: ["--no-build"], log: () => {} });
   expect(h.calls.some(({ args }) => args.includes("build"))).toBe(false);
-  const up = h.calls.find(({ args }) => args.includes("up"));
+  const up = h.calls.find(({ args }) => args.includes("up") && args.includes("compose.simulator.yaml"));
   expect(up.args).toContain("compose.simulator.gpu-wslg.yaml");
   expect(up.options.env.WEBOTS_RENDERER).toBe("auto");
 });
@@ -44,12 +46,12 @@ it("rejects explicitly requested GPU before starting services if mounts are miss
 it("keeps explicit GPU mode strict and does not announce CPU fallback", async () => {
   const h = harness(), messages=[];
   await runContainerStack({ run: h.run, args: ["--gpu", "--no-build"], log: value => messages.push(value) });
-  expect(h.calls.find(({ args }) => args.includes("up")).options.env.WEBOTS_RENDERER).toBe("gpu");
+  expect(h.calls.find(({ args }) => args.includes("up") && args.includes("compose.simulator.yaml")).options.env.WEBOTS_RENDERER).toBe("gpu");
   expect(messages.join(" ")).not.toContain("при неудаче использую CPU");
 });
 
 it("captures service status and recent logs after failed startup without removing volumes", async () => {
-  const h = harness(args => args.includes("up") && { code: 1, output: "unhealthy" });
+  const h = harness(args => args.includes("up") && args.includes("compose.simulator.yaml") && { code: 1, output: "unhealthy" });
   await expect(runContainerStack({ run: h.run, args: ["--cpu"], log: () => {} })).rejects.toThrow(/startup/i);
   expect(h.calls.some(({ args }) => args.includes("ps") && args.includes("--all"))).toBe(true);
   expect(h.calls.some(({ args }) => args.includes("logs") && args.includes("--tail"))).toBe(true);

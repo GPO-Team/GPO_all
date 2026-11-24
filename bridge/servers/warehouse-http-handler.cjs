@@ -50,6 +50,7 @@ const createWarehouseHttpHandler =
         };
         let handle = handlers[pathname];
         const rackMatch = pathname.match(/^\/api\/warehouse\/racks\/([^/]+)(\/delete)?$/);
+        const cargoMatch = pathname.match(/^\/api\/warehouse\/cargo\/([^/]+)\/verify$/);
         const taskMatch = pathname.match(/^\/api\/warehouse\/tasks\/([^/]+)\/(cancel|start|stop)$/);
         if (rackMatch) {
           const id = decodeURIComponent(rackMatch[1]);
@@ -57,6 +58,9 @@ const createWarehouseHttpHandler =
             rackMatch[2]
               ? warehouseService.deleteRack(id, body, live)
               : warehouseService.updateRack(id, body, live);
+        } else if (cargoMatch) {
+          const id = decodeURIComponent(cargoMatch[1]);
+          handle = (body) => warehouseService.verifyCargo(id, body, live);
         } else if (taskMatch) {
           const id = decodeURIComponent(taskMatch[1]);
           const action = { start: "startTask", stop: "stopTask", cancel: "cancelTask" }[taskMatch[2]];

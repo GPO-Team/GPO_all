@@ -38,6 +38,7 @@ const validateStoredWarehouse = (state, geometry) => {
     if (cargo.has(normalized.id) || objectDefs.has(normalized.objectDef))
       invalid("Повторный груз или объект Webots.");
     if (normalized.objectDef) objectDefs.add(normalized.objectDef);
+    if (item.verifiedControllerBootId !== undefined) identifier(item.verifiedControllerBootId);
     if (item.locationId !== "receiving") {
       const slot = slots.get(item.locationId);
       if (!slot || slot.supportZ !== 0 || !normalized.objectDef ||
@@ -80,7 +81,7 @@ const validateStoredWarehouse = (state, geometry) => {
     }
     if (task.status === "completed") {
       timestamp(task.completedAt);
-      if (task.missionStatus !== "completed" || cargo.get(task.cargoId).locationId !== task.destinationId)
+      if (task.missionStatus !== "completed")
         invalid("Некорректное завершённое размещение.");
       continue;
     }

@@ -96,7 +96,7 @@ export default function RackElevation({ rack, slots, selectedSlotId, onSelect })
                 >
                   <strong className="block break-all text-xs">{slot.address}</strong>
                   <span id={`warehouse-cell-status-${slot.id}`}>
-                    {slot.occupiedBy ? "Занята" : slot.reservedBy ? "Резерв" : "Свободно"}
+                    {slot.needsVerification ? "Требуется сверка" : slot.occupiedBy ? "Занята" : slot.reservedBy ? "Резерв" : "Свободно"}
                   </span>
                 </button>
               ))}

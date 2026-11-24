@@ -92,7 +92,7 @@ const createMissionService = ({repository, adapter, now = () => new Date().toISO
     // Do not rewrite SQLite on every idle poll without a changed observation.
     return JSON.stringify(updated)===JSON.stringify(record) ? record : save(updated);
   };
-  const submit = (payload,{requestId=randomUUID()}={}) => serial(async()=>{
+  const submit = (payload,{requestId=randomUUID(),expectedControllerBootId}={}) => serial(async()=>{
     if (!["route", "start_mapping_survey", "pick_place", "transfer_object"].includes(payload?.type)) throw serviceError(400,"unsupported_command","Unsupported mission command.");
     const missionId=validateMissionId(requestId || randomUUID());
     const hash=fingerprint(payload);
@@ -118,6 +118,9 @@ const createMissionService = ({repository, adapter, now = () => new Date().toISO
       const controllerBootId = await adapter.getControllerSession?.();
       if (adapter.getControllerSession && !controllerBootId) {
         throw serviceError(503, "controller_unavailable", "Webots controller telemetry is unavailable.");
+      }
+      if (expectedControllerBootId && controllerBootId !== expectedControllerBootId) {
+        throw serviceError(409, "controller_restarted", "Webots restarted before the mission could be submitted.");
       }
       record = { missionId, operationType, fingerprint: hash, status: "prepared", createdAt: now(),
         updatedAt: now(), command, ...(controllerBootId ? { controllerBootId } : {}) };

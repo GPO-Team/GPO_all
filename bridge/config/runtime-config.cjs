@@ -41,7 +41,19 @@ const SOLVER_PATH = toPath(
   )
 );
 
+const warehouseStorage = process.env.WAREHOUSE_STORAGE ||
+  (process.env.POSTGRES_PASSWORD ? "postgres" : "sqlite");
+if (!["postgres", "sqlite"].includes(warehouseStorage))
+  throw new Error("WAREHOUSE_STORAGE must be postgres or sqlite.");
+
 module.exports = {
+  WAREHOUSE_POSTGRES: warehouseStorage === "postgres" ? {
+    host: toHost(process.env.WAREHOUSE_POSTGRES_HOST, "127.0.0.1"),
+    port: toPort(process.env.POSTGRES_PORT, 5432),
+    database: process.env.POSTGRES_DB || "gpo",
+    user: process.env.POSTGRES_USER || "gpo",
+    password: process.env.POSTGRES_PASSWORD,
+  } : null,
   LOG_DIR: process.env.LOG_DIR ? toPath(process.env.LOG_DIR) : undefined,
   BRIDGE_HOST,
   ROUTE_PORT,

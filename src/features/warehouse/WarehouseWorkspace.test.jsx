@@ -466,3 +466,22 @@ it("loads archived tasks only when opened and follows the pagination cursor", as
   expect(host.textContent).toContain("oldest");
   expect(host.textContent).not.toContain("Показать ещё");
 });
+
+it("allows operator reconciliation of an occupied slot for the displayed Webots session", async () => {
+  const view = {...snapshot(),verificationSession:"boot-2"};
+  view.slots.push({id:"rack:1:1:1",address:"A-01-01-01",occupiedBy:"box",needsVerification:true});
+  const api = vi.fn(async (_path, options) => {
+    if (options) {
+      view.slots = [];
+      view.warehouse.revision += 1;
+    }
+    return structuredClone(view);
+  });
+  await act(async () => root.render(<WarehouseWorkspace api={api} />));
+  expect(host.textContent).toContain("Сверьте грузы");
+  await click("Груз на приёмке");
+  expect(api).toHaveBeenLastCalledWith("/cargo/box/verify", {
+    body:{location:"receiving",controllerSession:"boot-2",expectedRevision:0},
+  });
+  expect(host.textContent).not.toContain("Сверьте грузы");
+});

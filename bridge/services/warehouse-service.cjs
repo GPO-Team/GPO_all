@@ -28,12 +28,24 @@ const emptyWarehouse = () => ({
 const createWarehouseService = ({
   repository,
   missionService,
+  getControllerSession,
   now = () => new Date().toISOString(),
   createId = randomUUID,
 }) => {
   let state,
     loading,
     pending = Promise.resolve();
+  let verificationSession = null;
+  const refreshSession = async () => {
+    if (!getControllerSession) return;
+    try {
+      verificationSession = await getControllerSession();
+    } catch {
+      verificationSession = null;
+    }
+  };
+  const needsVerification = (cargo) => Boolean(getControllerSession && cargo.locationId !== "receiving" &&
+    (!verificationSession || cargo.verifiedControllerBootId !== verificationSession));
   let cachedLayout;
   let cachedArchiveCounts;
   const geometry = import("../../shared/warehouse/layout.js");
@@ -77,11 +89,17 @@ const createWarehouseService = ({
       warehouse.tasks.map((task) => [task.destinationId, task.id]),
     );
     const occupied = new Map(warehouse.cargo.filter((cargo) => cargo.locationId !== "receiving")
-      .map((cargo) => [cargo.locationId, cargo.id]));
-    return cachedLayout.slots.map((slot) => ({
+      .map((cargo) => [cargo.locationId, cargo]));
+    return cachedLayout.slots.map((slot) => {
+      const cargo = occupied.get(slot.id);
+      return {
         ...slot, reservedBy: reservations.get(slot.id) || null,
-        ...(occupied.has(slot.id) ? { occupiedBy: occupied.get(slot.id) } : {}),
-      }));
+        ...(cargo ? {
+          occupiedBy: cargo.id,
+          ...(needsVerification(cargo) ? { needsVerification: true } : {}),
+        } : {}),
+      };
+    });
   };
   const taskById = (warehouse, taskId) =>
     warehouse.tasks.find((task) => task.id === taskId) ??
@@ -104,10 +122,12 @@ const createWarehouseService = ({
     const { taskArchive, ...warehouse } = current;
     const slots = await slotsFor(warehouse);
     if (!live) {
-      return { ok: true, warehouse: structuredClone({ ...warehouse, tasks: warehouse.tasks.concat(taskArchive) }), slots };
+      return { ok: true, warehouse: structuredClone({ ...warehouse, tasks: warehouse.tasks.concat(taskArchive) }), slots,
+        ...(getControllerSession ? { verificationSession } : {}) };
     }
     return {
       ok: true, warehouse: structuredClone(warehouse), slots, archiveCounts: archiveCounts(taskArchive),
+      ...(getControllerSession ? { verificationSession } : {}),
       ...(taskId ? { task: structuredClone(taskById(current, taskId)) } : {}),
     };
   };
@@ -134,8 +154,9 @@ const createWarehouseService = ({
     return result;
   };
   const publish = async (next) => {
+    const previous = state;
     next.revision += 1;
-    await repository.save(structuredClone(next));
+    await repository.save(structuredClone(next), previous);
     state = next;
   };
   const mutate = (input, change, { retry, live, taskId } = {}) => {
@@ -203,6 +224,7 @@ const createWarehouseService = ({
       const delivery = await deliveryContext(warehouse, task);
       if (deliveredAt(mission.deliveryEvidence, delivery)) {
         delivery.cargo.locationId = task.destinationId;
+        if (mission.controllerBootId) delivery.cargo.verifiedControllerBootId = mission.controllerBootId;
         warehouse.tasks = warehouse.tasks.filter((item) => item.id !== task.id);
         warehouse.taskArchive.push({ ...task, status: "completed", completedAt: now() });
         return true;
@@ -358,6 +380,12 @@ const createWarehouseService = ({
       }
       if (!["prepared", "launching"].includes(task.status)) return snapshot(live, id);
       const { command } = await deliveryContext(next, task);
+      const hasStock = getControllerSession && next.cargo.some((cargo) => cargo.locationId !== "receiving");
+      if (hasStock) {
+        await refreshSession();
+        if (next.cargo.some(needsVerification))
+          conflict("inventory_unverified", "Сверьте размещённые грузы после перезапуска Webots.");
+      }
       if (task.status === "prepared") {
         checkRevision(body.expectedRevision, next.revision);
         if (next.tasks.some((item) => item.id !== id && item.status !== "prepared"))
@@ -368,9 +396,12 @@ const createWarehouseService = ({
       }
       let mission;
       try {
-        mission = await missionService.submit(command, { requestId: task.missionId });
+        mission = await missionService.submit(command, {
+          requestId: task.missionId,
+          ...(hasStock ? { expectedControllerBootId: verificationSession } : {}),
+        });
       } catch (error) {
-        if (error.code === "mission_active" && !(await missionService.get(task.missionId))) {
+        if (["mission_active", "controller_restarted"].includes(error.code) && !(await missionService.get(task.missionId))) {
           const restored = structuredClone(await load());
           const queued = restored.tasks.find((item) => item.id === id);
           queued.status = "prepared";
@@ -385,8 +416,9 @@ const createWarehouseService = ({
       return snapshot(live, id);
     }),
     reconcile: () => serial(async () => {
-      if (!missionService) return;
       const current = await load();
+      if (current.cargo.some((cargo) => cargo.locationId !== "receiving")) await refreshSession();
+      if (!missionService) return;
       const tracked = current.tasks.find((task) => task.missionId);
       if (!tracked) return;
       const mission = await missionService.get(tracked.missionId);
@@ -425,6 +457,29 @@ const createWarehouseService = ({
           return taskById(warehouse, id)?.status === "cancelled";
         } },
       ),
+    verifyCargo: (id, body, live) =>
+      mutate(body, async (warehouse, { location, controllerSession }) => {
+        identifier(id);
+        const cargo = warehouse.cargo.find((item) => item.id === id);
+        if (!cargo) missing("Груз");
+        if (!["slot", "receiving"].includes(location)) invalid("Укажите подтверждённое местоположение.");
+        const missions = await missionService?.list?.();
+        if (warehouse.tasks.some((task) => task.status === "executing" ||
+              task.missionStatus === "holding_for_recovery") ||
+            missions?.some((mission) => !terminalStates.has(mission.status)))
+          conflict("warehouse_robot_busy", "Дождитесь завершения активного задания перед сверкой.");
+        await refreshSession();
+        if (!verificationSession || verificationSession !== controllerSession)
+          conflict("controller_session_changed", "Обновите данные и повторите сверку в текущем сеансе Webots.");
+        if (!needsVerification(cargo))
+          conflict("verification_not_required", "Для груза не требуется сверка.");
+        if (location === "receiving") {
+          cargo.locationId = "receiving";
+          delete cargo.verifiedControllerBootId;
+        } else {
+          cargo.verifiedControllerBootId = verificationSession;
+        }
+      }, { live }),
     importLayout: (body, live) =>
       mutate(body, async (warehouse, { layout }) => {
         noPreparedTasks(warehouse);

@@ -546,3 +546,31 @@ it("retains the reservation for a completion with no verified cargo position", a
   expect(cancelled.warehouse.tasks[0].status).toBe("cancelled");
   expect(cancelled.slots[0].reservedBy).toBeNull();
 });
+
+it("marks previous-session stock unverified and records an operator-confirmed return", async () => {
+  const { repository, missions, service, destinationId } = await setupFloorDelivery();
+  const running = await service.startTask("job", {expectedRevision:3});
+  missions.get.mockResolvedValue({
+    missionId:running.warehouse.tasks[0].missionId,status:"completed",controllerBootId:"boot-before",
+    deliveryEvidence:{objectDef:"PICK_BOX",objectPosition:{x:-.49,y:0,z:.04},loadHeld:false,onPlatform:false},
+  });
+  await service.reconcile();
+  let boot = "boot-before";
+  const restarted = warehouseModule.createWarehouseService({
+    repository,missionService:missions,getControllerSession:async () => boot,
+  });
+  await restarted.reconcile();
+  expect((await restarted.get()).slots[0].needsVerification).toBeUndefined();
+  boot = "boot-after";
+  await restarted.reconcile();
+  const uncertain = await restarted.get();
+  expect(uncertain.slots[0]).toMatchObject({occupiedBy:"box1",needsVerification:true});
+  const restored = await restarted.verifyCargo("box1",{
+    expectedRevision:uncertain.warehouse.revision,location:"receiving",controllerSession:uncertain.verificationSession,
+  });
+  expect(restored.slots[0].occupiedBy).toBeUndefined();
+  expect(restored.warehouse.cargo[0].locationId).toBe("receiving");
+  expect(restored.warehouse.tasks[0]).toMatchObject({status:"completed",destinationId});
+  const recovered = warehouseModule.createWarehouseService({repository});
+  expect((await recovered.get()).warehouse.cargo[0].locationId).toBe("receiving");
+});

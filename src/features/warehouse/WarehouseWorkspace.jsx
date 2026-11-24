@@ -76,8 +76,9 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
     };
   }, [refresh]);
 
-  const watchMission = snapshot?.warehouse.tasks.some((task) => ["launching", "executing"].includes(task.status) ||
-    task.missionStatus === "holding_for_recovery");
+  const watchMission = snapshot && (snapshot.slots.some((slot) => slot.occupiedBy) ||
+    snapshot.warehouse.tasks.some((task) => ["launching", "executing"].includes(task.status) ||
+      task.missionStatus === "holding_for_recovery"));
   useEffect(() => {
     if (!watchMission) return;
     let stopped = false;
@@ -88,7 +89,9 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
       try {
         const next = await api("");
         if (!stopped) setSnapshot((current) =>
-          next.warehouse.revision > current.warehouse.revision ? next : current);
+          next.warehouse.revision > current.warehouse.revision ||
+          (next.warehouse.revision === current.warehouse.revision &&
+            next.verificationSession !== current.verificationSession) ? next : current);
       } catch {
         // Keep the last confirmed state and allow the next poll to recover.
       } finally {
@@ -181,6 +184,11 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
   const selectedSlot = selectedSlots.find((slot) => slot.id === selectedSlotId);
   const activeTasks = warehouse?.tasks.filter((task) => Object.hasOwn(taskLabels, task.status)) || [];
   const archiveCounts = snapshot?.archiveCounts;
+  const unverifiedSlots = snapshot?.slots.filter((slot) => slot.needsVerification) || [];
+  const verifyCargo = (slot, location) =>
+    mutate(`/cargo/${encodeURIComponent(slot.occupiedBy)}/verify`, {
+      location, controllerSession: snapshot.verificationSession,
+    });
   const receivingCount = warehouse?.cargo.filter((cargo) => cargo.locationId === "receiving").length;
   const locked = selectedSlots.some((slot) => slot.reservedBy || slot.occupiedBy);
   const editedRack = draft?.id ? warehouse?.racks.find((rack) => rack.id === draft.id) : null;
@@ -379,13 +387,34 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
                     просвет {selectedSlot.clearHeight} м · до {selectedSlot.maxLoadKg} кг
                     <br />
                     Опора Z = {selectedSlot.supportZ} м ·{" "}
-                    {selectedSlot.occupiedBy ? `Груз ${selectedSlot.occupiedBy}` : selectedSlot.reservedBy ? "Зарезервировано" : "Свободно"}
+                    {selectedSlot.needsVerification ? "Место заблокировано до сверки" :
+                      selectedSlot.occupiedBy ? `Груз ${selectedSlot.occupiedBy}` :
+                        selectedSlot.reservedBy ? "Зарезервировано" : "Свободно"}
                     <br />
                     Доступ робота не проверен
                   </div>
                 )}
               </Panel>
               <Panel title="Задачи размещения">
+                {unverifiedSlots.length > 0 && (
+                  <section className="mb-4 space-y-3 rounded-xl border border-orange-200 bg-orange-50 p-4">
+                    <h3 className="text-sm font-semibold">Сверьте грузы со сценой Webots</h3>
+                    <p className="text-xs">Проверьте фактическое положение каждой коробки. До сверки ячейки заблокированы.</p>
+                    {unverifiedSlots.map((slot) => (
+                      <div key={slot.id} className="space-y-2 text-sm">
+                        <p>{slot.occupiedBy} · {slot.address}</p>
+                        <div className="flex flex-wrap gap-2">
+                          <Button disabled={pending || !snapshot.verificationSession} onClick={() => verifyCargo(slot, "slot")}>
+                            Груз в этой ячейке
+                          </Button>
+                          <Button disabled={pending || !snapshot.verificationSession} onClick={() => verifyCargo(slot, "receiving")}>
+                            Груз на приёмке
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </section>
+                )}
                 <p className="mb-4 text-xs text-stone-600">
                   Робот доставляет коробку с указанным DEF в напольную ячейку. Расположите коробку
                   в поле зрения камеры в пределах 25 см от точки приёмки.
@@ -422,7 +451,7 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
                             </div>
                             <div className="flex flex-wrap gap-2">
                               {supported && ["prepared", "launching"].includes(task.status) && (
-                                <Button primary disabled={pending || anotherMission} onClick={() => mutate(`${taskPath}/start`)}>
+                                <Button primary disabled={pending || anotherMission || unverifiedSlots.length > 0} onClick={() => mutate(`${taskPath}/start`)}>
                                   {task.status === "launching" ? "Повторить отправку" : "Запустить робота"}
                                 </Button>
                               )}

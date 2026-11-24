@@ -8,7 +8,7 @@ export async function runContainerStack({
   revision = "unknown",
   log = console.log,
 }) {
-  const allowed = new Set(["--no-build", "--cpu", "--gpu"]);
+  const allowed = new Set(["--no-build", "--cpu", "--gpu", "--warehouse-sqlite"]);
   for (const arg of args) {
     if (!allowed.has(arg)) throw new Error(`Unknown option: ${arg}`);
   }
@@ -45,7 +45,15 @@ export async function runContainerStack({
       throw new Error(`GPU requested, but Docker cannot access WSLg /dev/dxg and graphics mounts.\n${probe.output}`);
     }
   }
-  const files = [...baseFiles, ...(gpuAvailable ? gpuFiles : [])];
+  const usePostgres = !args.includes("--warehouse-sqlite");
+  if (usePostgres) {
+    const database = await run([
+      "compose", "-f", "compose.postgres.yaml", "up", "-d", "--wait", "--wait-timeout", "90", "postgres",
+    ], { env: buildEnv });
+    if (database.code !== 0) throw new Error("PostgreSQL склада не запустился. Проверьте настройки базы в .env.");
+  }
+  const databaseFiles = usePostgres ? ["-f", "compose.warehouse-postgres.yaml"] : [];
+  const files = [...baseFiles, ...databaseFiles, ...(gpuAvailable ? gpuFiles : [])];
   const renderer = gpuAvailable ? (args.includes("--gpu") ? "gpu" : "auto") : "cpu";
   const runtimeEnv = { ...buildEnv, WEBOTS_RENDERER: renderer };
   if (renderer === "gpu") log("GPU запрошен явно: Webots проверит аппаратный OpenGL и завершится с ошибкой, если он недоступен.");
