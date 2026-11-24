@@ -355,3 +355,21 @@ html[data-theme="dark"] .login-demo { background: transparent; border-color: #31
   .login-card { padding: 22px; }
   .login-card h1 { margin-top: 16px; }
 }
+.auth-tabs button { padding: 10px 4px; font-size: 13px; font-weight: 600; color: #718998; }
+.auth-tabs button.auth-tab-active { color: #007a91; }
+.auth-link { display: inline-block; margin-top: 12px; color: #087b91; font-size: 13px; font-weight: 600; }
+.auth-link:hover { text-decoration: underline; }
+.auth-field-error { margin-top: 4px; color: #be123c; font-size: 12px; }
+.auth-password-hint { margin-top: 5px; color: #5b7384; font-size: 12px; }
+.auth-notice { margin-top: 12px; color: #0b766c; font-size: 13px; }
+html[data-theme="dark"] .auth-tabs button { color: #b2c5cf; }
+html[data-theme="dark"] .auth-tabs button.auth-tab-active, html[data-theme="dark"] .auth-link { color: #5ff8ed; }
+html[data-theme="dark"] .auth-field-error { color: #ffafb8; }
+html[data-theme="dark"] .auth-password-hint { color: #b3cbd7; }
+html[data-theme="dark"] .auth-notice { color: #8af0d6; }
+.auth-password-wrap { position: relative; }
+.auth-password-wrap input { padding-right: 46px; }
+.auth-password-reveal { position: absolute; right: 5px; top: 5px; display: flex; align-items: center; justify-content: center; width: 38px; height: calc(100% - 6px); color: #526f80; border-radius: 6px; }
+.auth-password-reveal:hover, .auth-password-reveal:focus-visible { color: #087b91; background: #e3f2f4; }
+html[data-theme="dark"] .auth-password-reveal { color: #b3cad4; }
+html[data-theme="dark"] .auth-password-reveal:hover, html[data-theme="dark"] .auth-password-reveal:focus-visible { color: #5ff8ed; background: #174551; }

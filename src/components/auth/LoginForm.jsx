@@ -1,94 +1,71 @@
 import { useState } from "react";
-import { AUTH_ERROR_CODES } from "../../lib/auth/authApi";
+import { Eye } from "lucide-react";
+import { normalizeIdentifier, validateAuth } from "../../../shared/auth-validation";
+import { AUTH_ERROR_CODES, register, requestPasswordReset, resetPassword } from "../../lib/auth/authApi";
 
-const cardCls =
-  "rounded-2xl bg-white/95 backdrop-blur border border-stone-200 shadow-[0_18px_40px_rgba(15,23,42,0.06)] p-6";
-const inputCls =
-  "w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 shadow-sm transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100 disabled:bg-stone-50 aria-[invalid=true]:border-rose-300";
+const cardCls = "rounded-2xl bg-white/95 backdrop-blur border border-stone-200 p-6";
+const inputCls = "w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100 disabled:bg-stone-50 aria-[invalid=true]:border-rose-300";
+const titles = { login: "Вход", register: "Регистрация", forgot: "Восстановление пароля", reset: "Новый пароль" };
 
-const LOGIN_MESSAGES = Object.freeze({
-  emptyBoth: "Введите логин и пароль.",
-  emptyLogin: "Введите логин.",
-  emptyPassword: "Введите пароль.",
-  [AUTH_ERROR_CODES.invalidCredentials]: "Неверный логин или пароль.",
-  [AUTH_ERROR_CODES.unavailable]: "Сервер недоступен. Проверьте подключение и попробуйте позже.",
-  [AUTH_ERROR_CODES.badRequest]: "Сервер отклонил запрос входа.",
-  [AUTH_ERROR_CODES.badResponse]: "Сервер вернул непонятный ответ.",
-});
-
-const validate = (login, password) => {
-  if (!login && !password) return { message: LOGIN_MESSAGES.emptyBoth, fields: ["login", "password"] };
-  if (!login) return { message: LOGIN_MESSAGES.emptyLogin, fields: ["login"] };
-  if (!password) return { message: LOGIN_MESSAGES.emptyPassword, fields: ["password"] };
-  return null;
-};
-
-export default function LoginForm({ onSubmit, hint = null, onDemo = null }) {
-  const [login, setLogin] = useState("");
+export default function LoginForm({ onSubmit, hint = null, onDemo = null, resetToken = "", api = { register, requestPasswordReset, resetPassword } }) {
+  const [mode, setMode] = useState(resetToken ? "reset" : "login");
+  const [token] = useState(resetToken);
+  const [identifier, setIdentifier] = useState("");
+  const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [visiblePassword, setVisiblePassword] = useState(null);
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [message, setMessage] = useState("");
 
+  const changeMode = (next) => { setMode(next); setPassword(""); setConfirmPassword(""); setErrors({}); setMessage(""); };
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (loading) return;
-    const trimmedLogin = login.trim();
-    const invalid = validate(trimmedLogin, password);
-    if (invalid) {
-      setError(invalid);
-      return;
-    }
-    setError(null);
-    setLoading(true);
+    const input = { identifier, email, displayName, password, token };
+    const invalid = validateAuth(mode, input);
+    if ((mode === "register" || mode === "reset") && password !== confirmPassword) invalid.confirmPassword = "Пароли не совпадают.";
+    if (Object.keys(invalid).length) { setErrors(invalid); setMessage(""); return; }
+    setErrors({}); setMessage(""); setLoading(true);
     try {
-      await onSubmit({ login: trimmedLogin, password });
-    } catch (submitError) {
-      const message = LOGIN_MESSAGES[submitError?.code] || LOGIN_MESSAGES[AUTH_ERROR_CODES.unavailable];
-      const fields = submitError?.code === AUTH_ERROR_CODES.invalidCredentials ? ["login", "password"] : [];
-      setError({ message, fields });
-      if (fields.length) setPassword("");
-      setLoading(false);
-    }
+      if (mode === "login") await onSubmit({ identifier: normalizeIdentifier(identifier), password });
+      else if (mode === "register") { await api.register(input); setPassword(""); setConfirmPassword(""); setMessage("Заявка на регистрацию отправлена."); }
+      else if (mode === "forgot") { await api.requestPasswordReset(email); setMessage("Если аккаунт с такой почтой существует, инструкция придёт на почту."); }
+      else { await api.resetPassword(token, password); setPassword(""); setConfirmPassword(""); setMessage("Пароль изменён. Теперь можно войти."); }
+    } catch (error) {
+      const messageText = error?.code === AUTH_ERROR_CODES.invalidCredentials ? "Неверная почта, логин или пароль." : error?.code === AUTH_ERROR_CODES.badRequest ? "Запрос отклонён. Проверьте данные." : "Сервис авторизации сейчас недоступен. Попробуйте позже.";
+      setErrors({ form: messageText });
+      if (error?.code === AUTH_ERROR_CODES.invalidCredentials) setPassword("");
+    } finally { setLoading(false); }
   };
-
-  const invalid = (field) => (error?.fields.includes(field) ? "true" : undefined);
-
-  return (
-    <form className={`${cardCls} login-card`} onSubmit={handleSubmit} noValidate aria-busy={loading || undefined}>
-      <div className="auth-tabs" aria-label="Авторизация">
-        <span className="auth-tab-active" aria-current="page">Вход</span>
-        <span className="auth-tab-unavailable" title="Регистрация пока не подключена">Регистрация · скоро</span>
-      </div>
-      <h1 className="text-xl font-semibold text-stone-900">Вход</h1>
-
-      <label className="mt-5 block text-xs font-semibold text-stone-600" htmlFor="login-name">Логин</label>
-      <input id="login-name" name="login" type="text" autoComplete="username" autoFocus
-        value={login} onChange={(event) => setLogin(event.target.value)} disabled={loading}
-        aria-invalid={invalid("login")} aria-describedby={error ? "login-error" : undefined}
-        className={`${inputCls} mt-1`} />
-
-      <label className="mt-3 block text-xs font-semibold text-stone-600" htmlFor="login-password">Пароль</label>
-      <input id="login-password" name="password" type="password" autoComplete="current-password"
-        value={password} onChange={(event) => setPassword(event.target.value)} disabled={loading}
-        aria-invalid={invalid("password")} aria-describedby={error ? "login-error" : undefined}
-        className={`${inputCls} mt-1`} />
-
-      {error && (
-        <div id="login-error" role="alert" className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-          {error.message}
-        </div>
-      )}
-
-      <button type="submit" disabled={loading}
-        className="mt-5 w-full rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-950 disabled:cursor-wait disabled:opacity-60">
-        {loading ? "Входим…" : "Войти"}
-      </button>
-
-      {hint && <p className="mt-3 text-xs text-stone-500">{hint}</p>}
-      {onDemo && <div className="login-demo">
-        <p>Регистрация и сервер авторизации пока не подключены.</p>
-        <button type="button" onClick={onDemo}>Открыть проект в тестовом режиме</button>
-      </div>}
-    </form>
-  );
+  const field = (name, label, value, setValue, type, autoComplete) => <div>
+    <label className="mt-3 block text-xs font-semibold text-stone-600" htmlFor={`auth-${name}`}>{label}</label>
+    <div className={type === "password" ? "auth-password-wrap" : undefined}>
+    <input id={`auth-${name}`} name={name} type={type === "password" && visiblePassword === name ? "text" : type} autoComplete={autoComplete} value={value} onChange={event => setValue(event.target.value)} disabled={loading} aria-invalid={errors[name] ? "true" : undefined} aria-describedby={errors[name] ? `error-${name}` : undefined} className={`${inputCls} mt-1`} />
+    {type === "password" && <button type="button" className="auth-password-reveal" aria-label={`Показать ${label.toLowerCase()}`} onMouseEnter={() => setVisiblePassword(name)} onMouseLeave={() => setVisiblePassword(null)} onFocus={() => setVisiblePassword(name)} onBlur={() => setVisiblePassword(null)}><Eye size={17} aria-hidden="true" /></button>}
+    </div>
+    {errors[name] && <p id={`error-${name}`} className="auth-field-error">{errors[name]}</p>}
+  </div>;
+  return <form className={`${cardCls} login-card`} onSubmit={handleSubmit} noValidate aria-busy={loading || undefined}>
+    <div className="auth-tabs" aria-label="Авторизация">
+      <button type="button" className={mode === "login" ? "auth-tab-active" : ""} aria-pressed={mode === "login"} onClick={() => changeMode("login")}>Вход</button>
+      <button type="button" className={mode === "register" ? "auth-tab-active" : ""} aria-pressed={mode === "register"} onClick={() => changeMode("register")}>Регистрация</button>
+    </div>
+    <h1 className="text-xl font-semibold text-stone-900">{titles[mode]}</h1>
+    {mode === "login" && field("identifier", "Почта или логин", identifier, setIdentifier, "text", "username")}
+    {(mode === "register" || mode === "forgot") && field("email", "Электронная почта", email, setEmail, "email", "email")}
+    {mode === "register" && field("displayName", "Логин для входа и отображения", displayName, setDisplayName, "text", "nickname")}
+    {mode !== "forgot" && field("password", "Пароль", password, setPassword, "password", mode === "login" ? "current-password" : "new-password")}
+    {(mode === "register" || mode === "reset") && field("confirmPassword", "Повторите пароль", confirmPassword, setConfirmPassword, "password", "new-password")}
+    {mode === "login" && <button type="button" className="auth-link" onClick={() => changeMode("forgot")}>Забыли пароль?</button>}
+    {errors.form && <div role="alert" className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{errors.form}</div>}
+    {errors.token && <div role="alert" className="auth-field-error">{errors.token}</div>}
+    {message && <p role="status" className="auth-notice">{message}</p>}
+    <button type="submit" disabled={loading} className="mt-5 w-full rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-950 disabled:cursor-wait disabled:opacity-60">{loading ? "Подождите…" : { login: "Войти", register: "Зарегистрироваться", forgot: "Отправить сообщение", reset: "Сохранить пароль" }[mode]}</button>
+    {(mode === "forgot" || mode === "reset") && <button type="button" className="auth-link" onClick={() => changeMode("login")}>Вернуться ко входу</button>}
+    {hint && mode === "login" && <p className="mt-3 text-xs text-stone-500">{hint}</p>}
+    {onDemo && <div className="login-demo"><p>Регистрация и почтовый сервис пока не подключены.</p><button type="button" onClick={onDemo}>Открыть проект в тестовом режиме</button></div>}
+  </form>;
 }

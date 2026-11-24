@@ -1,4 +1,5 @@
 const http = require("http");
+const { createAuthHttpHandler } = require("./auth-http-handler.cjs");
 const {createMissionHttpHandler} = require("./mission-http-handler.cjs");
 const {createWarehouseHttpHandler} = require("./warehouse-http-handler.cjs");
 const WebSocket = require("ws");
@@ -22,8 +23,10 @@ const normalizeIncomingPayload = async (payload) => {
 const createRouteServer = ({ artifactStore, host, port, routeService: suppliedRouteService, missionService, warehouseService, ready }) => {
   const missionHandler = createMissionHttpHandler({missionService,getStatus:() => getStatus(),ready});
   const warehouseHandler = warehouseService && createWarehouseHttpHandler({warehouseService});
+  const authHandler = createAuthHttpHandler();
   const server = http.createServer((request,response) => {
     const pathname = (request.url || "/").split("?")[0];
+    if (/^\/api\/auth(?:\/|$)/.test(pathname)) return authHandler(request,response);
     return warehouseHandler && /^\/api\/warehouse(?:\/|$)/.test(pathname)
       ? warehouseHandler(request,response) : missionHandler(request,response);
   });

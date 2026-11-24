@@ -14,17 +14,17 @@ const expectCode = async (promise, code) => {
 describe("authApi.login", () => {
   it("posts JSON credentials and returns the token", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, { token: "abc", expiresAt: "2030-01-01T00:00:00Z", user: { login: "operator" } }));
-    const result = await login({ login: "operator", password: "secret" }, { url: "http://auth.test/login", mock: false, fetchImpl });
+    const result = await login({ identifier: "operator@example.com", password: "secret" }, { url: "http://auth.test/login", mock: false, fetchImpl });
     expect(result).toEqual({ token: "abc", expiresAt: "2030-01-01T00:00:00Z", user: { login: "operator", name: "" } });
     const [url, init] = fetchImpl.mock.calls[0];
     expect(url).toBe("http://auth.test/login");
     expect(init.method).toBe("POST");
     expect(init.headers["Content-Type"]).toBe("application/json");
-    expect(JSON.parse(init.body)).toEqual({ login: "operator", password: "secret" });
+    expect(JSON.parse(init.body)).toEqual({ identifier: "operator@example.com", password: "secret" });
   });
 
   it("maps statuses and network failures to error codes", async () => {
-    const run = (fetchImpl) => login({ login: "a", password: "b" }, { url: "/login", mock: false, fetchImpl });
+    const run = (fetchImpl) => login({ identifier: "a@example.com", password: "b" }, { url: "/login", mock: false, fetchImpl });
     await expectCode(run(vi.fn().mockResolvedValue(jsonResponse(401, { error: "bad" }))), AUTH_ERROR_CODES.invalidCredentials);
     await expectCode(run(vi.fn().mockResolvedValue(jsonResponse(403, {}))), AUTH_ERROR_CODES.invalidCredentials);
     await expectCode(run(vi.fn().mockResolvedValue(jsonResponse(400, {}))), AUTH_ERROR_CODES.badRequest);
@@ -37,14 +37,14 @@ describe("authApi.login", () => {
     const fetchImpl = vi.fn((url, init) => new Promise((resolve, reject) => {
       init.signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
     }));
-    await expectCode(login({ login: "a", password: "b" }, { url: "/login", mock: false, fetchImpl, timeoutMs: 5 }), AUTH_ERROR_CODES.unavailable);
+    await expectCode(login({ identifier: "a@example.com", password: "b" }, { url: "/login", mock: false, fetchImpl, timeoutMs: 5 }), AUTH_ERROR_CODES.unavailable);
   });
 
   it("stub accepts the demo account and simulates failures without a server", async () => {
     const options = { mock: true, mockDelayMs: 0, fetchImpl: vi.fn() };
-    await expect(login(MOCK_CREDENTIALS, options)).resolves.toMatchObject({ user: { login: MOCK_CREDENTIALS.login } });
-    await expectCode(login({ login: MOCK_CREDENTIALS.login, password: "x" }, options), AUTH_ERROR_CODES.invalidCredentials);
-    await expectCode(login({ login: MOCK_OFFLINE_LOGIN, password: "x" }, options), AUTH_ERROR_CODES.unavailable);
+    await expect(login({ identifier: MOCK_CREDENTIALS.email, password: MOCK_CREDENTIALS.password }, options)).resolves.toMatchObject({ user: { login: MOCK_CREDENTIALS.email } });
+    await expectCode(login({ identifier: MOCK_CREDENTIALS.email, password: "x" }, options), AUTH_ERROR_CODES.invalidCredentials);
+    await expectCode(login({ identifier: MOCK_OFFLINE_LOGIN, password: "x" }, options), AUTH_ERROR_CODES.unavailable);
     expect(options.fetchImpl).not.toHaveBeenCalled();
   });
 });

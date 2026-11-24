@@ -42,7 +42,7 @@ describe("Login", () => {
   const button = () => container.querySelector('button[type="submit"]');
   const alertText = () => container.querySelector('[role="alert"]')?.textContent;
   const fill = async (login, password) => act(async () => {
-    setInput(field("login"), login);
+    setInput(field("identifier"), login);
     setInput(field("password"), password);
   });
   const submit = async () => act(async () => button().click());
@@ -63,27 +63,22 @@ describe("Login", () => {
 
   it("shows login and password fields with the sign-in button", async () => {
     await render(vi.fn());
-    expect(container.querySelector('label[for="login-name"]').textContent).toBe("Логин");
-    expect(container.querySelector('label[for="login-password"]').textContent).toBe("Пароль");
+    expect(container.querySelector('label[for="auth-identifier"]').textContent).toBe("Почта или логин");
+    expect(container.querySelector('label[for="auth-password"]').textContent).toBe("Пароль");
     expect(field("password").type).toBe("password");
     expect(button().textContent).toBe("Войти");
     expect(alertText()).toBeUndefined();
   });
 
-  it("reports empty fields without calling the server", async () => {
+  it("validates email and password before calling the server", async () => {
     const loginRequest = vi.fn();
     await render(loginRequest);
     await submit();
-    expect(alertText()).toBe("Введите логин и пароль.");
-    expect(field("login").getAttribute("aria-invalid")).toBe("true");
-    await fill("   ", "secret");
-    await submit();
-    expect(alertText()).toBe("Введите логин.");
-    await fill("operator", "");
-    await submit();
-    expect(alertText()).toBe("Введите пароль.");
-    expect(field("login").getAttribute("aria-invalid")).toBeNull();
+    expect(field("identifier").getAttribute("aria-invalid")).toBe("true");
     expect(field("password").getAttribute("aria-invalid")).toBe("true");
+    await fill("bad email", "secret");
+    await submit();
+    expect(field("identifier").getAttribute("aria-invalid")).toBe("true");
     expect(loginRequest).not.toHaveBeenCalled();
   });
 
@@ -91,28 +86,28 @@ describe("Login", () => {
     const pending = deferred();
     const loginRequest = vi.fn(() => pending.promise);
     await render(loginRequest, { initialEntries: ["/dashboard"] });
-    expect(field("login")).not.toBeNull();
-    await fill(" operator ", "secret");
+    expect(field("identifier")).not.toBeNull();
+    await fill(" operator@example.com ", "secret");
     await submit();
-    expect(loginRequest).toHaveBeenCalledWith({ login: "operator", password: "secret" });
+    expect(loginRequest).toHaveBeenCalledWith({ identifier: "operator@example.com", password: "secret" });
     expect(button().disabled).toBe(true);
-    expect(button().textContent).toBe("Входим…");
+    expect(button().textContent).toBe("Подождите…");
     expect(container.querySelector("form").getAttribute("aria-busy")).toBe("true");
     await submit();
     expect(loginRequest).toHaveBeenCalledTimes(1);
-    await act(async () => pending.resolve({ token: "abc", expiresAt: null, user: { login: "operator" } }));
+    await act(async () => pending.resolve({ token: "abc", expiresAt: null, user: { login: "operator@example.com" } }));
     expect(container.textContent).toBe("Планировщик");
-    expect(getSession()).toMatchObject({ token: "abc", login: "operator" });
+    expect(getSession()).toMatchObject({ token: "abc", login: "operator@example.com" });
   });
 
   it("explains wrong credentials and clears the password", async () => {
     const loginRequest = vi.fn().mockRejectedValue(new AuthError(AUTH_ERROR_CODES.invalidCredentials, "", 401));
     await render(loginRequest);
-    await fill("operator", "wrong");
+    await fill("operator@example.com", "wrong");
     await submit();
-    expect(alertText()).toBe("Неверный логин или пароль.");
+    expect(alertText()).toBe("Неверная почта, логин или пароль.");
     expect(field("password").value).toBe("");
-    expect(field("login").value).toBe("operator");
+    expect(field("identifier").value).toBe("operator@example.com");
     expect(button().disabled).toBe(false);
     expect(getSession()).toBeNull();
   });
@@ -120,16 +115,16 @@ describe("Login", () => {
   it("explains that the server is unavailable", async () => {
     const loginRequest = vi.fn().mockRejectedValue(new AuthError(AUTH_ERROR_CODES.unavailable));
     await render(loginRequest);
-    await fill("operator", "secret");
+    await fill("operator@example.com", "secret");
     await submit();
-    expect(alertText()).toBe("Сервер недоступен. Проверьте подключение и попробуйте позже.");
+    expect(alertText()).toBe("Сервис авторизации сейчас недоступен. Попробуйте позже.");
     expect(field("password").value).toBe("secret");
     expect(button().textContent).toBe("Войти");
   });
 
   it("requires an explicit demo choice and accepts an authenticated session", async () => {
     await render(vi.fn(), { initialEntries: ["/dashboard"], required: false });
-    expect(field("login")).not.toBeNull();
+    expect(field("identifier")).not.toBeNull();
     await act(async () => root.unmount());
     root = createRoot(container);
     enterDemo();
@@ -137,7 +132,7 @@ describe("Login", () => {
     expect(container.textContent).toBe("Планировщик");
     await act(async () => root.unmount());
     root = createRoot(container);
-    saveSession({ token: "abc", user: { login: "operator" } });
+    saveSession({ token: "abc", user: { login: "operator@example.com" } });
     await render(vi.fn(), { initialEntries: ["/dashboard"], required: true });
     expect(container.textContent).toBe("Планировщик");
   });
