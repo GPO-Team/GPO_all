@@ -153,3 +153,28 @@ describe("warehouse HTTP on existing route server", () => {
       { failSave: true },
     ));
 });
+
+it("keeps live results small and pages archive records without shifting the cursor on append", async () =>
+  fixture(async ({request}) => {
+    await request("/racks", {rack,expectedRevision:0});
+    await request("/cargo", {cargo,expectedRevision:1});
+    const addCancelled = async (id, revision) => {
+      await request("/tasks?view=live", {id,cargoId:"b",destinationId:"r:1:1:1",expectedRevision:revision});
+      await request(`/tasks/${id}/cancel?view=live`, {expectedRevision:revision+1});
+    };
+    await addCancelled("old",2);
+    await addCancelled("new",4);
+    const live = (await request("?view=live")).body;
+    expect(live.warehouse.tasks).toEqual([]);
+    expect(live.archiveCounts).toEqual({cancelled:2,completed:0});
+    const first = (await request("/history?status=cancelled&limit=1")).body;
+    expect(first.tasks.map(({id})=>id)).toEqual(["new"]);
+    await addCancelled("later",6);
+    const second = (await request(`/history?status=cancelled&limit=1&before=${first.nextCursor}`)).body;
+    expect(second.tasks.map(({id})=>id)).toEqual(["old"]);
+    expect(second.nextCursor).toBeNull();
+    const retry = (await request("/tasks?view=live", {id:"old",cargoId:"b",destinationId:"r:1:1:1",expectedRevision:2})).body;
+    expect(retry.task).toMatchObject({id:"old",status:"cancelled"});
+    expect(retry.warehouse.tasks).toEqual([]);
+    expect((await request()).body.warehouse.tasks).toHaveLength(3);
+  }));

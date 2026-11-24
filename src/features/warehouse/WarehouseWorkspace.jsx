@@ -8,6 +8,7 @@ import RackElevation from "./RackElevation";
 import StationEditor from "./StationEditor";
 import CargoPanel from "./CargoPanel";
 import LayoutTransfer from "./LayoutTransfer";
+import WarehouseTaskHistory from "./WarehouseTaskHistory";
 
 const taskLabels = {
   prepared: "Подготовлена",
@@ -163,12 +164,13 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
     );
     if (success) {
       taskRequests.current.delete(key);
-      const task = success.warehouse.tasks.find((item) => item.id === requestId);
-      setNotice(
-        task?.status === "cancelled"
-          ? "Эта задача уже отменена. Повторный запрос не восстанавливает её. Груз остаётся на приёмке."
-          : "Задача подготовлена. Груз остаётся на приёмке. Команда роботу не отправлялась.",
-      );
+      const task = success.task || success.warehouse.tasks.find((item) => item.id === requestId);
+      const notices = {
+        cancelled: "Эта задача уже отменена. Повторный запрос не восстанавливает её. Груз остаётся на приёмке.",
+        completed: "Груз уже доставлен в ячейку.",
+        prepared: "Задача подготовлена. Груз остаётся на приёмке. Команда роботу не отправлялась.",
+      };
+      setNotice(notices[task?.status] || "Задача уже зарегистрирована. Состояние видно в списке задач.");
     }
   };
 
@@ -178,7 +180,7 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
   const selectedSlots = snapshot?.slots.filter((slot) => slot.rackId === selectedRack?.id) || [];
   const selectedSlot = selectedSlots.find((slot) => slot.id === selectedSlotId);
   const activeTasks = warehouse?.tasks.filter((task) => Object.hasOwn(taskLabels, task.status)) || [];
-  const completedTasks = warehouse?.tasks.filter((task) => task.status === "completed") || [];
+  const archiveCounts = snapshot?.archiveCounts;
   const receivingCount = warehouse?.cargo.filter((cargo) => cargo.locationId === "receiving").length;
   const locked = selectedSlots.some((slot) => slot.reservedBy || slot.occupiedBy);
   const editedRack = draft?.id ? warehouse?.racks.find((rack) => rack.id === draft.id) : null;
@@ -453,31 +455,14 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
                     })}
                   </div>
                 )}
-                {completedTasks.length > 0 && (
-                  <details className="mt-4 text-xs text-stone-500">
-                    <summary className="cursor-pointer">Доставленные грузы ({completedTasks.length})</summary>
-                    {completedTasks.map((task) => (
-                      <p key={task.id} className="mt-2 break-all">
-                        {task.cargoId} · {snapshot.slots.find((slot) => slot.id === task.destinationId)?.address || task.destinationId}
-                      </p>
-                    ))}
-                  </details>
-                )}
-                {warehouse.tasks.some((task) => task.status === "cancelled") && (
-                  <details className="mt-4 text-xs text-stone-500">
-                    <summary className="cursor-pointer">
-                      Отменённые задачи (
-                      {warehouse.tasks.filter((task) => task.status === "cancelled").length})
-                    </summary>
-                    {warehouse.tasks
-                      .filter((task) => task.status === "cancelled")
-                      .map((task) => (
-                        <p key={task.id} className="mt-2 break-all">
-                          {task.cargoId} · отменена · {task.id}
-                        </p>
-                      ))}
-                  </details>
-                )}
+                <WarehouseTaskHistory
+                  api={api} status="completed" label="Доставленные грузы"
+                  count={archiveCounts?.completed} fallback={warehouse.tasks} slots={snapshot.slots}
+                />
+                <WarehouseTaskHistory
+                  api={api} status="cancelled" label="Отменённые задачи"
+                  count={archiveCounts?.cancelled} fallback={warehouse.tasks} slots={snapshot.slots}
+                />
               </Panel>
             </div>
             <div className="min-w-0 space-y-5">

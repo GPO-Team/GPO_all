@@ -440,3 +440,29 @@ it("starts a floor delivery and updates the reserved slot when the mission compl
     vi.useRealTimers();
   }
 });
+
+it("loads archived tasks only when opened and follows the pagination cursor", async () => {
+  const state = {...snapshot(),archiveCounts:{cancelled:2,completed:0}};
+  const api = vi.fn(async (path) => {
+    if (path === "/history?status=cancelled")
+      return {ok:true,tasks:[{id:"latest",cargoId:"box-2"}],nextCursor:1};
+    if (path === "/history?status=cancelled&before=1")
+      return {ok:true,tasks:[{id:"oldest",cargoId:"box-1"}],nextCursor:null};
+    return state;
+  });
+  await act(async () => root.render(<WarehouseWorkspace api={api} />));
+  expect(api.mock.calls.map(([path]) => path)).toEqual([""]);
+  expect(host.textContent).toContain("Отменённые задачи (2)");
+  await act(async () => {
+    const history = host.querySelector("details");
+    history.open = true;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  });
+  expect(host.textContent).toContain("latest");
+  expect(host.textContent).not.toContain("oldest");
+  await click("Показать ещё");
+  expect(api).toHaveBeenLastCalledWith("/history?status=cancelled&before=1");
+  expect(host.textContent).toContain("latest");
+  expect(host.textContent).toContain("oldest");
+  expect(host.textContent).not.toContain("Показать ещё");
+});
