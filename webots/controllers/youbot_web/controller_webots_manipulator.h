@@ -29,6 +29,10 @@ typedef struct {
   int room_zone_index;
   double support_z,cargo_radius;
   double support_stable_since;
+  WbNodeRef pickup_support, target_support;
+  double target_support_z, expected_pickup[3];
+  int bounded_retrieval;
+  int validating_placement;
   int use_platform,on_platform;
   bool platform_contact_unknown;
   double trajectory_origin[5], trajectory_target[5];

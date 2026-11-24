@@ -63,11 +63,18 @@ const createRuntimeCommandText = (payload) => {
     const { validateMissionId } = require("../protocol/mission-contract.cjs");
     const command = validatePickPlace(payload);
     const target = command.destination;
-    const source = command.source === "vision" ? "object_source vision" : `object_def ${command.objectDef}`;
+    const source = command.source ? `object_source ${command.source}` : `object_def ${command.objectDef}`;
     const pickup = command.pickup
       ? `pickup_def ${command.pickup.objectDef}\npickup_x ${command.pickup.x}\npickup_y ${command.pickup.y}\n`
       : "";
-    return `id ${commandId}\ntype ${command.pickup ? "warehouse_pick_place" : "pick_place"}\nmission_id ${validateMissionId(payload.missionId)}\n${source}\n${pickup}target_x ${target.x}\ntarget_y ${target.y}\ntarget_z ${target.z}\n`;
+    const shelf = command.source === "warehouse" || target.supportDef;
+    const support = [
+      ...(command.source === "warehouse" ? [`pickup_z ${command.pickup.z}\n`] : []),
+      ...(command.pickup?.supportDef ? [`pickup_support ${command.pickup.supportDef}\n`] : []),
+      ...(target.supportDef ? [`target_support ${target.supportDef}\n`] : []),
+    ].join("");
+    const type = shelf ? "warehouse_shelf_transfer" : command.pickup ? "warehouse_pick_place" : "pick_place";
+    return `id ${commandId}\ntype ${type}\nmission_id ${validateMissionId(payload.missionId)}\n${source}\n${pickup}${support}target_x ${target.x}\ntarget_y ${target.y}\ntarget_z ${target.z}\n`;
   }
   if (["transfer_object", "recover_transfer", "resume_transfer"].includes(payload?.type)) {
     const {validateMissionId}=require("../protocol/mission-contract.cjs");

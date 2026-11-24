@@ -25,6 +25,10 @@ const emptyWarehouse = () => ({
     { id: "shipping", kind: "shipping", name: "Отгрузка", x: 8, y: -6 },
   ],
 });
+const storedInSlot = (cargo) => !["receiving", "shipping"].includes(cargo.locationId);
+const slotOfTask = (task) => task.destinationId === "shipping" ? task.sourceId : task.destinationId;
+const supportedSlot = (slot) => slot && (slot.supportZ === 0 || (slot.supportZ >= .06 && slot.supportZ <= .18 && slot.supportDef));
+
 const createWarehouseService = ({
   repository,
   missionService,
@@ -44,7 +48,7 @@ const createWarehouseService = ({
       verificationSession = null;
     }
   };
-  const needsVerification = (cargo) => Boolean(getControllerSession && cargo.locationId !== "receiving" &&
+  const needsVerification = (cargo) => Boolean(getControllerSession && storedInSlot(cargo) &&
     (!verificationSession || cargo.verifiedControllerBootId !== verificationSession));
   let cachedLayout;
   let cachedArchiveCounts;
@@ -86,9 +90,9 @@ const createWarehouseService = ({
       cachedLayout = { key, slots: warehouse.racks.flatMap(buildSlots) };
     }
     const reservations = new Map(
-      warehouse.tasks.map((task) => [task.destinationId, task.id]),
+      warehouse.tasks.map((task) => [slotOfTask(task), task.id]),
     );
-    const occupied = new Map(warehouse.cargo.filter((cargo) => cargo.locationId !== "receiving")
+    const occupied = new Map(warehouse.cargo.filter(storedInSlot)
       .map((cargo) => [cargo.locationId, cargo]));
     return cachedLayout.slots.map((slot) => {
       const cargo = occupied.get(slot.id);
@@ -141,7 +145,7 @@ const createWarehouseService = ({
   const rackUnlocked = (warehouse, id) => {
     if (warehouse.cargo.some((cargo) => cargo.locationId.startsWith(id + ":")))
       conflict("rack_occupied", "На стеллаже находится груз.");
-    if (activeTasks(warehouse).some((task) => task.destinationId.startsWith(`${id}:`)))
+    if (activeTasks(warehouse).some((task) => slotOfTask(task).startsWith(`${id}:`)))
       conflict("rack_reserved", "Стеллаж используется подготовленным заданием.");
   };
   const noPreparedTasks = (warehouse) => {
@@ -178,43 +182,49 @@ const createWarehouseService = ({
     identifier(body.id);
     identifier(body.cargoId);
     if (
-      typeof body.destinationId !== "string" ||
-      !/^[A-Za-z0-9_-]{1,63}:\d{1,2}:\d{1,2}:\d{1,2}$/.test(body.destinationId)
+      body.destinationId !== "shipping" && (typeof body.destinationId !== "string" ||
+      !/^[A-Za-z0-9_-]{1,63}:\d{1,2}:\d{1,2}:\d{1,2}$/.test(body.destinationId))
     )
       invalid("Некорректный ID ячейки.");
   };
   const deliveryContext = async (warehouse, task) => {
     const cargo = warehouse.cargo.find((item) => item.id === task.cargoId);
-    const slot = (await slotsFor(warehouse)).find((item) => item.id === task.destinationId);
-    const receiving = warehouse.stations.find((station) => station.id === "receiving");
+    const outgoing = task.destinationId === "shipping";
+    const slot = (await slotsFor(warehouse)).find((item) => item.id === slotOfTask(task));
     if (!cargo?.objectDef) conflict("unbound_cargo", "У груза нет имени DEF объекта Webots.");
-    if (!slot || slot.supportZ !== 0 || slot.occupiedBy)
-      conflict("unsupported_slot", "Робот доставляет только в свободную напольную ячейку.");
+    if (!supportedSlot(slot) || (outgoing ? slot.occupiedBy !== cargo.id : slot.occupiedBy))
+      conflict("unsupported_slot", "Нужна напольная ячейка или низкая полка с указанной опорой Webots.");
     if (cargo.width > .05 || cargo.depth > .05 || cargo.height < .03 || cargo.height > .12)
-      conflict("unsupported_cargo_size", "Для захвата по камере нужна коробка до 5 × 5 см и высотой от 3 до 12 см.");
-    // The camera accepts boxes up to 5 cm wide and deep. Keep their full
-    // envelope inside the slot even when the registered dimensions are smaller.
+      conflict("unsupported_cargo_size", "Для захвата нужна коробка до 5 × 5 см и высотой от 3 до 12 см.");
     const radius = Math.hypot(.05, .05) / 2;
     if (radius >= Math.min(slot.width, slot.depth) / 2)
       conflict("insufficient_robot_clearance", "Диагональ груза не оставляет места для безопасного размещения.");
+    const halfHeight = cargo.height / 2;
+    const support = slot.supportZ > 0 ? {supportDef:slot.supportDef} : {};
+    const station = warehouse.stations.find((item) => item.id === (outgoing ? "shipping" : "receiving"));
     const command = validatePickPlace({
-      type: "pick_place", source: "vision",
-      pickup: { objectDef: cargo.objectDef, x: receiving.x, y: receiving.y },
-      destination: { x: slot.x, y: slot.y, z: cargo.height / 2 },
+      type:"pick_place",source:outgoing ? "warehouse" : "vision",
+      pickup:outgoing
+        ? {objectDef:cargo.objectDef,x:slot.x,y:slot.y,z:slot.supportZ+halfHeight,...support}
+        : {objectDef:cargo.objectDef,x:station.x,y:station.y},
+      destination:outgoing
+        ? {x:station.x,y:station.y,z:halfHeight}
+        : {x:slot.x,y:slot.y,z:slot.supportZ+halfHeight,...support},
     });
     const rack = warehouse.racks.find((item) => item.id === slot.rackId);
-    return { command, cargo, slot, radius, yaw: rack.yaw };
+    return { command, cargo, slot, radius, yaw: rack.yaw, outgoing };
   };
-  const deliveredAt = (evidence, { command, slot, radius, yaw }) => {
+  const deliveredAt = (evidence, { command, slot, radius, yaw, outgoing }) => {
     const pose = evidence?.objectPosition;
     if (evidence?.objectDef !== command.pickup.objectDef || evidence.loadHeld !== false ||
         evidence.onPlatform !== false || !pose || ![pose.x, pose.y, pose.z].every(Number.isFinite))
       return false;
-    const dx = pose.x - slot.x, dy = pose.y - slot.y;
+    const dx = pose.x - command.destination.x, dy = pose.y - command.destination.y;
+    if (Math.hypot(dx, dy) > .05 || Math.abs(pose.z-command.destination.z) > .012) return false;
+    if (outgoing) return true;
     const localX = dx * Math.cos(yaw) + dy * Math.sin(yaw);
     const localY = -dx * Math.sin(yaw) + dy * Math.cos(yaw);
-    return Math.hypot(dx, dy) <= .05 && Math.abs(pose.z - command.destination.z) <= .012 &&
-      Math.abs(localX) + radius <= slot.width / 2 && Math.abs(localY) + radius <= slot.depth / 2;
+    return Math.abs(localX) + radius <= slot.width / 2 && Math.abs(localY) + radius <= slot.depth / 2;
   };
   const syncTask = async (warehouse, task, mission) => {
     if (mission?.missionId !== task.missionId) return false;
@@ -224,7 +234,8 @@ const createWarehouseService = ({
       const delivery = await deliveryContext(warehouse, task);
       if (deliveredAt(mission.deliveryEvidence, delivery)) {
         delivery.cargo.locationId = task.destinationId;
-        if (mission.controllerBootId) delivery.cargo.verifiedControllerBootId = mission.controllerBootId;
+        if (delivery.outgoing) delete delivery.cargo.verifiedControllerBootId;
+        else if (mission.controllerBootId) delivery.cargo.verifiedControllerBootId = mission.controllerBootId;
         warehouse.tasks = warehouse.tasks.filter((item) => item.id !== task.id);
         warehouse.taskArchive.push({ ...task, status: "completed", completedAt: now() });
         return true;
@@ -337,21 +348,32 @@ const createWarehouseService = ({
           taskCommand(command);
           const cargo = warehouse.cargo.find((item) => item.id === command.cargoId);
           if (!cargo) missing("Груз");
-          const slot = (await slotsFor(warehouse)).find(
-            (item) => item.id === command.destinationId,
-          );
-          if (!slot) missing("Ячейка");
-          if (cargo.locationId !== "receiving")
-            conflict("invalid_source", "Груз отсутствует в зоне приёмки.");
+          const outgoing = command.destinationId === "shipping";
+          const sourceId = outgoing ? cargo.locationId : "receiving";
+          if (outgoing ? !storedInSlot(cargo) : cargo.locationId !== "receiving")
+            conflict("invalid_source", outgoing ? "Груз должен находиться в ячейке." : "Груз отсутствует в зоне приёмки.");
           if (activeTasks(warehouse).some((task) => task.cargoId === cargo.id))
             conflict("cargo_reserved", "Для груза уже подготовлено задание.");
-          const reasons = (await geometry).placementReasons(cargo, slot);
-          if (reasons.length) conflict("placement_conflict", reasons.join(" "));
+          const slot = (await slotsFor(warehouse)).find(
+            (item) => item.id === (outgoing ? sourceId : command.destinationId),
+          );
+          if (!slot) missing("Ячейка");
+          if (outgoing) {
+            await refreshSession();
+            if (!supportedSlot(slot) || !cargo.objectDef)
+              conflict("unsupported_slot", "Груз и опора должны быть связаны со сценой Webots.");
+            if (needsVerification(cargo)) conflict("inventory_unverified", "Сверьте груз перед выдачей.");
+            if (activeTasks(warehouse).some((task) => task.destinationId === "shipping"))
+              conflict("shipping_reserved", "Зона отгрузки уже зарезервирована.");
+          } else {
+            const reasons = (await geometry).placementReasons(cargo, slot);
+            if (reasons.length) conflict("placement_conflict", reasons.join(" "));
+          }
           warehouse.tasks.push({
             id: command.id,
             cargoId: cargo.id,
-            sourceId: "receiving",
-            destinationId: slot.id,
+            sourceId,
+            destinationId: command.destinationId,
             status: "prepared",
             createdAt: now(),
           });
@@ -380,7 +402,7 @@ const createWarehouseService = ({
       }
       if (!["prepared", "launching"].includes(task.status)) return snapshot(live, id);
       const { command } = await deliveryContext(next, task);
-      const hasStock = getControllerSession && next.cargo.some((cargo) => cargo.locationId !== "receiving");
+      const hasStock = getControllerSession && next.cargo.some(storedInSlot);
       if (hasStock) {
         await refreshSession();
         if (next.cargo.some(needsVerification))
@@ -417,7 +439,7 @@ const createWarehouseService = ({
     }),
     reconcile: () => serial(async () => {
       const current = await load();
-      if (current.cargo.some((cargo) => cargo.locationId !== "receiving")) await refreshSession();
+      if (current.cargo.some(storedInSlot)) await refreshSession();
       if (!missionService) return;
       const tracked = current.tasks.find((task) => task.missionId);
       if (!tracked) return;
@@ -448,7 +470,7 @@ const createWarehouseService = ({
           const returned = confirmReturned === true && task.status === "attention" &&
             terminalStates.has(task.missionStatus);
           if (task.status !== "prepared" && !returned)
-            conflict("task_in_execution", "Резерв можно снять только после остановки миссии и возврата груза на приёмку.");
+            conflict("task_in_execution", "Резерв можно снять только после остановки миссии и возврата груза в исходное место.");
           warehouse.tasks.splice(index, 1);
           warehouse.taskArchive.push({ ...task, status: "cancelled", cancelledAt: now() });
         },
@@ -483,7 +505,7 @@ const createWarehouseService = ({
     importLayout: (body, live) =>
       mutate(body, async (warehouse, { layout }) => {
         noPreparedTasks(warehouse);
-        if (warehouse.cargo.some((cargo) => cargo.locationId !== "receiving"))
+        if (warehouse.cargo.some(storedInSlot))
           conflict("layout_occupied", "На складе есть размещённый груз.");
         object(layout, "План склада");
         if (layout.schemaVersion !== 1) invalid("Неподдерживаемая версия плана склада.");

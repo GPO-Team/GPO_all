@@ -49,7 +49,8 @@ export default function WarehouseTaskHistory({ api, status, label, count, fallba
       {(legacyTasks ?? page?.tasks ?? []).map((task) => (
         <p key={task.id} className="mt-2 break-all">
           {task.cargoId} · {status === "completed"
-            ? slots.find((slot) => slot.id === task.destinationId)?.address || task.destinationId
+            ? task.destinationId === "shipping" ? "отгрузка"
+              : slots.find((slot) => slot.id === task.destinationId)?.address || task.destinationId
             : `отменена · ${task.id}`}
         </p>
       ))}

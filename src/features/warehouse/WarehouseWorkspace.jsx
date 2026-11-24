@@ -22,6 +22,8 @@ const deliveryErrors = {
   vision_unavailable: "Не удалось получить данные камеры.",
   vision_wrong_cargo: "Камера распознала другую коробку.",
   cargo_outside_receiving: "Коробка вне зоны приёмки.",
+  cargo_outside_slot: "Коробка вне указанной ячейки.",
+  invalid_shelf_support: "Опора в Webots не совпадает с ячейкой или отсутствует.",
   unsupported_destination: "Высота или опора ячейки недоступна роботу.",
   delivery_path_blocked: "Робот не может безопасно проехать или разместить груз.",
   delivery_unconfirmed: "Положение груза после выгрузки не подтверждено.",
@@ -155,15 +157,14 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
     }
   };
 
-  const prepare = async (destinationId) => {
-    const cargoId = suggestions.cargoId;
+  const prepareTaskFor = async (cargoId, destinationId, revision) => {
     const key = `${cargoId}:${destinationId}`;
     if (!taskRequests.current.has(key)) taskRequests.current.set(key, crypto.randomUUID());
     const requestId = taskRequests.current.get(key);
     const success = await mutate(
       "/tasks",
       { id: requestId, cargoId, destinationId },
-      suggestions.revision,
+      revision,
     );
     if (success) {
       taskRequests.current.delete(key);
@@ -171,12 +172,14 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
       const notices = {
         cancelled: "Эта задача уже отменена. Повторный запрос не восстанавливает её. Груз остаётся на приёмке.",
         completed: "Груз уже доставлен в ячейку.",
-        prepared: "Задача подготовлена. Груз остаётся на приёмке. Команда роботу не отправлялась.",
+        prepared: destinationId === "shipping" ? "Выдача подготовлена. Ячейка зарезервирована."
+          : "Задача подготовлена. Груз остаётся на приёмке. Команда роботу не отправлялась.",
       };
       setNotice(notices[task?.status] || "Задача уже зарегистрирована. Состояние видно в списке задач.");
     }
   };
 
+  const prepare = (destinationId) => prepareTaskFor(suggestions.cargoId, destinationId, suggestions.revision);
   const warehouse = snapshot?.warehouse;
   const selectedRack =
     warehouse?.racks.find((rack) => rack.id === selectedRackId) || warehouse?.racks[0];
@@ -392,6 +395,15 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
                         selectedSlot.reservedBy ? "Зарезервировано" : "Свободно"}
                     <br />
                     Доступ робота не проверен
+                    {selectedSlot.occupiedBy && !selectedSlot.reservedBy && !selectedSlot.needsVerification && (
+                      <Button
+                        className="mt-2"
+                        disabled={pending}
+                        onClick={() => prepareTaskFor(selectedSlot.occupiedBy, "shipping", warehouse.revision)}
+                      >
+                        Подготовить выдачу
+                      </Button>
+                    )}
                   </div>
                 )}
               </Panel>
@@ -416,8 +428,8 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
                   </section>
                 )}
                 <p className="mb-4 text-xs text-stone-600">
-                  Робот доставляет коробку с указанным DEF в напольную ячейку. Расположите коробку
-                  в поле зрения камеры в пределах 25 см от точки приёмки.
+                  Для приёмки расположите коробку в поле зрения камеры в пределах 25 см от точки приёмки.
+                  Для выдачи выберите занятую ячейку.
                 </p>
                 {activeTasks.length === 0 ? (
                   <p className="text-sm text-stone-500">
@@ -426,9 +438,11 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
                 ) : (
                   <div className="space-y-3">
                     {activeTasks.map((task) => {
-                      const slot = snapshot.slots.find((item) => item.id === task.destinationId);
+                      const outgoing = task.destinationId === "shipping";
+                      const slot = snapshot.slots.find((item) => item.id === (outgoing ? task.sourceId : task.destinationId));
                       const cargo = warehouse.cargo.find((item) => item.id === task.cargoId);
-                      const supported = cargo?.objectDef && slot?.supportZ === 0 &&
+                      const supported = cargo?.objectDef && slot &&
+                        (slot.supportZ === 0 || (slot.supportZ >= .06 && slot.supportZ <= .18 && slot.supportDef)) &&
                         cargo.width <= .05 && cargo.depth <= .05 && cargo.height >= .03 &&
                         cargo.height <= .12 && Math.hypot(.05, .05) < Math.min(slot.width, slot.depth);
                       const anotherMission = activeTasks.some((item) => item.id !== task.id && item.missionId);
@@ -442,8 +456,8 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
                             <div>
                               <strong className="text-sm">{task.cargoId}</strong>
                               <p className="mt-1 text-sm text-stone-600">
-                                Приёмка →{" "}
-                                {slot?.address || task.destinationId}
+                                {outgoing ? `${slot?.address || task.sourceId} → Отгрузка`
+                                  : `Приёмка → ${slot?.address || task.destinationId}`}
                               </p>
                               <p className="mt-1 text-xs font-semibold text-orange-700">
                                 {taskLabels[task.status]} · ячейка в резерве
@@ -467,13 +481,13 @@ export default function WarehouseWorkspace({ api = warehouseApi }) {
                               )}
                               {canReturn && (
                                 <Button disabled={pending} onClick={() => mutate(`${taskPath}/cancel`, {confirmReturned: true})}>
-                                  Подтвердить возврат груза на приёмку
+                                  {outgoing ? "Подтвердить возврат груза в ячейку" : "Подтвердить возврат груза на приёмку"}
                                 </Button>
                               )}
                             </div>
                           </div>
                           {task.status === "prepared" && !supported && (
-                            <p className="mt-2 text-xs text-stone-500">Для запуска нужны DEF, коробка до 5 × 5 см высотой 3–12 см и подходящая напольная ячейка.</p>
+                            <p className="mt-2 text-xs text-stone-500">Для запуска нужны DEF, коробка до 5 × 5 см высотой 3–12 см и доступная ячейка. Для полки укажите DEF опоры Webots.</p>
                           )}
                           {task.failureReason && (
                             <p className="mt-2 text-xs text-red-700">{deliveryErrors[task.failureReason] || task.failureReason}</p>

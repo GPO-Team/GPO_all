@@ -50,6 +50,7 @@ const validateRack = (value) => {
       supportZ: number(level.supportZ, "Высота опоры", 0, 20),
       clearHeight: number(level.clearHeight, "Высота проёма", 0, 20, false),
       maxLoadKg: number(level.maxLoadKg, "Нагрузка", 0, 100000, false),
+      ...(level.supportDef !== undefined && level.supportDef !== "" ? { supportDef: validateObjectDef(level.supportDef) } : {}),
     };
     if (result.supportZ + result.clearHeight > 20)
       invalid("Высота стеллажа не должна превышать 20 м.");

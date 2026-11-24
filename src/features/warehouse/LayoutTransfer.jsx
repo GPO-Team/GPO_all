@@ -82,7 +82,7 @@ export default function LayoutTransfer({ warehouse, pending, onImport, onError }
                 pending ||
                 !text.trim() ||
                 warehouse.tasks.some((task) => !["cancelled", "completed"].includes(task.status)) ||
-                warehouse.cargo.some((cargo) => cargo.locationId !== "receiving")
+                warehouse.cargo.some((cargo) => !["receiving", "shipping"].includes(cargo.locationId))
               }
               onClick={importLayout}
             >

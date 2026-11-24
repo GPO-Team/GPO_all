@@ -14,9 +14,11 @@ const visionEmpty=process.argv.includes("--vision-empty");
 const visionAmbiguous=process.argv.includes("--vision-ambiguous");
 const visionHidden=process.argv.includes("--vision-hidden");
 const visionReject=visionEmpty || visionAmbiguous || visionHidden;
-const warehouseRejection = process.argv.includes("--warehouse-wrong-cargo") ? "vision_wrong_cargo"
+const missingShelf = process.argv.includes("--warehouse-missing-shelf");
+const warehouseShelf = missingShelf || process.argv.includes("--warehouse-shelf");
+const warehouseRejection = missingShelf ? "invalid_shelf_support" : process.argv.includes("--warehouse-wrong-cargo") ? "vision_wrong_cargo"
   : process.argv.includes("--warehouse-outside-receiving") ? "cargo_outside_receiving" : null;
-const warehouseDelivery = process.argv.includes("--warehouse-delivery") || Boolean(warehouseRejection);
+const warehouseDelivery = warehouseShelf || process.argv.includes("--warehouse-delivery") || Boolean(warehouseRejection);
 const vision=process.argv.includes("--vision") || visionReject || warehouseDelivery;
 const visionDef = warehouseDelivery ? "PICK_BOX" : "VISION_TEST_BOX";
 const mobile=process.argv.includes("--mobile") || afterDemo || vision;
@@ -25,7 +27,8 @@ const obstacle=process.argv.includes("--obstacle");
 const nestedBlocked=process.argv.includes("--nested-blocked");
 const blocked=process.argv.includes("--blocked") || nestedBlocked;
 const unsupportedHeight=process.argv.includes("--unsupported-height");
-const destination={x:mobile ? (obstacle ? 4 : nearObject ? 1 : 2) : 0.4,y:afterDemo ? 3 : mobile ? 1 : 0.1,z:unsupportedHeight ? 0.12 : 0.04};
+const destination={x:mobile ? (obstacle ? 4 : nearObject ? 1 : 2) : 0.4,y:afterDemo ? 3 : mobile ? 1 : 0.1,z:warehouseShelf ? .10 : unsupportedHeight ? .12 : .04};
+const shipping = {x:2.19,y:1.04,z:.04};
 const directory=await mkdtemp(path.join(os.tmpdir(),"gpo-manipulator-"));
 const webotsImage = process.env.GPO_WEBOTS_TEST_IMAGE;
 const containerName = `gpo-${path.basename(directory).toLowerCase()}`;
@@ -37,7 +40,7 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const freePort=async()=>{const s=createServer();s.listen(0,"127.0.0.1");await once(s,"listening");const p=s.address().port;await new Promise(r=>s.close(r));return p;};
 const [gatewayPort,missionPort,webotsPort]=await Promise.all(Array.from({length:3},freePort));
 const stateDir=path.join(directory,"state");
-const env={...process.env,BRIDGE_BIND_HOST:"127.0.0.1",ROUTE_BIND_HOST:"127.0.0.1",GATEWAY_BIND_HOST:"127.0.0.1",GATEWAY_PORT:String(gatewayPort),GATEWAY_URL:`http://127.0.0.1:${gatewayPort}`,GATEWAY_TOKEN:"physics-test",ROUTE_PORT:String(missionPort),MISSION_STATE_DIR:path.join(directory,"missions"),WEB_STATE_DIR:stateDir};
+const env={...process.env,WAREHOUSE_STORAGE:"sqlite",BRIDGE_BIND_HOST:"127.0.0.1",ROUTE_BIND_HOST:"127.0.0.1",GATEWAY_BIND_HOST:"127.0.0.1",GATEWAY_PORT:String(gatewayPort),GATEWAY_URL:`http://127.0.0.1:${gatewayPort}`,GATEWAY_TOKEN:"physics-test",ROUTE_PORT:String(missionPort),MISSION_STATE_DIR:path.join(directory,"missions"),WEB_STATE_DIR:stateDir};
 const launch=(exe,args)=>{const p=spawn(exe,args,{cwd:root,env,stdio:["ignore","pipe","pipe"],windowsHide:true});p.logs="";p.on("error",error=>{p.launchError=error;});p.stdout.on("data",d=>p.logs+=d);p.stderr.on("data",d=>p.logs+=d);children.push(p);return p;};
 const until=async(condition,label,timeout=90000,interval=200)=>{const deadline=Date.now()+timeout;while(Date.now()<deadline){if(await condition())return;await delay(interval);}throw new Error(`Timeout: ${label}`);};
 const readState=async()=>{
@@ -107,6 +110,16 @@ try {
     world+=nestedBlocked
       ? `\nGroup { children [ Pose { translation ${destination.x} ${destination.y} 0 children [ ${obstacle} ] } ] }\n`
       : "\n"+obstacle.replace("translation 0 0", `translation ${destination.x} ${destination.y}`)+"\n";
+  }
+  if (warehouseShelf && !missingShelf) {
+    world += `\nDEF WAREHOUSE_SHELF Solid {
+      translation ${destination.x} ${destination.y} 0.03
+      children [ Shape {
+        appearance PBRAppearance { baseColor 0.35 0.30 0.2 roughness 1 }
+        geometry Box { size 0.14 0.14 0.06 }
+      } ]
+      boundingObject Box { size 0.14 0.14 0.06 }
+    }\n`;
   }
   await writeFile(worldPath, world);
   if (webotsImage) {
@@ -210,10 +223,13 @@ try {
     let store = await warehouse();
     store = await warehouse("/stations", {expectedRevision:store.warehouse.revision,
       stations:store.warehouse.stations.map((station) => station.id === "receiving"
-        ? {...station,x:warehouseRejection === "cargo_outside_receiving" ? .8 : 1.45,y:-.18} : station)});
+        ? {...station,x:warehouseRejection === "cargo_outside_receiving" ? .8 : 1.45,y:-.18}
+        : warehouseShelf ? {...station,x:shipping.x,y:shipping.y} : station)});
     store = await warehouse("/racks", {expectedRevision:store.warehouse.revision, rack:{
       id:"floor",code:"A",name:"Floor",x:destination.x,y:destination.y,yaw:0,
-      bays:1,placesPerBay:1,bayWidth:.25,depth:.25,levels:[{supportZ:0,clearHeight:.25,maxLoadKg:1}],
+      bays:1,placesPerBay:1,bayWidth:warehouseShelf ? .14 : .25,depth:warehouseShelf ? .14 : .25,
+      levels:[{supportZ:warehouseShelf ? .06 : 0,clearHeight:.25,maxLoadKg:1,
+        ...(warehouseShelf ? {supportDef:"WAREHOUSE_SHELF"} : {})}],
     }});
     slotId = store.slots[0].id;
     store = await warehouse("/cargo", {expectedRevision:store.warehouse.revision, cargo:{
@@ -340,7 +356,8 @@ try {
   if(mobile) {
     if(!nearObject)assert.ok(observations.some(s=>s.manipulator.stage==="driving_to_object"),"Base never fetched the distant object");
     if(!nearObject && !afterDemo) {
-      const pickup=observations.find(s=>s.manipulator.stage==="opening");
+      // A fast headless run may complete opening between two telemetry samples.
+      const pickup=observations.find(s=>["opening","approaching","descending"].includes(s.manipulator.stage));
       assert.ok(pickup,"Pickup did not start");
       const dx=pickup.manipulator.objectPosition.x-pickup.pose.x,dy=pickup.manipulator.objectPosition.y-pickup.pose.y;
       const c=Math.cos(pickup.pose.yaw),s=Math.sin(pickup.pose.yaw);
@@ -362,6 +379,34 @@ try {
         return true;
       }, "warehouse inventory confirmed delivery", 15000);
       console.log("Warehouse confirmed the physical delivery and recorded the cargo in its slot.");
+      if (warehouseShelf) {
+        console.log("Shelf dock",JSON.stringify(final.pose));
+        const stored = await warehouse();
+        const outbound = await warehouse("/tasks",{
+          expectedRevision:stored.warehouse.revision,id:"outbound",cargoId,destinationId:"shipping",
+        });
+        assert.equal(outbound.slots[0].occupiedBy,cargoId);
+        assert.equal(outbound.slots[0].reservedBy,"outbound");
+        await warehouse("/tasks/outbound/start",{expectedRevision:outbound.warehouse.revision});
+        await until(async () => {
+          const {warehouse:inventory,slots} = await warehouse();
+          const task = inventory.tasks.find((item) => item.id === "outbound");
+          if (task.status === "attention") {
+            const {pose,manipulator} = await readState();
+            throw new Error(JSON.stringify({task,pose,manipulator}));
+          }
+          if (task.status !== "completed") return false;
+          assert.equal(inventory.cargo[0].locationId,"shipping");
+          assert.equal(slots[0].occupiedBy,undefined);
+          assert.equal(slots[0].reservedBy,null);
+          const {objectPosition} = (await readState()).manipulator;
+          assert.ok(Math.hypot(objectPosition.x-shipping.x,objectPosition.y-shipping.y)<.035);
+          assert.ok(Math.abs(objectPosition.z-shipping.z)<.006);
+          return true;
+        },"retrieval from shelf and floor placement at shipping",180000);
+        console.log("Webots retrieved the same box from the shelf and verified delivery to shipping.");
+      }
+
     }
     console.log("Vision selected the box, carried it on the platform and delivered it.");
     break runScenario;

@@ -44,6 +44,7 @@ export function rackPayload(draft) {
       supportZ: Number(level.supportZ),
       clearHeight: Number(level.clearHeight),
       maxLoadKg: Number(level.maxLoadKg),
+      ...(level.supportDef?.trim() ? {supportDef:level.supportDef.trim()} : {}),
     })),
   };
 }

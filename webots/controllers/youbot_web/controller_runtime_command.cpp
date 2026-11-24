@@ -30,7 +30,7 @@ int controller_runtime_command_load_next_file(
   parsed.size_y = 0.8;
   parsed.height = 0.6;
 
-  int warehouse_pickup = 0;
+  int warehouse_pickup = 0, shelf_transfer = 0;
   char line[256];
   while (fgets(line, sizeof(line), file)) {
     long long id = 0;
@@ -51,7 +51,8 @@ int controller_runtime_command_load_next_file(
       parsed.has_start_mapping_survey = strcmp(token, "start_mapping_survey") == 0;
       parsed.has_cancel_mission = strcmp(token, "cancel_mission") == 0;
       warehouse_pickup = strcmp(token, "warehouse_pick_place") == 0;
-      parsed.has_pick_place = warehouse_pickup || strcmp(token, "pick_place") == 0;
+      shelf_transfer = strcmp(token, "warehouse_shelf_transfer") == 0;
+      parsed.has_pick_place = warehouse_pickup || shelf_transfer || strcmp(token, "pick_place") == 0;
       parsed.has_transfer_object = strcmp(token, "transfer_object") == 0;
       parsed.has_recover_transfer = strcmp(token, "recover_transfer") == 0;
       parsed.has_resume_transfer = strcmp(token, "resume_transfer") == 0;
@@ -67,7 +68,8 @@ int controller_runtime_command_load_next_file(
     } else if (sscanf(line, " destination_y %lf", &numeric) == 1) {
       parsed.destination_y = numeric;
     } else if (sscanf(line, " object_source %63s", token) == 1) {
-      parsed.pick_from_vision = strcmp(token, "vision") == 0 ? 1 : -1;
+      parsed.pick_from_warehouse = strcmp(token, "warehouse") == 0;
+      parsed.pick_from_vision = strcmp(token, "vision") == 0 ? 1 : parsed.pick_from_warehouse ? 0 : -1;
     } else if (sscanf(line, " object_def %63s", token) == 1) {
       strcpy(parsed.object_def, token);
     } else if (sscanf(line, " pickup_def %63s", token) == 1) {
@@ -79,6 +81,13 @@ int controller_runtime_command_load_next_file(
     } else if (sscanf(line, " pickup_y %lf", &numeric) == 1) {
       parsed.pickup_y = numeric;
       parsed.pickup_fields |= 4;
+    } else if (sscanf(line, " pickup_z %lf", &numeric) == 1) {
+      parsed.pickup_z = numeric;
+      parsed.pickup_fields |= 8;
+    } else if (sscanf(line, " pickup_support %63s", token) == 1) {
+      strcpy(parsed.pickup_support, token);
+    } else if (sscanf(line, " target_support %63s", token) == 1) {
+      strcpy(parsed.target_support, token);
     } else if (sscanf(line, " target_x %lf", &numeric) == 1) {
       parsed.target_x = numeric;
       parsed.target_fields |= 1;
@@ -169,12 +178,22 @@ int controller_runtime_command_load_next_file(
        parsed.size_x < 0.2 || parsed.size_x > 3.5 || parsed.size_y < 0.2 || parsed.size_y > 3.5 ||
        parsed.height < 0.12 || parsed.height > 2.8)) return 0;
   if (parsed.has_pick_place && (!parsed.mission_id[0] || parsed.pick_from_vision < 0 ||
-      (parsed.pick_from_vision == (parsed.object_def[0] != '\0')) || parsed.target_fields != 7 ||
+      ((parsed.pick_from_vision || parsed.pick_from_warehouse) == (parsed.object_def[0] != '\0')) || parsed.target_fields != 7 ||
       !std::isfinite(parsed.target_x) || !std::isfinite(parsed.target_y) || !std::isfinite(parsed.target_z) ||
       parsed.target_z < 0.015 || parsed.target_z > 1.0)) return 0;
-  if (parsed.has_pick_place && (warehouse_pickup || parsed.pickup_fields) &&
-      (!warehouse_pickup || !parsed.pick_from_vision || parsed.pickup_fields != 7 ||
-       !std::isfinite(parsed.pickup_x) || !std::isfinite(parsed.pickup_y))) return 0;
+  if (parsed.has_pick_place) {
+    if (warehouse_pickup || shelf_transfer) {
+      const int retrieving = parsed.pick_from_warehouse;
+      if ((!parsed.pick_from_vision && !retrieving) ||
+          parsed.pickup_fields != (retrieving ? 15 : 7) ||
+          !std::isfinite(parsed.pickup_x) || !std::isfinite(parsed.pickup_y) ||
+          (retrieving && (!shelf_transfer || !std::isfinite(parsed.pickup_z) ||
+              parsed.pickup_z < .015 || parsed.pickup_z > .30 || parsed.target_support[0])) ||
+          (!retrieving && (parsed.pickup_support[0] ||
+              (shelf_transfer != (parsed.target_support[0] != '\0'))))) return 0;
+    } else if (parsed.pick_from_warehouse || parsed.pickup_fields || parsed.pickup_support[0] ||
+               parsed.target_support[0]) return 0;
+  }
   if (parsed.has_resume_transfer &&
       ((parsed.resume_request_id[0] != '\0') != (parsed.has_resume_recovery_epoch != 0))) return 0;
   if ((parsed.has_transfer_object || parsed.has_resume_transfer || parsed.has_recover_transfer) && !parsed.mission_id[0]) return 0;

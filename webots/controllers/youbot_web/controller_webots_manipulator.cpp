@@ -64,6 +64,46 @@ static int cargo_on_platform(WbNodeRef object,double minimum_up=.97) {
   return 0;
 }
 
+// A named shelf is a fixed, horizontal, axis-aligned Webots Solid with a Box bounding object.
+static bool shelf_surface(WbNodeRef shelf, const double centre[3], double radius, double *top) {
+  if (!shelf || wb_supervisor_node_is_proto(shelf) ||
+      wb_supervisor_node_get_type(shelf) != WB_NODE_SOLID) return false;
+  const auto root=wb_supervisor_node_get_root();
+  const auto children=root ? wb_supervisor_node_get_field(root,"children") : nullptr;
+  bool top_level=false;
+  for (int i=0;children && i<wb_supervisor_field_get_count(children);++i)
+    if (wb_supervisor_field_get_mf_node(children,i)==shelf) { top_level=true; break; }
+  if (!top_level) return false;
+  const auto physics=wb_supervisor_node_get_field(shelf,"physics");
+  if (physics && wb_supervisor_field_get_sf_node(physics)) return false;
+  const auto bounding=wb_supervisor_node_get_field(shelf,"boundingObject");
+  const auto box=bounding ? wb_supervisor_field_get_sf_node(bounding) : nullptr;
+  if (!box || wb_supervisor_node_get_type(box)!=WB_NODE_BOX) return false;
+  const auto position=wb_supervisor_node_get_position(shelf);
+  const auto rotation=wb_supervisor_node_get_orientation(shelf);
+  const auto field=wb_supervisor_node_get_field(box,"size");
+  const auto size=field ? wb_supervisor_field_get_sf_vec3f(field) : nullptr;
+  if (!position || !rotation || !size || fabs(rotation[0]-1)>.001 ||
+      fabs(rotation[4]-1)>.001 || fabs(rotation[8]-1)>.001) return false;
+  *top=position[2]+size[2]*.5;
+  return *top>=.055 && *top<=.185 &&
+      fabs(centre[0]-position[0])+radius<=size[0]*.5 &&
+      fabs(centre[1]-position[1])+radius<=size[1]*.5;
+}
+
+static bool cargo_on_shelf(WbNodeRef cargo, WbNodeRef shelf, const double centre[3], double top) {
+  const auto rotation=wb_supervisor_node_get_orientation(cargo);
+  if (!rotation || rotation[8]<.97 || fabs(centre[2]-cargo_floor_height(cargo)-top)>.006) return false;
+  int count=0,shelf_count=0;
+  const auto *contacts=wb_supervisor_node_get_contact_points(cargo,false,&count);
+  const auto *surface=wb_supervisor_node_get_contact_points(shelf,false,&shelf_count);
+  for(int i=0;contacts && i<count;++i)for(int j=0;surface && j<shelf_count;++j)
+    if(fabs(contacts[i].point[2]-top)<.005 &&
+        hypot(hypot(contacts[i].point[0]-surface[j].point[0],contacts[i].point[1]-surface[j].point[1]),
+            contacts[i].point[2]-surface[j].point[2])<.001) return true;
+  return false;
+}
+
 static ControllerManipulatorSample read_sample(void) {
   ControllerManipulatorSample sample = {};
   for (int i = 0; i < 5; ++i) {
@@ -95,6 +135,7 @@ static ControllerManipulatorSample read_sample(void) {
       const WbContactPoint *contacts=wb_supervisor_node_get_contact_points(object,false,&count);
       for(int i=0;contacts && i<count;++i) if(fabs(contacts[i].point[2])<.005) on_floor=1;
       const int supported=(m->delivery_phase==DELIVERY_PLATFORM_LOAD ? cargo_on_platform(object,.94) :
+          m->target_support ? cargo_on_shelf(object,m->target_support,position,m->target_support_z) :
           on_floor && isfinite(bottom) && fabs(bottom)<.006) && velocity &&
           hypot(hypot(velocity[0],velocity[1]),velocity[2])<.025 &&
           hypot(hypot(velocity[3],velocity[4]),velocity[5])<.15;
@@ -329,9 +370,12 @@ static int delivery_safe(void *context,double x,double y) {
   }
   for(int i=0;i<delivery_obstacle_count;++i) {
     const DeliveryObstacle *o=&delivery_obstacles[i];
+    const bool shelf=o->node==m->target_support || o->node==m->pickup_support;
+    if(m->validating_placement && o->node==m->target_support) continue;
+    const double obstacle_clearance=shelf && !m->validating_placement ? fmin(clearance,.32) : clearance;
     double dx=fmax(0,fabs(x-o->x)-o->hx),dy=fmax(0,fabs(y-o->y)-o->hy);
     const double separation=hypot(dx,dy);
-    if(separation<clearance) {
+    if(separation<obstacle_clearance) {
       // Retreat only from the box just placed, never move closer or ignore it
       // for the rest of the mission. All other obstacles keep their margins.
       if(!m->departing || o->node!=m->departure_node ||
@@ -344,7 +388,9 @@ static int placement_clear(const double world[3]) {
   auto *m=&controller_app.manipulator;
   const double clearance=m->delivery_clearance;const int departing=m->departing;
   m->delivery_clearance=m->cargo_radius+.01;m->departing=0;
+  m->validating_placement=1;
   const int safe=refresh_obstacles() && delivery_safe(m,world[0],world[1]);
+  m->validating_placement=0;
   m->delivery_clearance=clearance;m->departing=departing;return safe;
 }
 typedef struct {double base[3],rotation[9];} ArmSafetyPose;
@@ -374,7 +420,12 @@ static int arm_point_clear(void *context,const double local[3],double radius) {
     const auto &o=delivery_obstacles[i];
     const double dx=fmax(0,fabs(world[0]-o.x)-o.hx),dy=fmax(0,fabs(world[1]-o.y)-o.hy);
     const double dz=fmax(0,fmax(o.min_z-world[2],world[2]-o.max_z));
-    if(hypot(hypot(dx,dy),dz)<radius) return 0;
+    if (hypot(hypot(dx,dy),dz)>=radius) continue;
+    // The TCP's spherical envelope includes empty space below the box.
+    // Only the named horizontal support may use the smaller vertical extent.
+    const bool shelf=o.node==m->target_support || o.node==m->pickup_support;
+    if (shelf && radius>.025 && world[2]-o.max_z>=m->support_z+GRIP_OFFSET-.006) continue;
+    return 0;
   }
   return 1;
 }
@@ -482,8 +533,13 @@ static int retarget_held_object(const double world[3],const ControllerManipulato
   memcpy(m->state.targets,m->state.poses[3],sizeof(m->state.targets));
   return arm_plan_clear(&m->state,sample,1);
 }
+static bool retrieval_at_source(const ControllerWebotsManipulator *m) {
+  return hypot(m->object_world[0]-m->expected_pickup[0],m->object_world[1]-m->expected_pickup[1])<=.05 &&
+      fabs(m->object_world[2]-m->expected_pickup[2])<=.012;
+}
 static int start_pickup(const ControllerManipulatorSample *sample) {
   auto *m=&controller_app.manipulator;
+  if (m->bounded_retrieval && (!sample->object_valid || !retrieval_at_source(m))) return 0;
   double destination[3];memcpy(destination,sample->object,sizeof(destination));
   if(m->use_platform) {
     double world[3];
@@ -664,7 +720,14 @@ void controller_webots_manipulator_start(const RuntimeCommand *command) {
   if (controller_webots_manipulator_busy() ||
       (!controller_runtime.route_finished && controller_runtime.route.count > 0)) return;
   strcpy(manipulator->mission_id, command->mission_id);
-  strcpy(manipulator->object_def, command->object_def);
+  strcpy(manipulator->object_def, command->pick_from_warehouse ? command->pickup_def : command->object_def);
+  manipulator->pickup_support=nullptr;
+  manipulator->target_support=nullptr;
+  manipulator->target_support_z=0;
+  manipulator->bounded_retrieval=command->pick_from_warehouse;
+  manipulator->expected_pickup[0]=command->pickup_x;
+  manipulator->expected_pickup[1]=command->pickup_y;
+  manipulator->expected_pickup[2]=command->pickup_z;
   const char *vision_error = command->pick_from_vision
       ? select_vision_cargo(manipulator->object_def) : nullptr;
   strcpy(controller_runtime.route.command_id, command->mission_id);
@@ -697,8 +760,9 @@ void controller_webots_manipulator_start(const RuntimeCommand *command) {
   }
   if (command->pickup_fields &&
       (!sample.object_valid ||
-       hypot(manipulator->object_world[0] - command->pickup_x, manipulator->object_world[1] - command->pickup_y) > .25)) {
-    delivery_fail(&sample, "cargo_outside_receiving");
+       (command->pick_from_warehouse ? !retrieval_at_source(manipulator) :
+           hypot(manipulator->object_world[0]-command->pickup_x,manipulator->object_world[1]-command->pickup_y)>.25))) {
+    delivery_fail(&sample, command->pick_from_warehouse ? "cargo_outside_slot" : "cargo_outside_receiving");
     return;
   }
   manipulator->use_platform=controller_delivery_use_platform(
@@ -708,6 +772,27 @@ void controller_webots_manipulator_start(const RuntimeCommand *command) {
   manipulator->support_z=cargo_floor_height(cargo);
   WbFieldRef bounding=cargo ? (wb_supervisor_node_is_proto(cargo) ? wb_supervisor_node_get_base_node_field(cargo,"boundingObject") : wb_supervisor_node_get_field(cargo,"boundingObject")) : NULL;
   manipulator->cargo_radius=geometry_radius(bounding ? wb_supervisor_field_get_sf_node(bounding) : NULL,0);
+  if (command->pickup_support[0]) {
+    const auto support=wb_supervisor_node_get_from_def(command->pickup_support);
+    double top=0;
+    if (!shelf_surface(support,manipulator->object_world,manipulator->cargo_radius,&top) ||
+        fabs(manipulator->object_world[2]-manipulator->support_z-top)>.008) {
+      delivery_fail(&sample,"invalid_shelf_support");
+      return;
+    }
+    manipulator->pickup_support=support;
+  } else if (command->pick_from_warehouse && fabs(manipulator->object_world[2]-manipulator->support_z)>.008) {
+    delivery_fail(&sample,"invalid_shelf_support");
+    return;
+  }
+  if (command->target_support[0]) {
+    const auto support=wb_supervisor_node_get_from_def(command->target_support);
+    if (!shelf_surface(support,manipulator->destination_world,manipulator->cargo_radius,&manipulator->target_support_z)) {
+      delivery_fail(&sample,"invalid_shelf_support");
+      return;
+    }
+    manipulator->target_support=support;
+  }
   const double target[3] = {command->target_x, command->target_y, command->target_z + GRIP_OFFSET};
   double destination[3];
   int valid = sample.object_valid && world_to_local(target, destination);
@@ -717,7 +802,7 @@ void controller_webots_manipulator_start(const RuntimeCommand *command) {
   if(!valid)delivery_fail(&sample,!sample.object_valid ? "object_missing" : "devices_unavailable");
   else if(!isfinite(manipulator->cargo_radius) || manipulator->cargo_radius<=0) delivery_fail(&sample,"unsupported_object_geometry");
   else if (!isfinite(manipulator->support_z) ||
-      fabs(command->target_z - manipulator->support_z) > .01)
+      fabs(command->target_z - manipulator->support_z - manipulator->target_support_z) > .01)
     delivery_fail(&sample, "unsupported_destination");
   else if(!placement_clear(manipulator->destination_world)) delivery_fail(&sample,"delivery_path_blocked");
   else if(controller_manipulator_start(&manipulator->state,sample.object,destination)) {
@@ -781,6 +866,8 @@ void controller_webots_manipulator_cancel(const char *mission_id) {
     const double world[]={manipulator->object_world[0],manipulator->object_world[1],manipulator->support_z};
     const double grip[]={world[0],world[1],world[2]+GRIP_OFFSET-.01};double local[3];
     ControllerManipulator recovery=manipulator->state;
+    manipulator->target_support=nullptr;
+    manipulator->target_support_z=0;
     if(placement_clear(world) && world_to_local(grip,local) &&
         controller_manipulator_recover(&recovery,&sample,local,1) && arm_plan_clear(&recovery,&sample,1)) {
       manipulator->state=recovery;manipulator->mobile=0;manipulator->delivery_phase=DELIVERY_PLACE;

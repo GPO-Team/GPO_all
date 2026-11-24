@@ -59,3 +59,16 @@ it("serializes the exact recovery epoch and request key for resume feedback", ()
   expect(() => createRuntimeCommandText({...request,recoveryEpoch:-1})).toThrow("Invalid recovery epoch");
   expect(() => createRuntimeCommandText({...request,requestKey:undefined})).toThrow();
 });
+
+it("keeps shelf operations separate from legacy runtime commands", () => {
+  const request = {type:"pick_place",missionId:"shelf-mission",commandId:12,
+    pickup:{objectDef:"PICK_BOX",x:2,y:1},destination:{x:2.12,y:.86,z:.1,supportDef:"WAREHOUSE_SHELF"},
+  };
+  expect(createRuntimeCommandText({...request,source:"vision"})).toContain("type warehouse_shelf_transfer\n");
+  expect(createRuntimeCommandText({...request,source:"vision"})).toContain("target_support WAREHOUSE_SHELF\n");
+  const outbound = {...request,source:"warehouse",
+    pickup:{...request.pickup,z:.1,supportDef:"WAREHOUSE_SHELF"},destination:{x:2.12,y:.86,z:.04},
+  };
+  expect(createRuntimeCommandText(outbound)).toContain("pickup_z 0.1\npickup_support WAREHOUSE_SHELF\n");
+  expect(() => createRuntimeCommandText({...outbound,pickup:request.pickup})).toThrow();
+});

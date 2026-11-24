@@ -39,6 +39,7 @@ export const buildSlots = (rack) => {
           width,
           depth: rack.depth,
           supportZ: level.supportZ,
+          ...(level.supportDef ? { supportDef: level.supportDef } : {}),
           z: level.supportZ,
           clearHeight: level.clearHeight,
           maxLoadKg: level.maxLoadKg,

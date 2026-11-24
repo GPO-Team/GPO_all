@@ -33,6 +33,7 @@
     "test:delivery": "node scripts/manipulator-smoke-test.mjs --mobile --near-object --inject-route",
     "test:delivery:vision": "node scripts/manipulator-smoke-test.mjs --vision && node scripts/manipulator-smoke-test.mjs --vision-empty && node scripts/manipulator-smoke-test.mjs --vision-ambiguous && node scripts/manipulator-smoke-test.mjs --vision-hidden",
     "test:delivery:safety": "node scripts/manipulator-smoke-test.mjs --unsupported-height && node scripts/manipulator-smoke-test.mjs --mobile --nested-blocked",
+    "test:warehouse:shelf": "node scripts/manipulator-smoke-test.mjs --warehouse-shelf && node scripts/manipulator-smoke-test.mjs --warehouse-missing-shelf",
     "test:warehouse:postgres": "node scripts/warehouse-postgres-smoke-test.mjs",
     "test:warehouse:delivery": "node scripts/manipulator-smoke-test.mjs --warehouse-delivery && node scripts/manipulator-smoke-test.mjs --warehouse-wrong-cargo && node scripts/manipulator-smoke-test.mjs --warehouse-outside-receiving",
     "test:delivery:after-demo": "node scripts/manipulator-smoke-test.mjs --after-demo",

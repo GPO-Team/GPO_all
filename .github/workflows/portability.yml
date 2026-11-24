@@ -73,3 +73,4 @@ jobs:
           npm run test:delivery:vision
           npm run test:delivery:safety
           npm run test:warehouse:delivery
+          npm run test:warehouse:shelf

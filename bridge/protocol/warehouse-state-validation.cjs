@@ -39,9 +39,9 @@ const validateStoredWarehouse = (state, geometry) => {
       invalid("Повторный груз или объект Webots.");
     if (normalized.objectDef) objectDefs.add(normalized.objectDef);
     if (item.verifiedControllerBootId !== undefined) identifier(item.verifiedControllerBootId);
-    if (item.locationId !== "receiving") {
+    if (!["receiving", "shipping"].includes(item.locationId)) {
       const slot = slots.get(item.locationId);
-      if (!slot || slot.supportZ !== 0 || !normalized.objectDef ||
+      if (!slot || (slot.supportZ !== 0 && !slot.supportDef) || !normalized.objectDef ||
           occupied.has(slot.id) || geometry.placementReasons(normalized, slot).length)
         invalid("Некорректное местоположение груза.");
       occupied.add(slot.id);
@@ -56,17 +56,18 @@ const validateStoredWarehouse = (state, geometry) => {
   const archive = state.taskArchive ?? [];
   if (archive.some((task) => !["cancelled", "completed"].includes(task?.status)))
     invalid("В архиве склада допустимы только завершённые и отменённые задания.");
+  const validSlotId = (id) => typeof id === "string" && /^[A-Za-z0-9_-]{1,63}:\d{1,2}:\d{1,2}:\d{1,2}$/.test(id);
+  let shippingReserved = false;
   for (const task of state.tasks.concat(archive)) {
     object(task, "Сохранённое задание");
     identifier(task.id);
     identifier(task.cargoId);
+    const outgoing = task.destinationId === "shipping";
     if (
       taskIds.has(task.id) ||
       !cargo.has(task.cargoId) ||
-      task.sourceId !== "receiving" ||
-      !["prepared", "launching", "executing", "attention", "cancelled", "completed"].includes(task.status) ||
-      typeof task.destinationId !== "string" ||
-      !/^[A-Za-z0-9_-]{1,63}:\d{1,2}:\d{1,2}:\d{1,2}$/.test(task.destinationId)
+      (outgoing ? !validSlotId(task.sourceId) : (task.sourceId !== "receiving" || !validSlotId(task.destinationId))) ||
+      !["prepared", "launching", "executing", "attention", "cancelled", "completed"].includes(task.status)
     )
       invalid("Некорректные ссылки сохранённого задания.");
     taskIds.add(task.id);
@@ -97,15 +98,17 @@ const validateStoredWarehouse = (state, geometry) => {
         invalid("Некорректная активная миссия склада.");
       liveMissions.add(task.missionId);
     }
-    const slot = slots.get(task.destinationId);
+    const slot = slots.get(outgoing ? task.sourceId : task.destinationId);
     if (
-      !slot || occupied.has(slot.id) || cargo.get(task.cargoId).locationId !== "receiving" ||
-      (task.missionId && slot.supportZ !== 0) ||
+      !slot || (!outgoing && occupied.has(slot.id)) ||
+      cargo.get(task.cargoId).locationId !== task.sourceId || (outgoing && shippingReserved) ||
+      (task.missionId && slot.supportZ !== 0 && !slot.supportDef) ||
       reservedCargo.has(task.cargoId) ||
       reservedSlots.has(slot.id) ||
       geometry.placementReasons(cargo.get(task.cargoId), slot).length
     )
       invalid("Некорректный сохранённый резерв ячейки.");
+    if (outgoing) shippingReserved = true;
     reservedCargo.add(task.cargoId);
     reservedSlots.add(slot.id);
   }

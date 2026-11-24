@@ -485,3 +485,31 @@ it("allows operator reconciliation of an occupied slot for the displayed Webots 
   });
   expect(host.textContent).not.toContain("Сверьте грузы");
 });
+
+it("prepares retrieval from a selected occupied shelf slot", async () => {
+  const view = snapshot();
+  const rack = {
+    id:"shelf",code:"A",name:"Shelf",x:2,y:1,yaw:0,bays:1,placesPerBay:1,bayWidth:.14,
+    depth:.14,levels:[{supportZ:.06,supportDef:"WAREHOUSE_SHELF",clearHeight:.25,maxLoadKg:1}],
+  };
+  const [slot] = buildSlots(rack);
+  view.warehouse.racks.push(rack);
+  view.warehouse.cargo.push({id:"box",objectDef:"PICK_BOX",width:.03,depth:.03,height:.08,locationId:slot.id});
+  view.slots.push({...slot,occupiedBy:"box"});
+  const api = vi.fn(async (_path, options) => {
+    if (options) {
+      view.warehouse.tasks.push({...options.body,sourceId:slot.id,status:"prepared"});
+      view.slots[0].reservedBy = options.body.id;
+      view.warehouse.revision += 1;
+    }
+    return structuredClone(view);
+  });
+  await act(async () => root.render(<WarehouseWorkspace api={api} />));
+  await act(async () => host.querySelector('[aria-label="Ячейка A-01-01-01"]').click());
+  await click("Подготовить выдачу");
+  expect(api).toHaveBeenLastCalledWith("/tasks",{body:{
+    id:expect.any(String),cargoId:"box",destinationId:"shipping",expectedRevision:0,
+  }});
+  expect(host.textContent).toContain("A-01-01-01 → Отгрузка");
+  expect(host.textContent).toContain("Запустить робота");
+});

@@ -574,3 +574,40 @@ it("marks previous-session stock unverified and records an operator-confirmed re
   const recovered = warehouseModule.createWarehouseService({repository});
   expect((await recovered.get()).warehouse.cargo[0].locationId).toBe("receiving");
 });
+
+it("keeps a shelf occupied through retrieval and frees it only after delivery to shipping", async () => {
+  const repository = memoryRepository();
+  const missions = { get: vi.fn(async () => null), submit: vi.fn(async (_command, {requestId}) => ({missionId:requestId,status:"persisted"})) };
+  const makeService = () => warehouseModule.createWarehouseService({repository,missionService:missions});
+  const service = makeService();
+  await service.createRack({rack:rack({bays:1,levels:[{supportZ:.10,clearHeight:.25,maxLoadKg:1,supportDef:"WAREHOUSE_SHELF"}]}),expectedRevision:0});
+  await service.registerCargo({cargo:cargo("box", {objectDef:"PICK_BOX",width:.03,depth:.03,height:.08,massKg:.04}),expectedRevision:1});
+  const slot = "rack1:1:1:1";
+  await service.prepareTask({id:"put",cargoId:"box",destinationId:slot,expectedRevision:2});
+  const inbound = await service.startTask("put",{expectedRevision:3});
+  expect(missions.submit.mock.calls.at(-1)[0].destination).toEqual({x:0,y:0,z:.14,supportDef:"WAREHOUSE_SHELF"});
+  const confirm = (missionId,objectPosition) => missions.get.mockResolvedValue({
+    missionId,status:"completed",deliveryEvidence:{objectDef:"PICK_BOX",objectPosition,loadHeld:false,onPlatform:false},
+  });
+  confirm(inbound.warehouse.tasks[0].missionId,{x:0,y:0,z:.14});
+  await service.reconcile();
+  const stored = await service.get();
+  expect(stored.slots[0].occupiedBy).toBe("box");
+  const outbound = await service.prepareTask({id:"take",cargoId:"box",destinationId:"shipping",expectedRevision:stored.warehouse.revision});
+  expect(outbound.slots[0]).toMatchObject({occupiedBy:"box",reservedBy:"take"});
+  const executing = await service.startTask("take",{expectedRevision:outbound.warehouse.revision});
+  const task = executing.warehouse.tasks.find((item) => item.id === "take");
+  expect(missions.submit.mock.calls.at(-1)[0]).toMatchObject({source:"warehouse",
+    pickup:{objectDef:"PICK_BOX",x:0,y:0,z:.14,supportDef:"WAREHOUSE_SHELF"},destination:{x:8,y:-6,z:.04},
+  });
+  confirm(task.missionId,{x:8,y:-6,z:.04});
+  const resumed = makeService();
+  await resumed.reconcile();
+  const delivered = await resumed.get();
+  expect(delivered.slots[0].occupiedBy).toBeUndefined();
+  expect(delivered.warehouse.cargo[0].locationId).toBe("shipping");
+  expect(delivered.warehouse.tasks).toEqual(expect.arrayContaining([
+    expect.objectContaining({id:"put",status:"completed"}),
+    expect.objectContaining({id:"take",status:"completed",sourceId:slot,destinationId:"shipping"}),
+  ]));
+});

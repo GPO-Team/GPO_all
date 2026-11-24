@@ -90,7 +90,9 @@ typedef struct {
   int has_pick_place;
   int pick_from_vision;
   char pickup_def[64];
-  double pickup_x, pickup_y;
+  double pickup_x, pickup_y, pickup_z;
+  char pickup_support[64], target_support[64];
+  int pick_from_warehouse;
   int pickup_fields;
   char object_def[64];
   double target_x, target_y, target_z;
