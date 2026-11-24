@@ -36,6 +36,13 @@ static int world_to_local(const double world[3], double local[3]) {
   return 1;
 }
 
+static double placement_grip_z(const ControllerWebotsManipulator *m) {
+  // Seat a retrieved box on the floor before releasing. The measured grasp
+  // can hold the box a few millimetres higher than the nominal TCP offset.
+  const double seating = m->bounded_retrieval ? .004 : 0;
+  return m->destination_world[2] + GRIP_OFFSET - seating;
+}
+
 static int platform_grip_world(double world[3]) {
   double x,y,yaw;read_pose(&x,&y,&yaw);
   const double *base=wb_supervisor_node_get_position(webots_pose.self_node);
@@ -575,7 +582,7 @@ static int dock_reachable(const double world[3],int pickup) {
   const double *base=wb_supervisor_node_get_position(webots_pose.self_node);
   const double *rotation=wb_supervisor_node_get_orientation(webots_pose.self_node);
   double dock[2],local[3]={0},delta[3],angles[5];dock_position(world,pickup,dock);
-  delta[0]=world[0]-dock[0];delta[1]=world[1]-dock[1];delta[2]=world[2]+GRIP_OFFSET-base[2];
+  delta[0]=world[0]-dock[0];delta[1]=world[1]-dock[1];delta[2]=(pickup ? world[2]+GRIP_OFFSET : placement_grip_z(&controller_app.manipulator))-base[2];
   double x,y,current_yaw;read_pose(&x,&y,&current_yaw);
   const double turn=controller_app.manipulator.delivery_yaw-current_yaw;
   const double dx=delta[0],dy=delta[1];
@@ -793,7 +800,7 @@ void controller_webots_manipulator_start(const RuntimeCommand *command) {
     }
     manipulator->target_support=support;
   }
-  const double target[3] = {command->target_x, command->target_y, command->target_z + GRIP_OFFSET};
+  const double target[3] = {command->target_x, command->target_y, placement_grip_z(manipulator)};
   double destination[3];
   int valid = sample.object_valid && world_to_local(target, destination);
   for (int i = 0; i < 5; ++i) valid = valid && webots_devices.arm_joints[i] && isfinite(sample.joints[i]);
@@ -965,7 +972,7 @@ int controller_webots_manipulator_step(double dt) {
             if(!start_pickup(&sample))delivery_fail(&sample,"source_unreachable");
             else manipulator->delivery_phase=DELIVERY_PICK;
           } else {
-            double grip[3]={manipulator->destination_world[0],manipulator->destination_world[1],manipulator->destination_world[2]+GRIP_OFFSET};
+            double grip[3]={manipulator->destination_world[0],manipulator->destination_world[1],placement_grip_z(manipulator)};
             double local[3];world_to_local(grip,local);
             if(manipulator->on_platform) {
               manipulator->state.grip_yaw=grip_yaw_in_base(
