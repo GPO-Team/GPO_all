@@ -25,8 +25,15 @@ const createWarehouseHttpHandler =
     try {
       const url = new URL(request.url, "http://localhost");
       const pathname = url.pathname;
+      const live = url.searchParams.get("view") === "live";
       if (request.method === "GET" && pathname === "/api/warehouse")
-        return sendJson(response, 200, await warehouseService.get());
+        return sendJson(response, 200, await warehouseService.get(live));
+      if (request.method === "GET" && pathname === "/api/warehouse/history")
+        return sendJson(response, 200, await warehouseService.history({
+          status: url.searchParams.get("status"),
+          before: url.searchParams.get("before"),
+          limit: url.searchParams.get("limit"),
+        }));
       if (request.method === "GET" && pathname === "/api/warehouse/suggestions")
         return sendJson(
           response,
@@ -35,24 +42,29 @@ const createWarehouseHttpHandler =
         );
       if (request.method === "POST") {
         const handlers = {
-          "/api/warehouse/racks": (body) => warehouseService.createRack(body),
-          "/api/warehouse/stations": (body) => warehouseService.updateStations(body),
-          "/api/warehouse/cargo": (body) => warehouseService.registerCargo(body),
-          "/api/warehouse/tasks": (body) => warehouseService.prepareTask(body),
-          "/api/warehouse/layout": (body) => warehouseService.importLayout(body),
+          "/api/warehouse/racks": (body) => warehouseService.createRack(body, live),
+          "/api/warehouse/stations": (body) => warehouseService.updateStations(body, live),
+          "/api/warehouse/cargo": (body) => warehouseService.registerCargo(body, live),
+          "/api/warehouse/tasks": (body) => warehouseService.prepareTask(body, live),
+          "/api/warehouse/layout": (body) => warehouseService.importLayout(body, live),
         };
         let handle = handlers[pathname];
         const rackMatch = pathname.match(/^\/api\/warehouse\/racks\/([^/]+)(\/delete)?$/);
-        const taskMatch = pathname.match(/^\/api\/warehouse\/tasks\/([^/]+)\/cancel$/);
+        const cargoMatch = pathname.match(/^\/api\/warehouse\/cargo\/([^/]+)\/verify$/);
+        const taskMatch = pathname.match(/^\/api\/warehouse\/tasks\/([^/]+)\/(cancel|start|stop)$/);
         if (rackMatch) {
           const id = decodeURIComponent(rackMatch[1]);
           handle = (body) =>
             rackMatch[2]
-              ? warehouseService.deleteRack(id, body)
-              : warehouseService.updateRack(id, body);
+              ? warehouseService.deleteRack(id, body, live)
+              : warehouseService.updateRack(id, body, live);
+        } else if (cargoMatch) {
+          const id = decodeURIComponent(cargoMatch[1]);
+          handle = (body) => warehouseService.verifyCargo(id, body, live);
         } else if (taskMatch) {
           const id = decodeURIComponent(taskMatch[1]);
-          handle = (body) => warehouseService.cancelTask(id, body);
+          const action = { start: "startTask", stop: "stopTask", cancel: "cancelTask" }[taskMatch[2]];
+          handle = (body) => warehouseService[action](id, body, live);
         }
         if (handle) return sendJson(response, 200, await handle(await readJson(request)));
       }

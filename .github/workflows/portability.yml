@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   linux:
     strategy:
@@ -36,10 +40,15 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npm run test:services
+      - name: Verify warehouse PostgreSQL and SQLite migration
+        if: matrix.os == 'ubuntu-24.04'
+        run: npm run test:warehouse:postgres
       - name: Build and exercise independent Docker services
+        if: github.event_name != 'push' || github.ref_name == github.event.repository.default_branch
         run: npm run test:docker
 
   simulator:
+    if: github.event_name != 'push' || github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -52,6 +61,16 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Build complete Linux simulator stack
+        id: build-simulator
         run: docker compose -f compose.yaml -f compose.simulator.yaml build
       - name: Verify physics, streaming and recovery through real services
         run: npm run test:container
+      - name: Verify camera pickup and safety in Webots
+        if: ${{ !cancelled() && steps.build-simulator.outcome == 'success' }}
+        env:
+          GPO_WEBOTS_TEST_IMAGE: gpo-webots:local
+        run: |
+          npm run test:delivery:vision
+          npm run test:delivery:safety
+          npm run test:warehouse:delivery
+          npm run test:warehouse:shelf

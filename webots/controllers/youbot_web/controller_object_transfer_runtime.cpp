@@ -320,15 +320,30 @@ void controller_object_transfer_runtime_command(ControllerObjectTransferRuntime 
     controller_object_transfer_runtime_set_pose(r,c->manipulator_pose,now); return;
   }
   if(c->has_resume_transfer || c->has_recover_transfer) {
-    if(std::strcmp(c->mission_id,r->service.state.mission_id)==0 && r->service.state.sensors_valid &&
-        (!r->service.state.attached || (r->object.attached && r->service.state.grip_evidence))) {
-      if(!r->service.state.attached && !r->service.state.on_platform) {
-        r->service.state.destination_x=r->service.state.object_pose[0];
-        r->service.state.destination_y=r->service.state.object_pose[1];
+    auto &state=r->service.state;
+    if(std::strcmp(c->mission_id,state.mission_id)!=0) return;
+    const char *error=nullptr;
+    if(state.status!=CONTROLLER_TRANSFER_HOLDING_FOR_RECOVERY ||
+        (c->has_resume_recovery_epoch && c->resume_recovery_epoch!=state.recovery_epoch)) {
+      error="recovery_changed";
+    } else if(!state.sensors_valid) {
+      error="invalid_sensor";
+    } else if(state.attached && (!r->object.attached || !state.grip_evidence)) {
+      error="attachment_unconfirmed";
+    } else {
+      if(!state.attached && !state.on_platform) {
+        state.destination_x=state.object_pose[0];
+        state.destination_y=state.object_pose[1];
       }
-      if(controller_object_transfer_service_resume(&r->service,now))
-        r->configured_stage=CONTROLLER_TRANSFER_STAGE_NONE;
-    } return;
+      controller_object_transfer_service_resume(&r->service,now);
+      r->configured_stage=CONTROLLER_TRANSFER_STAGE_NONE;
+    }
+    if(c->resume_request_id[0]) {
+      std::snprintf(state.resume_request_id,sizeof(state.resume_request_id),"%s",c->resume_request_id);
+      state.resume_recovery_epoch=c->resume_recovery_epoch;
+      state.resume_error_code=error;
+    }
+    return;
   }
   if(!c->has_transfer_object || r->manual_active) return;
   if(!controller_object_transfer_service_start(&r->service,c->mission_id,c->object_id,

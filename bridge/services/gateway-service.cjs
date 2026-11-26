@@ -2,16 +2,35 @@ const { fingerprint, serviceError } = require("../protocol/service-contract.cjs"
 const { validateMissionId } = require("../protocol/mission-contract.cjs");
 const createGatewayService = ({repository, adapter}) => {
   let pending = Promise.resolve();
+  const terminal = status => ["completed", "failed", "cancelled"].includes(status);
+  const observe = async missionId => adapter.observeMission
+    ? adapter.observeMission(missionId)
+    : { controllerBootId: null, feedback: await adapter.getFeedback(missionId) };
+  const getControllerSession = async () => adapter.observeMission
+    ? (await adapter.observeMission()).controllerBootId
+    : null;
   const feedbackFor = async missionId => {
-    const feedback=await adapter.getFeedback(missionId);
-    const active=await repository.get("gateway-active");
-    if(feedback && ["completed","failed","cancelled"].includes(feedback.status) && active?.commandId===missionId) {
-      await repository.save({...active,status:feedback.status,feedback});
+    const { controllerBootId, feedback } = await observe(missionId);
+    const active = await repository.get("gateway-active");
+    if (active?.commandId !== missionId) return feedback;
+    if (active.feedback) {
+      return feedback?.status === active.feedback.status && feedback.errorCode === active.feedback.errorCode
+        ? feedback : { ...active.feedback, cached: true };
     }
-    if(feedback)return feedback;
-    return active?.commandId===missionId && active.feedback ? {...active.feedback,cached:true} : null;
+
+    let terminalFeedback = feedback && terminal(feedback.status) ? feedback : null;
+    if (!terminalFeedback && controllerBootId && active.controllerBootId && controllerBootId !== active.controllerBootId) {
+      terminalFeedback = { missionId, status: "failed", errorCode: "controller_restarted",
+        error: "Webots restarted before the mission finished.", controllerBootId };
+    }
+    if (terminalFeedback) {
+      await repository.save({ ...active, status: terminalFeedback.status, feedback: terminalFeedback });
+      return terminalFeedback;
+    }
+    if (controllerBootId && !active.controllerBootId) await repository.save({ ...active, controllerBootId });
+    return feedback;
   };
-  const execute = (operation, requestId, payload) => {
+  const execute = (operation, requestId, payload, expectedControllerBootId) => {
     const task = pending.then(async () => {
       validateMissionId(requestId);
       if (!["submit", "update", "cancel"].includes(operation)) throw serviceError(400, "invalid_operation", "Unknown operation.");
@@ -30,19 +49,37 @@ const createGatewayService = ({repository, adapter}) => {
       }
       const active=await repository.get("gateway-active");
       const sameMissionControl=operation==="update" && ["recover_transfer","resume_transfer"].includes(payload?.type) && payload.missionId===active?.commandId;
-      if (active && !["completed","failed","cancelled"].includes(active.status) && (!sameMissionControl && (operation === "update" || (operation === "submit" && active.commandId !== requestId)))) {
+      if (active && !terminal(active.status) && (!sameMissionControl && (operation === "update" || (operation === "submit" && active.commandId !== requestId)))) {
         const feedback=await feedbackFor(active.commandId);
-        if (!feedback || !["completed","failed","cancelled"].includes(feedback.status)) throw serviceError(409,"robot_busy","Robot has an active command.");
+        if (!feedback || !terminal(feedback.status)) throw serviceError(409,"robot_busy","Robot has an active command.");
       }
-      if(operation === "submit") {
+      let controllerBootId;
+      if (operation === "submit") {
         await adapter.validateSubmit?.(payload);
-        await repository.save({missionId:"gateway-active",commandId:requestId});
+        if (adapter.observeMission) {
+          controllerBootId = await getControllerSession();
+          if (!controllerBootId) throw serviceError(503, "controller_unavailable", "Webots controller telemetry is unavailable.");
+          if (record && !record.controllerBootId) {
+            throw serviceError(409, "controller_session_unknown", "The prepared command has no recorded Webots session.");
+          }
+          const expected = record?.controllerBootId || expectedControllerBootId;
+          if (expected && expected !== controllerBootId) {
+            throw serviceError(409, "controller_restarted", "Webots restarted before the mission could be delivered.");
+          }
+        }
       }
       if (!record) {
-        record = {missionId:key, fingerprint:hash, status:"prepared", operation, payload};
+        record = { missionId: key, fingerprint: hash, status: "prepared", operation, payload,
+          ...(controllerBootId ? { controllerBootId } : {}) };
         await repository.save(record);
       }
-      const result = await adapter[operation](operation === "update" ? {...payload,requestKey:requestId} : payload);
+      if (operation === "submit" && active?.commandId !== requestId) {
+        await repository.save({ missionId: "gateway-active", commandId: requestId,
+          ...(controllerBootId ? { controllerBootId } : {}) });
+      }
+      const result = operation === "submit" && controllerBootId
+        ? await adapter.submit(payload, controllerBootId)
+        : await adapter[operation](operation === "update" ? { ...payload, requestKey: requestId } : payload);
       if (result === false) throw serviceError(400, "unsupported_command", "Unsupported simulator command.");
       record = {...record, status:"delivered", result:{accepted:true, requestId}};
       await repository.save(record);
@@ -58,6 +95,6 @@ const createGatewayService = ({repository, adapter}) => {
   const getFeedback = missionId => {
     const task=pending.then(()=>feedbackFor(missionId));pending=task.catch(()=>{});return task;
   };
-  return {execute,getFeedback,collect,drain:() => pending};
+  return {execute,getFeedback,getControllerSession,collect,drain:() => pending};
 };
 module.exports = {createGatewayService};

@@ -112,7 +112,7 @@ const simplifyCollinearPath = (path) => {
 
 const findShortestSafePath = (start, end, polygons, margin, getGrid) => {
   if (segmentClear(start, end, polygons, margin)) return [copyPoint(start), copyPoint(end)];
-  const grid = getGrid ? getGrid() : createTraversalGrid(polygons, margin);
+  const grid = getGrid();
   const startIndex = findNearestFreeGridCell(start, grid, polygons, margin);
   const endIndex = findNearestFreeGridCell(end, grid, polygons, margin);
   if (startIndex < 0 || endIndex < 0) return null;
@@ -176,9 +176,11 @@ const findShortestSafePath = (start, end, polygons, margin, getGrid) => {
 
 export const buildObstacleAwareRoute = (route, polygons) => {
   if (route.length <= 1 || polygons.length === 0) return route.map(copyPoint);
+  let grid;
+  const getGrid = () => (grid ??= createTraversalGrid(polygons));
   const result = [];
   for (let i = 0; i < route.length - 1; i += 1) {
-    const path = findShortestSafePath(route[i], route[i + 1], polygons, ROUTE_CLEARANCE_MARGIN);
+    const path = findShortestSafePath(route[i], route[i + 1], polygons, ROUTE_CLEARANCE_MARGIN, getGrid);
     if (!path) return null;
     if (!result.length) result.push(...path);
     else result.push(...path.slice(1));

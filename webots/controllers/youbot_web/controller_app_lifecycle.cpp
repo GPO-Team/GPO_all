@@ -24,6 +24,7 @@
 #include "controller_telemetry_service.h"
 #include "controller_webots_adapter.h"
 #include "controller_webots_camera_adapter.h"
+#include "controller_webots_camera_perception.h"
 #include "controller_webots_devices.h"
 #include "controller_webots_motion_state.h"
 #include "controller_webots_pose.h"
@@ -299,6 +300,14 @@ STEP_CALLBACK(merge_trace_for_controller_step)
 STEP_CALLBACK(maybe_write_map)
 static void maybe_update_camera_perception_step(void *context) {
   (void)context;
+  double joints[5] = {};
+  double fingers[2] = {};
+  controller_webots_devices_read_manipulator(&webots_devices, joints, fingers);
+  controller_webots_camera_set_manipulator_joints(joints);
+  const auto &cargo = object_transfer_runtime.service.state;
+  const bool approaching = cargo.status == CONTROLLER_TRANSFER_RUNNING &&
+      cargo.stage == CONTROLLER_TRANSFER_APPROACHING_OBJECT && !cargo.attached && !cargo.on_platform;
+  controller_webots_camera_set_active_target(approaching, cargo.object_pose[0], cargo.object_pose[1]);
   controller_camera_runtime_capture(&camera_runtime);
 }
 static void maybe_write_camera_frame_step(void *context) {
@@ -455,6 +464,8 @@ int controller_app_lifecycle_run(int argc, char **argv) {
   runtime_command_reload_service.cancel_pick_place = controller_webots_manipulator_cancel;
   runtime_command_reload_service.motion_blocked = robot_motion_owned;
   route_zone_reload_service.motion_blocked = robot_motion_owned;
+  runtime_command_reload_service.controller_boot_id = object_transfer_runtime.boot_id;
+  route_zone_reload_service.controller_boot_id = object_transfer_runtime.boot_id;
   runtime_command_reload_service.last_modified = get_file_mtime(RUNTIME_COMMAND_PATH);
   runtime_command_reload_service.last_processed_id = controller_runtime_command_latest_id(RUNTIME_COMMAND_PATH);
 

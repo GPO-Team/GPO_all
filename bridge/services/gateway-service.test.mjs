@@ -45,3 +45,20 @@ describe("gateway delivery journal", () => {
       .rejects.toMatchObject({statusCode:409});
   });
 });
+
+it("clears the active gateway slot after a fresh different controller boot without replay", async () => {
+  const { service, adapter } = setup();
+  adapter.observeMission = vi.fn(async () => ({ controllerBootId: "boot-first", feedback: null }));
+  const payload = { commandId: "old-boot" };
+  await expect(service.execute("submit", "old-boot", payload, "boot-first")).resolves.toMatchObject({ accepted: true });
+  adapter.observeMission.mockResolvedValue({ controllerBootId: null, feedback: null });
+  await expect(service.getFeedback("old-boot")).resolves.toBeNull();
+  adapter.observeMission.mockResolvedValue({ controllerBootId: "boot-next", feedback: null });
+  await expect(service.getFeedback("old-boot"))
+    .resolves.toMatchObject({ status: "failed", errorCode: "controller_restarted" });
+  await expect(service.execute("submit", "old-boot", payload, "boot-first"))
+    .resolves.toMatchObject({ accepted: true });
+  await expect(service.execute("submit", "new-boot", { commandId: "new-boot" }, "boot-next"))
+    .resolves.toMatchObject({ accepted: true });
+  expect(adapter.submit.mock.calls.map(([command]) => command.commandId)).toEqual(["old-boot", "new-boot"]);
+});

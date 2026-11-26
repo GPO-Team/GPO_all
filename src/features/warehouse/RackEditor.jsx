@@ -150,6 +150,16 @@ export default function RackEditor({
                     />
                   ))}
                 </div>
+                {Number(level.supportZ) > 0 && (
+                  <Field
+                    label={`Уровень ${index + 1}: DEF опоры Webots`}
+                    type="text"
+                    value={level.supportDef ?? ""}
+                    onChange={(v) => levelChange(index, "supportDef", v)}
+                    pattern="[A-Za-z_][A-Za-z0-9_]{0,62}"
+                    placeholder="WAREHOUSE_SHELF"
+                  />
+                )}
               </div>
             ))}
           </div>

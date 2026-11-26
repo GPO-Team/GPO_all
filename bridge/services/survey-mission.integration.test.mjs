@@ -16,13 +16,18 @@ afterEach(async () => {for (const directory of directories.splice(0)) await rm(d
 it("delivers one survey across retries, tracks feedback and cancellation, then allows a route", async () => {
   const stateDir = await mkdtemp(path.join(os.tmpdir(), "gpo-survey-"));
   directories.push(stateDir);
+  const controllerBootId = "webots-survey-test";
+  const publishControllerState = navigation => writeFile(path.join(stateDir, "robot_state.json"),
+    JSON.stringify({ navigation, objectTransfer: { controllerBootId } }));
+  await publishControllerState({});
   const repository = repositories.createMissionRepository({directory:path.join(stateDir,"missions")});
   const gatewayRepository = repositories.createMissionRepository({directory:path.join(stateDir,"gateway")});
   const artifactStore = stores.createWebStateStore({coordinateContract,stateDir});
   const fileAdapter = adapters.createWebotsFileAdapter({artifactStore,stateDir});
   let gateway = gateways.createGatewayService({repository:gatewayRepository,adapter:fileAdapter});
   const adapter = {
-    submit: command => gateway.execute("submit",command.commandId,command),
+    getControllerSession: () => gateway.getControllerSession(),
+    submit: (command, bootId) => gateway.execute("submit",command.commandId,command,bootId),
     cancel: missionId => gateway.execute("cancel",missionId,{missionId}),
     getFeedback: missionId => gateway.getFeedback(missionId),
   };
@@ -40,11 +45,12 @@ it("delivers one survey across retries, tracks feedback and cancellation, then a
   const text = await readFile(artifactStore.paths.runtimeCommand,"utf8");
   expect(text.match(/type start_mapping_survey/g)).toHaveLength(1);
   expect(text).toContain(`mission_id ${requestId}\n`);
+  expect(text).toContain(`controller_boot_id ${controllerBootId}\n`);
   expect((await gatewayRepository.get("gateway-active")).commandId).toBe(requestId);
   const route = {type:"route",route:[{x:0,y:0},{x:1,y:0}]};
   await expect(routeService.handle(route,{requestId:"next"})).rejects.toMatchObject({statusCode:409});
   await expect(gateway.execute("submit","other",{...route,commandId:"other"})).rejects.toMatchObject({statusCode:409});
-  const feedback = navigation => writeFile(path.join(stateDir,"robot_state.json"),JSON.stringify({navigation:{missionId:requestId,...navigation}}));
+  const feedback = navigation => publishControllerState({ missionId: requestId, ...navigation });
   await feedback({status:"mapping_survey_started",finished:false});
   expect((await missionService.get(requestId)).status).toBe("running");
   expect((await missionService.cancel(requestId)).status).toBe("cancelling");

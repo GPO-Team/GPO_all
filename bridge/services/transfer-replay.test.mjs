@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from "vitest";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import gateway from "./gateway-service.cjs";
@@ -13,6 +13,9 @@ afterEach(async () => { if (directory) await rm(directory, { recursive: true, fo
 
 it("publishes a transfer once when delivered journaling fails and the gateway restarts", async () => {
   directory = await mkdtemp(path.join(os.tmpdir(), "gpo-transfer-replay-"));
+  await writeFile(path.join(directory, "robot_state.json"), JSON.stringify({
+    objectTransfer: { controllerBootId: "webots-transfer-test" },
+  }));
   const artifactStore = stores.createWebStateStore({ stateDir: directory, coordinateContract });
   const adapter = adapters.createWebotsFileAdapter({ artifactStore, stateDir: directory });
   const records = new Map();

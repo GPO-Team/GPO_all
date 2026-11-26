@@ -47,6 +47,16 @@ static int add_point(RouteData *route,double x,double y) {
   if(route->count>=MAX_WAYPOINTS)return 0;
   route->waypoints[route->count++]=Waypoint{.x=x,.z=y};return 1;
 }
+int controller_delivery_platform_cargo_separated(const double cargo_local[3], double radius) {
+  if (!cargo_local || !isfinite(radius) || radius <= 0 ||
+      !isfinite(cargo_local[0]) || !isfinite(cargo_local[1]) || !isfinite(cargo_local[2])) return 0;
+  // Conservative envelope of PLATE in YoubotManipulation.proto, with a 10 mm margin.
+  constexpr double margin = .01;
+  return cargo_local[0] + radius < -.29 - margin ||
+      cargo_local[0] - radius > .03 + margin ||
+      fabs(cargo_local[1]) - radius > .191 + margin ||
+      cargo_local[2] + radius < .0415 - margin;
+}
 int controller_delivery_use_platform(double source_x,double source_y,double target_x,double target_y) {
   return std::isfinite(source_x) && std::isfinite(source_y) && std::isfinite(target_x) &&
       std::isfinite(target_y) && hypot(target_x-source_x,target_y-source_y)>=.75;

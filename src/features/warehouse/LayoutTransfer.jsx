@@ -81,7 +81,8 @@ export default function LayoutTransfer({ warehouse, pending, onImport, onError }
               disabled={
                 pending ||
                 !text.trim() ||
-                warehouse.tasks.some((task) => task.status === "prepared")
+                warehouse.tasks.some((task) => !["cancelled", "completed"].includes(task.status)) ||
+                warehouse.cargo.some((cargo) => !["receiving", "shipping"].includes(cargo.locationId))
               }
               onClick={importLayout}
             >

@@ -67,10 +67,18 @@ try {
   const plan = await (await fetch(`http://127.0.0.1:${planningPort}/api/solve-route`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ points: [{ x: 0, y: 0 }, { x: 1, y: 0 }], scene, task: "tsp" }) })).json();
   assert.equal(plan.ok, true, JSON.stringify(plan));
   socket = new WebSocket(`ws://127.0.0.1:${routePort}/ui`); await once(socket, "open");
+  const stateFile = path.join(directory, "state/robot_state.json");
+  const publishTestController = (navigation, x = 0) => writeFile(stateFile, JSON.stringify({
+    navigation, pose: { x, y: 0, z: 0, yaw: 0 }, objectTransfer: { controllerBootId: "webots-docker-smoke" },
+  }));
+  if (!physics) await publishTestController({});
+  if (physics) await until(async () => {
+    try { return Boolean(JSON.parse(await readFile(stateFile, "utf8")).objectTransfer?.controllerBootId); }
+    catch { return false; }
+  }, "Webots controller session");
   const command = createRouteCommand({ source: "docker-test", requestId: "docker-complete", payload: { type: "route", route: plan.route, seedRoute: plan.seedRoute, scene } });
   assert.equal((await send(command)).ok, true);
-  const stateFile = path.join(directory, "state/robot_state.json");
-  if (!physics) await writeFile(stateFile, JSON.stringify({ pose: { x: 0, y: 0, z: 0, yaw: 0 }, navigation: { missionId: "docker-complete", finished: true } }));
+  if (!physics) await publishTestController({ missionId: "docker-complete", finished: true });
   await until(async () => (await mission("docker-complete")).status === "completed", "mission completion");
   const routeBefore = await readFile(path.join(directory, "state/route.csv"), "utf8");
   socket.terminate(); socket = null;
@@ -87,10 +95,11 @@ try {
   socket = new WebSocket(`ws://127.0.0.1:${routePort}/ui`); await once(socket, "open");
   assert.equal((await send(command)).ok, true);
   assert.equal(await readFile(path.join(directory, "state/route.csv"), "utf8"), routeBefore);
+  if (!physics) await publishTestController({ missionId: "docker-complete", finished: true });
   assert.equal((await send(createRouteCommand({ source: "docker-test", requestId: "docker-cancel", payload: { type: "route", route: [{ x: 0, y: 0 }, { x: 18, y: 0 }], scene } }))).ok, true);
   if (physics) await until(async () => (await mission("docker-cancel")).status === "running", "robot movement");
   assert.equal((await fetch(`http://127.0.0.1:${routePort}/api/missions/docker-cancel/cancel`, { method: "POST" })).status, 202);
-  if (!physics) await writeFile(stateFile, JSON.stringify({ pose: { x: 0, y: 0, z: 0, yaw: 0 }, navigation: { missionId: "docker-cancel", status: "mission_cancelled" } }));
+  if (!physics) await publishTestController({ missionId: "docker-cancel", status: "mission_cancelled" });
   await until(async () => (await mission("docker-cancel")).status === "cancelled", "mission cancellation");
   if (physics) {
     const first = JSON.parse(await readFile(stateFile, "utf8")); await delay(1000);
@@ -101,7 +110,7 @@ try {
   let observed = false;
   telemetry.on("message", data => { const event = JSON.parse(data); if (event.type === "telemetry.event" && event.payload?.pose) observed = true; });
   await once(telemetry, "open");
-  if (!physics) await writeFile(stateFile, JSON.stringify({ pose: { x: 3.25, y: 0, z: 0, yaw: 0 }, navigation: { missionId: "docker-cancel", status: "mission_cancelled", finished: true } }));
+  if (!physics) await publishTestController({ missionId: "docker-cancel", status: "mission_cancelled", finished: true }, 3.25);
   await until(() => observed, "telemetry websocket", 15000);
   console.log(`Docker smoke passed: frontend, native planning, mission completion, crash recovery, idempotency, cancellation, telemetry. Physics=${physics}`);
 } catch (error) { console.error(logs); throw error; }

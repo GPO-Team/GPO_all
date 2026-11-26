@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import coordinateContract from "../../shared/coordinate-contract.json";
@@ -13,6 +13,9 @@ const setup = async () => {
   directory = await mkdtemp(path.join(os.tmpdir(),"gpo-preflight-"));
   const records = new Map();
   const repository = {get:async id=>records.get(id),save:async record=>records.set(record.missionId,record)};
+  await writeFile(path.join(directory, "robot_state.json"), JSON.stringify({
+    objectTransfer: { controllerBootId: "webots-gateway-preflight" },
+  }));
   const artifactStore = stores.createWebStateStore({coordinateContract,stateDir:directory});
   const adapter = adapters.createWebotsFileAdapter({artifactStore,stateDir:directory});
   return {repository,service:gateway.createGatewayService({repository,adapter})};

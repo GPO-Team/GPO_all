@@ -71,14 +71,18 @@ describe("mission application service", () => {
     adapter.getFeedback.mockResolvedValue({missionId:"transfer-2",status:"holding_for_recovery",stage:"placing",progress:78,errorCode:"unsafe_release",attached:true});
     expect((await service.get("transfer-2")).status).toBe("holding_for_recovery");
     await expect(service.submit(payload,{requestId:"blocked-route"})).rejects.toMatchObject({statusCode:409});
-    expect(await service.resume("transfer-2")).toMatchObject({
+    const attempt = await service.resume("transfer-2");
+    expect(attempt).toMatchObject({
       status:"holding_for_recovery",
       resumeDelivered:true,
     });
     await service.resume("transfer-2");
     expect(adapter.update).toHaveBeenCalledOnce();
     expect(adapter.update).toHaveBeenCalledWith(expect.objectContaining({type:"resume_transfer",missionId:"transfer-2"}),expect.any(String));
-    adapter.getFeedback.mockResolvedValue({missionId:"transfer-2",status:"running",stage:"transporting",progress:60,attached:true});
+    const running = {missionId:"transfer-2",status:"running",stage:"transporting",progress:60,attached:true};
+    adapter.getFeedback.mockResolvedValue(running);
+    expect((await service.get("transfer-2")).status).toBe("holding_for_recovery");
+    adapter.getFeedback.mockResolvedValue({...running,resumeResult:{requestId:attempt.resumeRequestId,recoveryEpoch:0,errorCode:null}});
     expect((await service.get("transfer-2")).status).toBe("running");
   });
   it("moves a cancelled carrying transfer into recovery holding", async () => {
@@ -124,8 +128,9 @@ it("resumes running feedback and allocates a new resume request for the next rec
   await service.submit(transferPayload,{requestId:"recovery"});
   adapter.getFeedback.mockResolvedValue({missionId:"recovery",status:"holding_for_recovery"});
   await service.get("recovery");
-  await service.resume("recovery");
-  adapter.getFeedback.mockResolvedValue({missionId:"recovery",status:"running"});
+  const attempt = await service.resume("recovery");
+  adapter.getFeedback.mockResolvedValue({missionId:"recovery",status:"running",
+    resumeResult:{requestId:attempt.resumeRequestId,recoveryEpoch:0,errorCode:null}});
   expect((await service.get("recovery")).status).toBe("running");
   adapter.getFeedback.mockResolvedValue({missionId:"recovery",status:"holding_for_recovery"});
   await service.get("recovery");
@@ -206,4 +211,53 @@ it("allows held recovery without cargo to park the manipulator", async () => {
   await service.get("park-recovery");
   expect(await service.resume("park-recovery")).toMatchObject({resumeDelivered:true});
   expect(adapter.update).toHaveBeenCalledOnce();
+});
+
+it("waits for a controller before journaling a new mission", async () => {
+  const { adapter, service } = await setup();
+  adapter.getControllerSession = vi.fn(async () => null);
+  await expect(service.submit(payload, { requestId: "offline" }))
+    .rejects.toMatchObject({ code: "controller_unavailable" });
+  expect(await service.list()).toEqual([]);
+  expect(adapter.submit).not.toHaveBeenCalled();
+});
+
+it("never delivers a prepared mission after its controller session changes", async () => {
+  const { adapter, repository, service } = await setup();
+  adapter.getControllerSession = vi.fn(async () => "boot-first");
+  adapter.submit.mockRejectedValueOnce(new Error("delivery unavailable"));
+  await expect(service.submit(payload, { requestId: "before-restart" })).rejects.toThrow("delivery unavailable");
+  expect(await repository.get("before-restart")).toMatchObject({ status: "prepared", controllerBootId: "boot-first" });
+
+  adapter.getControllerSession.mockResolvedValue(null);
+  await service.reconcile();
+  expect(await repository.get("before-restart")).toMatchObject({ status: "prepared" });
+  adapter.getControllerSession.mockResolvedValue("boot-next");
+  await service.reconcile();
+  expect(await repository.get("before-restart")).toMatchObject({ status: "failed", errorCode: "controller_restarted" });
+  expect(adapter.submit).toHaveBeenCalledTimes(1);
+  await expect(service.submit(payload, { requestId: "after-restart" }))
+    .resolves.toMatchObject({ status: "persisted", controllerBootId: "boot-next" });
+});
+
+it("unlocks a held transfer only for a fresh rejection of its pending resume", async () => {
+  const {service,adapter}=await setup();
+  const id="rejected-resume";
+  await service.submit(transferPayload,{requestId:id});
+  const held={missionId:id,status:"holding_for_recovery",recoveryEpoch:1,attached:true};
+  adapter.getFeedback.mockResolvedValue(held);
+  await service.get(id);
+  const first=await service.resume(id);
+  const rejection={requestId:first.resumeRequestId,recoveryEpoch:1,errorCode:"invalid_sensor"};
+  adapter.getFeedback.mockResolvedValue({...held,resumeResult:{...rejection,requestId:"older-attempt"}});
+  expect((await service.get(id)).resumeDelivered).toBe(true);
+  adapter.getFeedback.mockResolvedValue({...held,cached:true,resumeResult:rejection});
+  expect((await service.get(id)).resumeDelivered).toBe(true);
+  adapter.getFeedback.mockResolvedValue({...held,resumeResult:rejection});
+  expect(await service.get(id)).toMatchObject({resumeDelivered:false,resumeError:"invalid_sensor"});
+  const second=await service.resume(id);
+  expect(second.resumeRequestId).not.toBe(first.resumeRequestId);
+  expect(second.resumeError).toBeNull();
+  expect(adapter.update).toHaveBeenCalledTimes(2);
+  expect((await service.get(id)).resumeDelivered).toBe(true);
 });

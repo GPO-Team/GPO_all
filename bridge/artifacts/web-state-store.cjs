@@ -104,6 +104,7 @@ const createWebStateStore = ({ coordinateContract, stateDir, renameFile = fs.pro
     const commandId = payload.commandId === undefined ? randomUUID() : validateMissionId(payload.commandId);
     routeJson.commandId = commandId;
     const csvLines = [routeCsvHeader, `# command ${commandId}`];
+    if (payload.controllerBootId) csvLines.push(`# controller_boot_id ${validateMissionId(payload.controllerBootId)}`);
     for (let index = 0; index < route.length; index += 1) {
       const point = route[index];
       const previous = index === 0 ? { x: 0, y: 0 } : route[index - 1];
@@ -168,7 +169,9 @@ const createWebStateStore = ({ coordinateContract, stateDir, renameFile = fs.pro
     const requestedId = Number(payload?.commandId);
     const commandId = Math.max(latestId + 1, Number.isSafeInteger(requestedId) && requestedId > 0 ? requestedId : Date.now());
     if (!Number.isSafeInteger(commandId)) throw new Error("Runtime command id exceeds the supported range.");
-    const commandText = (payload.requestKey ? `# request ${validateMissionId(payload.requestKey)}\n` : "") + createRuntimeCommandText({ ...payload, commandId });
+    const sessionLine = payload.controllerBootId
+      ? `controller_boot_id ${validateMissionId(payload.controllerBootId)}\n` : "";
+    const commandText = (payload.requestKey ? `# request ${validateMissionId(payload.requestKey)}\n` : "") + createRuntimeCommandText({ ...payload, commandId }) + sessionLine;
     if (payload?.type === "start_mapping_survey") await writeMotionProfile(payload.motion);
     await atomicWrite(paths.runtimeCommand, previous + (previous && !previous.endsWith("\n") ? "\n" : "") + commandText);
   };

@@ -45,3 +45,18 @@ it.each(["loadHeld", "onPlatform"])("keeps a cancelled pick mission nonterminal 
   }));
   expect(await service.get("held-pick")).toMatchObject({status:"cancelling",attached:true,stage:"lowering"});
 });
+
+it("keeps a pick mission held when cargo ownership is uncertain", async () => {
+  directory = await mkdtemp(path.join(os.tmpdir(), "gpo-uncertain-arm-"));
+  const adapter = adapters.createWebotsFileAdapter({ artifactStore: {}, stateDir: directory });
+  await writeFile(path.join(directory, "robot_state.json"), JSON.stringify({
+    objectTransfer: { controllerBootId: "webots-current" },
+    navigation: { missionId: "uncertain-pick", status: "manipulator_holding", finished: false },
+    manipulator: { missionId: "uncertain-pick", stage: "holding_for_recovery",
+      loadHeld: false, onPlatform: false, active: true, error: "invalid_sensor" },
+  }));
+  expect(await adapter.getFeedback("uncertain-pick")).toMatchObject({
+    status: "holding_for_recovery", attached: false, onPlatform: false, errorCode: "invalid_sensor",
+    controllerBootId: "webots-current",
+  });
+});

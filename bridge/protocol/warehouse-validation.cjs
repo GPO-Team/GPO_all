@@ -50,6 +50,7 @@ const validateRack = (value) => {
       supportZ: number(level.supportZ, "Высота опоры", 0, 20),
       clearHeight: number(level.clearHeight, "Высота проёма", 0, 20, false),
       maxLoadKg: number(level.maxLoadKg, "Нагрузка", 0, 100000, false),
+      ...(level.supportDef !== undefined && level.supportDef !== "" ? { supportDef: validateObjectDef(level.supportDef) } : {}),
     };
     if (result.supportZ + result.clearHeight > 20)
       invalid("Высота стеллажа не должна превышать 20 м.");
@@ -122,12 +123,18 @@ const validateStations = (values) => {
   if (new Set(stations.map((station) => station.id)).size !== 2) invalid("Необходимы обе зоны.");
   return stations;
 };
-const validateCargo = (value) => {
+const validateObjectDef = (value) => {
+  if (typeof value !== "string" || !/^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(value))
+    invalid("Укажите корректное имя DEF объекта Webots.");
+  return value;
+};
+const validateCargo = (value, { stored = false } = {}) => {
   object(value, "Груз");
-  if (value.locationId !== undefined && value.locationId !== "receiving")
+  if (!stored && value.locationId !== undefined && value.locationId !== "receiving")
     invalid("Груз регистрируется только в зоне приёмки.");
   return {
     id: identifier(value.id),
+    ...(value.objectDef === undefined ? {} : { objectDef: validateObjectDef(value.objectDef) }),
     label: text(value.label, "Название груза"),
     width: number(value.width, "Ширина груза", 0, bounds.width, false),
     depth: number(value.depth, "Глубина груза", 0, bounds.height, false),

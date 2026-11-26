@@ -1,4 +1,9 @@
 const labels = {prepared:"Подготовлена, отправка не подтверждена",persisted:"Сохранена, ожидается контроллер",accepted:"Принята контроллером",running:"Выполняется",cancelling:"Отмена запрошена, ожидается остановка",completed:"Завершена",failed:"Ошибка исполнения",cancelled:"Отменена"};
+const resumeErrors = {
+  invalid_sensor: "Контроллер отклонил продолжение. Повторите после восстановления показаний датчиков.",
+  attachment_unconfirmed: "Контроллер отклонил продолжение. Повторите после восстановления захвата.",
+  recovery_changed: "Состояние восстановления изменилось. Проверьте его и повторите запрос.",
+};
 const measurement = value => Number.isFinite(value) ? value.toFixed(3) : "—";
 const vector = values => Array.isArray(values) ? values.map(measurement).join(", ") : null;
 const evidence = value => value === true ? "да" : value === false ? "нет" : "нет измерения";
@@ -19,6 +24,7 @@ export default function PlannerMissionStatus({mission,onCancel,onResume}) {
     </>}
     <div className="mt-1 break-all text-xs text-slate-500">ID: {mission.missionId}</div>
     {mission.errorCode && <div className="mt-1 break-all text-red-700">Ошибка контроллера: {mission.errorCode}</div>}
+    {resumeErrors[mission.resumeError] && <div role="alert" className="mt-1 text-red-700">{resumeErrors[mission.resumeError]}</div>}
     {mission.actionError && <div role="alert" className="mt-1 text-red-700">{mission.actionError}</div>}
     {manipulator && <details className="mt-2 text-xs text-slate-600" open={mission.status === "holding_for_recovery"}>
       <summary>Измерения манипулятора</summary>

@@ -91,3 +91,29 @@ it("shows a large-box rejection and safely retries the same mission", async () =
     await act(async () => root.unmount());
   }
 });
+
+it("hands the acknowledged survey mission to mission tracking", async () => {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  vi.clearAllMocks();
+  const root = createRoot(document.createElement("div"));
+  const track = vi.fn();
+  const acknowledgement = { missionId: "survey", status: "persisted", operationType: "survey" };
+  sendRouteChannelPayload.mockImplementationOnce(async (_socket, _command, callbacks) => {
+    callbacks.onSent(acknowledgement);
+    return true;
+  });
+  let actions;
+  function Harness() {
+    const currentActions = usePlannerRuntimeCommands({
+      batteryRangeMeters: 100, payloadKg: 0, routeSocketRef: { current: null },
+      setStatus: vi.fn(), onMissionSubmitted: track,
+    });
+    React.useEffect(() => { actions = currentActions; });
+    return null;
+  }
+  try {
+    await act(async () => root.render(<Harness />));
+    await act(async () => actions.startMappingSurvey());
+    expect(track).toHaveBeenCalledWith(acknowledgement);
+  } finally { await act(async () => root.unmount()); }
+});

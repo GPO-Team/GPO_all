@@ -6,15 +6,21 @@
 #include "controller_camera_virtual.h"
 #include "controller_io.h"
 #include "controller_math.h"
+#include "controller_navigation_runtime.h"
 #include "controller_webots_adapter.h"
 #include "controller_webots_camera_adapter.h"
+#include "controller_webots_camera_map_sync.h"
 #include "controller_webots_camera_perception.h"
 #include "controller_webots_camera_range.h"
-#include "controller_webots_camera_map_sync.h"
-#include "controller_navigation_runtime.h"
 
 #include <cmath>
 #include <string.h>
+#include <webots/supervisor.h>
+
+namespace {
+ControllerPerceptionCameraObservation s_held_observation = {};
+int s_held_observation_frames = 0;
+}
 
 static ControllerWebotsCameraMapSyncContext camera_map_sync_context(void) {
   double robot_x = 0.0;
@@ -86,13 +92,19 @@ static double estimate_range(
 static void merge_visible_frustum(
     ControllerCameraRuntime *runtime,
     double effective_fov,
-    double default_range) {
+    double default_range,
+    int has_camera_obstacle,
+    double camera_obstacle_angle,
+    double camera_obstacle_range) {
   if (!runtime->perception->camera.available || !runtime->operations.merge_free_ray) return;
   const double half_fov = fmax(effective_fov, 0.8) * 0.5;
   for (int index = 0; index <= 8; ++index) {
     const double t = ((double)index / 8.0) * 2.0 - 1.0;
     const double angle = t * half_fov * 0.92;
-    const double range = estimate_range(runtime, angle, default_range);
+    double range = estimate_range(runtime, angle, default_range);
+    if (has_camera_obstacle && fabs(angle - camera_obstacle_angle) <= 0.24) {
+      range = fmin(range, fmax(runtime->config.free_ray_min_range, camera_obstacle_range - 0.16));
+    }
     runtime->operations.merge_free_ray(
         runtime->operations.context,
         angle,
@@ -114,8 +126,8 @@ static void update_obstacle_hint(ControllerCameraRuntime *runtime) {
   const double effective_fov = runtime->perception->camera.fov > 1e-9
                                    ? runtime->perception->camera.fov
                                    : runtime->config.default_fov;
-  merge_visible_frustum(runtime, effective_fov, runtime->config.range_fallback);
-  ControllerWebotsCameraPerception result;
+
+  ControllerWebotsCameraPerception result{};
   controller_webots_camera_perception_analyze(
       image,
       runtime->perception->camera.width,
@@ -123,31 +135,78 @@ static void update_obstacle_hint(ControllerCameraRuntime *runtime) {
       effective_fov,
       runtime->config.min_obstacle_score,
       &result);
+
+  const WbNodeRef camera = wb_supervisor_node_get_from_device(runtime->sensors->camera);
+  const double *camera_position = camera ? wb_supervisor_node_get_position(camera) : nullptr;
+  if (camera_position) {
+    memcpy(result.camera.position, camera_position, sizeof(result.camera.position));
+    const double *orientation = wb_supervisor_node_get_orientation(camera);
+    if (orientation) {
+      memcpy(result.camera.orientation, orientation, sizeof(result.camera.orientation));
+      result.camera.width = runtime->perception->camera.width;
+      result.camera.height = runtime->perception->camera.height;
+      result.camera.focal_px = 0.5 * result.camera.width / tan(0.5 * effective_fov);
+    }
+  }
+
+  double robot_x = 0.0;
+  double robot_z = 0.0;
+  double robot_heading = 0.0;
+  if (runtime->operations.read_pose) {
+    runtime->operations.read_pose(runtime->operations.context, &robot_x, &robot_z, &robot_heading);
+  } else {
+    read_pose(&robot_x, &robot_z, &robot_heading);
+  }
+
+  const float *lidar_ranges =
+      (runtime->perception->lidar.available && controller_webots_sensors_has_lidar(runtime->sensors))
+          ? controller_webots_sensors_lidar_ranges(runtime->sensors)
+          : nullptr;
+
+  controller_webots_camera_perception_fuse_lidar(
+      &result,
+      lidar_ranges,
+      runtime->perception->lidar.resolution,
+      runtime->perception->lidar.fov,
+      runtime->config.range_search_window,
+      runtime->config.min_trace_range,
+      runtime->config.max_trace_range,
+      LIDAR_LOCAL_X,
+      LIDAR_LOCAL_Y,
+      robot_x,
+      robot_z,
+      robot_heading,
+      camera_time(runtime));
+
   ControllerPerceptionCameraObservation observation = {
-      .score = result.score,
+      .score = 0.0,
       .update_step = step,
   };
-  if (result.visible) {
-    double confirmed_range = 0.0;
-    const int lidar_confirmed = controller_webots_camera_confirmed_range_from_lidar(
-        runtime->sensors,
-        runtime->perception->lidar.available,
-        runtime->perception->lidar.resolution,
-        runtime->perception->lidar.fov,
-        result.angle,
-        runtime->config.range_search_window,
+
+  if (result.visible && result.obstacle_lidar_confirmed) {
+    const double resolved_range = clamp_value(
+        result.fallback_range_m > 0.05 ? result.fallback_range_m : runtime->config.range_fallback,
         runtime->config.min_trace_range,
-        runtime->config.max_trace_range,
-        &confirmed_range);
-    observation.visible = lidar_confirmed;
-    observation.center_offset = lidar_confirmed ? result.center_offset : 0.0;
-    observation.angle = lidar_confirmed ? result.angle : 0.0;
-    observation.range = lidar_confirmed ? confirmed_range : 0.0;
-    observation.detection_count = lidar_confirmed ? result.detection_count : 0;
-    if (!lidar_confirmed) {
-      controller_perception_runtime_update_camera(runtime->perception, &observation);
-      return;
-    }
+        runtime->config.max_trace_range);
+
+    observation.visible = 1;
+    observation.score = result.score;
+    observation.center_offset = result.center_offset;
+    observation.angle = result.angle;
+    observation.range = resolved_range;
+    observation.detection_count = result.detection_count;
+
+    s_held_observation = observation;
+    s_held_observation_frames = 2;
+
+    merge_visible_frustum(
+        runtime,
+        effective_fov,
+        runtime->config.range_fallback,
+        1,
+        observation.angle,
+        observation.range);
+
     if (runtime->operations.merge_free_ray) {
       runtime->operations.merge_free_ray(
           runtime->operations.context, observation.angle, observation.range, 2);
@@ -157,9 +216,24 @@ static void update_obstacle_hint(ControllerCameraRuntime *runtime) {
           runtime->operations.context,
           observation.angle,
           observation.range,
-          result.confidence_boost);
+          result.confidence_boost > 0 ? result.confidence_boost : 2);
     }
+  } else {
+    if (s_held_observation_frames > 0) {
+      --s_held_observation_frames;
+      observation = s_held_observation;
+      observation.update_step = step;
+      observation.score = fmax(0.75, observation.score - 0.03);
+    }
+    merge_visible_frustum(
+        runtime,
+        effective_fov,
+        runtime->config.range_fallback,
+        observation.visible,
+        observation.angle,
+        observation.visible ? observation.range : runtime->config.max_trace_range);
   }
+
   controller_perception_runtime_update_camera(runtime->perception, &observation);
 }
 

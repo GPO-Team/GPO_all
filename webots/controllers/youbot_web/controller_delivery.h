@@ -4,6 +4,7 @@
 typedef int (*ControllerDeliverySafe)(void *context,double x,double y);
 int controller_delivery_segment_clear(double ax,double ay,double bx,double by,ControllerDeliverySafe safe,void *context);
 int controller_delivery_plan(RouteData *route,double x,double y,double tx,double ty,ControllerDeliverySafe safe,void *context);
+int controller_delivery_platform_cargo_separated(const double cargo_local[3], double radius);
 int controller_delivery_use_platform(double source_x,double source_y,double target_x,double target_y);
 void controller_delivery_motion_limits(int carrying,int on_platform,double active_linear,double active_angular,
     double *linear,double *angular);

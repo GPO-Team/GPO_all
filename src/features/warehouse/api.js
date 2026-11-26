@@ -4,7 +4,9 @@ export async function warehouseApi(path = "", options) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
   try {
-    const response = await fetch(`${MISSION_API_BASE_URL}/api/warehouse${path}`, {
+    const querySeparator = path.includes("?") ? "&" : "?";
+    const view = path.startsWith("/history?") ? "" : `${querySeparator}view=live`;
+    const response = await fetch(`${MISSION_API_BASE_URL}/api/warehouse${path}${view}`, {
       signal: controller.signal,
       ...(options
         ? {

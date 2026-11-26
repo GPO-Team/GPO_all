@@ -34,6 +34,7 @@ typedef struct {
   int load_held;
   int cancel_pending;
   int require_support;
+  int require_floor_support;
   double stage_timeout;
 } ControllerManipulator;
 

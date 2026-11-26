@@ -32,6 +32,23 @@ int main(void) {
   assert(!controller_webots_manipulator_active(&mission));
   mission.state.stage=MANIPULATOR_FAILED;
   assert(!controller_webots_manipulator_active(&mission));
+  mission.platform_contact_unknown=true;
+  assert(controller_webots_manipulator_active(&mission));
+  assert(strcmp(controller_webots_manipulator_stage(&mission),"holding_for_recovery")==0);
+  mission.platform_contact_unknown=false;
+  assert(!controller_webots_manipulator_active(&mission));
+
+  const double cargo_on_deck[] = {-.07, .075, .09};
+  const double cargo_on_edge[] = {-.08, .20, .09};
+  const double cargo_on_floor[] = {-.08, .23, -.062};
+  const double cargo_off_deck[] = {-.08, .31, .09};
+  const double invalid_cargo_pose[] = {NAN, .31, .09};
+  assert(!controller_delivery_platform_cargo_separated(cargo_on_deck, .045));
+  assert(!controller_delivery_platform_cargo_separated(cargo_on_edge, .045));
+  assert(controller_delivery_platform_cargo_separated(cargo_on_floor, .045));
+  assert(controller_delivery_platform_cargo_separated(cargo_off_deck, .045));
+  assert(!controller_delivery_platform_cargo_separated(invalid_cargo_pose, .045));
+  assert(!controller_delivery_platform_cargo_separated(cargo_off_deck, NAN));
   RouteData route={};
   assert(controller_delivery_plan(&route,0,0,1,1,open_space,NULL));
   assert(route.count==2 && route.waypoints[1].x==1 && route.waypoints[1].z==1);

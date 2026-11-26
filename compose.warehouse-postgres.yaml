@@ -1,0 +1,15 @@
+services:
+  route:
+    environment:
+      WAREHOUSE_STORAGE: postgres
+      WAREHOUSE_POSTGRES_HOST: postgres
+      POSTGRES_PORT: '5432'
+      POSTGRES_DB: ${POSTGRES_DB:-gpo}
+      POSTGRES_USER: ${POSTGRES_USER:-gpo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    networks: [default, warehouse_db]
+
+networks:
+  warehouse_db:
+    name: ${WAREHOUSE_POSTGRES_NETWORK:-gpo-warehouse-db}
+    external: true

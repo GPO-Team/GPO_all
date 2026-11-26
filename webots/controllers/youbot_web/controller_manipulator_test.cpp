@@ -82,6 +82,37 @@ int main(void) {
   controller_manipulator_step(&arm, &sample, 0.016);
   assert(arm.stage == MANIPULATOR_FAILED);
   assert(strcmp(arm.error, "object_lost") == 0);
+  arm = {};
+  assert(controller_manipulator_start(&arm, source, destination));
+  arm.require_floor_support = 1;
+  for (int i = 0; i < 1000 && arm.stage != MANIPULATOR_LOWER; ++i) {
+    sample = sample_for(&arm);
+    if (arm.stage == MANIPULATOR_CLOSE) sample.fingers[0] = sample.fingers[1] = 0.0045;
+    controller_manipulator_step(&arm, &sample, 0.016);
+  }
+  assert(arm.stage == MANIPULATOR_LOWER);
+  for (int i = 0; i < 25; ++i) {
+    sample = sample_for(&arm);
+    controller_manipulator_step(&arm, &sample, 0.016);
+  }
+  assert(arm.stage == MANIPULATOR_LOWER);
+  assert(arm.finger_target == 0);
+  for (int i = 0; i < 20 && arm.stage == MANIPULATOR_LOWER; ++i) {
+    sample = sample_for(&arm);
+    sample.release_safe = 1;
+    controller_manipulator_step(&arm, &sample, 0.016);
+  }
+  assert(arm.stage == MANIPULATOR_RELEASE);
+  assert(arm.finger_target == 0.025);
+  const double dock_source[] = {.4, -.1, -.047846};
+  const double deck_target[] = {-.07, .075, .0975};
+  ControllerManipulator dock_plan{};
+  dock_plan.grip_yaw = 2.755;
+  assert(controller_manipulator_inverse(dock_source, angles, dock_plan.grip_yaw));
+  assert(controller_manipulator_inverse(deck_target, angles, dock_plan.grip_yaw));
+  assert(!controller_manipulator_start(&dock_plan, dock_source, deck_target));
+  dock_plan.grip_yaw = 0;
+  assert(controller_manipulator_start(&dock_plan, dock_source, deck_target));
   puts("manipulator tests passed");
   return 0;
 }

@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
+    networks: [default, warehouse_db]
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-gpo}
       POSTGRES_USER: ${POSTGRES_USER:-gpo}
@@ -24,3 +25,7 @@ services:
 
 volumes:
   postgres_data:
+
+networks:
+  warehouse_db:
+    name: ${WAREHOUSE_POSTGRES_NETWORK:-gpo-warehouse-db}

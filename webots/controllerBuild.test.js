@@ -249,7 +249,7 @@ describe("Webots controller build configuration", () => {
     const adapter = readFileSync(`${controllerDirectory}/controller_webots_camera_range.cpp`, "utf8");
 
     expect(source).toContain("controller_webots_camera_range_from_lidar(");
-    expect(source).toContain("controller_webots_camera_confirmed_range_from_lidar(");
+    expect(source).toContain("controller_webots_camera_perception_fuse_lidar(");
     expect(adapter).toContain("controller_camera_fusion_confirmed_range(");
     expect(source).not.toContain("double best_angle_error = CAMERA_RANGE_SEARCH_WINDOW_RAD");
   });
@@ -268,12 +268,15 @@ describe("Webots controller build configuration", () => {
     expect(source).not.toContain("target_x - 3, horizon - 21, target_x + 3, horizon - 15");
   });
 
-  it("delegates camera-observation decisions to Camera", () => {
+  it("analyzes camera detections before fusing them with LiDAR", () => {
     const source = runtimeSource;
     const adapter = readFileSync(`${controllerDirectory}/controller_webots_camera_perception.cpp`, "utf8");
 
     expect(source).toContain("controller_webots_camera_perception_analyze(");
-    expect(adapter).toContain("controller_camera_observation_hint(");
+    expect(source.indexOf("controller_webots_camera_perception_analyze(")).toBeLessThan(
+      source.indexOf("controller_webots_camera_perception_fuse_lidar("),
+    );
+    expect(adapter).toContain("controller_webots_object_naming_resolve(");
     expect(source).not.toContain("camera_obstacle_center_offset * fmax(effective_fov, 0.8) * 0.5");
   });
 

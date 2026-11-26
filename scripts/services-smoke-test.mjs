@@ -38,10 +38,15 @@ const send = command => new Promise((resolve,reject) => {
   socket.on("message",receive);socket.send(JSON.stringify(command));
 });
 const getMission = async () => (await fetch(`http://127.0.0.1:${routePort}/api/missions/smoke-mission`)).json();
+const publishControllerState = (state, controllerBootId = "webots-services-smoke") =>
+  writeFile(path.join(directory, "simulator", "robot_state.json"), JSON.stringify({
+    ...state, objectTransfer: { controllerBootId },
+  }));
 try {
   let gateway=start("gateway");
   const planning=start("planning"), telemetry=start("telemetry");let missions=start("route");
   await Promise.all([waitReady(planningPort,planning),waitReady(routePort,missions),waitReady(telemetryPort,telemetry),waitReady(gatewayPort,gateway)]);
+  await publishControllerState({});
   const scene={polygons:[],surfaceZones:[],chargingStations:[],motion:{cruiseSpeedMps:0.22,payloadKg:0,batteryRange:100}};
   const response=await fetch(`http://127.0.0.1:${planningPort}/api/solve-route`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({points:[{x:0,y:0},{x:1,y:0}],scene,task:"tsp"})});
   const plan=await response.json();assert.equal(plan.ok,true,JSON.stringify(plan));assert.ok(plan.planning.routeEnergy>0);
@@ -51,9 +56,9 @@ try {
   const csv=await readFile(path.join(directory,"simulator","route.csv"),"utf8");assert.match(csv,/# command smoke-mission/);
   assert.equal((await send(command)).ok,true);assert.equal(await readFile(path.join(directory,"simulator","route.csv"),"utf8"),csv);
   // Synthetic controller feedback: this is a transport test, not a physics simulation.
-  await writeFile(path.join(directory,"simulator","robot_state.json"),JSON.stringify({navigation:{missionId:"another-mission",finished:true}}));
+  await publishControllerState({navigation:{missionId:"another-mission",finished:true}});
   assert.equal((await getMission()).status,"persisted");
-  await writeFile(path.join(directory,"simulator","robot_state.json"),JSON.stringify({navigation:{missionId:"smoke-mission",finished:true}}));
+  await publishControllerState({navigation:{missionId:"smoke-mission",finished:true}});
   assert.equal((await getMission()).status,"completed");
   socket.terminate();socket=null;await stop(missions);missions=start("route");await waitReady(routePort,missions);
   assert.equal((await getMission()).status,"completed");
@@ -67,7 +72,7 @@ try {
   const badVersion=await fetch(`http://127.0.0.1:${gatewayPort}/v1/commands`,{method:"POST",headers:{Authorization:"Bearer smoke-secret","Content-Type":"application/json"},body:JSON.stringify({version:99})});
   assert.equal(badVersion.status,400);
   assert.equal((await fetch(`http://127.0.0.1:${gatewayPort}/ready`)).status,401);
-  // Submission while gateway is down remains prepared and recovers in background.
+  // Without a controller session, submission needs a new request after the gateway returns.
   await stop(gateway);
   const recovered=createRouteCommand({source:"services-smoke",requestId:"recover-mission",payload:command.payload});
   const offlineAck=await send(recovered);assert.equal(offlineAck.ok,false);
@@ -79,13 +84,17 @@ try {
       await new Promise(resolve=>setTimeout(resolve,100));
     }throw new Error(`Missing status ${id}: ${status}`);
   };
+  const beforeRetry = await fetch(`http://127.0.0.1:${routePort}/api/missions/recover-mission`);
+  assert.equal(beforeRetry.status, 404);
+  await publishControllerState({});
+  assert.equal((await send(recovered)).status, "persisted");
   await waitStatus("recover-mission","persisted");
   assert.match(await readFile(path.join(directory,"simulator","route.csv"),"utf8"),/# command recover-mission/);
   const conflict=await send(createRouteCommand({source:"services-smoke",requestId:"cannot-replace",payload:command.payload}));
   assert.equal(conflict.statusCode,409);
   const cancelled=await fetch(`http://127.0.0.1:${routePort}/api/missions/recover-mission/cancel`,{method:"POST"});
   assert.equal((await cancelled.json()).status,"cancelling");
-  await writeFile(path.join(directory,"simulator","robot_state.json"),JSON.stringify({navigation:{missionId:"recover-mission",status:"mission_cancelled",finished:true}}));
+  await publishControllerState({navigation:{missionId:"recover-mission",status:"mission_cancelled",finished:true}});
   // List endpoint doesn't reconcile; this asserts background collection with no mission GET.
   await waitStatus("recover-mission","cancelled");
   telemetrySocket=new WebSocket(`ws://127.0.0.1:${telemetryPort}`);await once(telemetrySocket,"open");
@@ -93,7 +102,7 @@ try {
     const timeout=setTimeout(()=>reject(new Error("Telemetry forwarding timeout")),5000);
     telemetrySocket.on("message",data=>{const event=JSON.parse(data);if(event.payload?.pose?.x===3.25){clearTimeout(timeout);resolve(event);}});
   });
-  await writeFile(path.join(directory,"simulator","robot_state.json"),JSON.stringify({pose:{x:3.25,y:1,z:0,yaw:0},navigation:{missionId:"recover-mission",status:"mission_cancelled",finished:true}}));
+  await publishControllerState({pose:{x:3.25,y:1,z:0,yaw:0},navigation:{missionId:"recover-mission",status:"mission_cancelled",finished:true}});
   assert.equal((await telemetryReceived).type,"telemetry.event");
   const survey={type:"start_mapping_survey",requestId:"smoke-survey",mode:"snake",clearMap:true};
   const surveyAck=await send(survey);
@@ -105,12 +114,22 @@ try {
   assert.match(journal,/mission_id smoke-survey/);
   const busy=await send(createRouteCommand({source:"services-smoke",requestId:"during-survey",payload:command.payload}));
   assert.equal(busy.statusCode,409);
-  await writeFile(path.join(directory,"simulator","robot_state.json"),JSON.stringify({navigation:{missionId:"smoke-survey",status:"mapping_survey_started",finished:false}}));
+  await publishControllerState({navigation:{missionId:"smoke-survey",status:"mapping_survey_started",finished:false}});
   await waitStatus("smoke-survey","running");
   const cancelSurvey=await fetch(`http://127.0.0.1:${routePort}/api/missions/smoke-survey/cancel`,{method:"POST"});
   assert.equal((await cancelSurvey.json()).status,"cancelling");
-  await writeFile(path.join(directory,"simulator","robot_state.json"),JSON.stringify({navigation:{missionId:"smoke-survey",status:"mission_cancelled",finished:true}}));
+  await publishControllerState({navigation:{missionId:"smoke-survey",status:"mission_cancelled",finished:true}});
   await waitStatus("smoke-survey","cancelled");
+
+  const oldBoot = { ...survey, requestId: "before-controller-restart" };
+  assert.equal((await send(oldBoot)).status, "persisted");
+  await publishControllerState({}, "webots-services-smoke-next");
+  await waitStatus(oldBoot.requestId, "failed");
+  assert.equal((await send(oldBoot)).status, "failed");
+  const nextBoot = { ...survey, requestId: "after-controller-restart" };
+  assert.equal((await send(nextBoot)).status, "persisted");
+  const currentJournal = await readFile(path.join(directory, "simulator", "runtime_command.txt"), "utf8");
+  assert.equal(currentJournal.match(/^mission_id before-controller-restart$/gm)?.length, 1);
   console.log("services smoke passed: independent processes, planning, route and survey missions, ACK, idempotency, exclusion, cancellation, matched feedback, restart");
 } finally {
   telemetrySocket?.terminate();socket?.terminate();await Promise.all(children.map(stop));

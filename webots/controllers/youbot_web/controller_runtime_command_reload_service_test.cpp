@@ -163,6 +163,17 @@ int main(void) {
   assert(controller_runtime_command_reload_service_run(&service, 42, 6) == CONTROLLER_RUNTIME_COMMAND_RELOAD_APPLIED);
   assert(strcmp(status, "runtime_obstacle_deleted") == 0);
   assert(spawn_calls == 5);
+  service.controller_boot_id = "boot-current";
+  motion_blocked = 0;
+  file = fopen(path, "a");
+  assert(file);
+  fputs("id 25\ntype pick_place\nmission_id old-session\ncontroller_boot_id boot-old\nobject_def PICK_BOX\ntarget_x 0.4\ntarget_y 0.1\ntarget_z 0.04\n"
+        "id 26\ntype pick_place\nmission_id new-session\ncontroller_boot_id boot-current\nobject_def PICK_BOX\ntarget_x 0.4\ntarget_y 0.1\ntarget_z 0.04\n", file);
+  fclose(file);
+  assert(controller_runtime_command_reload_service_run(&service, 48, 6) == CONTROLLER_RUNTIME_COMMAND_RELOAD_INVALID);
+  assert(pick_calls == 1);
+  assert(controller_runtime_command_reload_service_run(&service, 54, 6) == CONTROLLER_RUNTIME_COMMAND_RELOAD_APPLIED);
+  assert(pick_calls == 2);
   remove(path);
   return 0;
 }

@@ -158,3 +158,30 @@ describe("planner lifecycle regressions", () => {
     }
   });
 });
+
+it("retries an interrupted scene rebuild and removes the stale route while waiting", async () => {
+  vi.useFakeTimers();
+  try {
+    const pending = Promise.withResolvers();
+    const replanned = [{ x: 0, y: 0 }, { x: 0.5, y: 1 }, { x: 1, y: 0 }];
+    prepareRouteOnServer.mockReturnValueOnce(pending.promise)
+      .mockResolvedValueOnce({ ok: true, route: replanned });
+    const props = { ...routeProps(), chargePointsRoutingText: "[]", previewPolygonRoutingText: "[]",
+      routeSeed: [{ x: 0, y: 0 }, { x: 1, y: 0 }], surfaceZones: [] };
+    const changed = { ...props, batteryRangeMeters: 90 };
+    function Harness({ config }) { usePlannerRouteRebuild(config); return null; }
+    await act(async () => root.render(<Harness config={props} />));
+    await act(async () => root.render(<Harness config={changed} />));
+    const clearedStaleRoute = props.setOptimizedRoute.mock.calls.some(([route]) => route.length === 0);
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+    const signal = prepareRouteOnServer.mock.calls[0][2];
+    await act(async () => root.render(<Harness config={{ ...changed, editingLocked: true }} />));
+    expect(signal.aborted).toBe(true);
+    await act(async () => pending.resolve({ ok: true, route: props.routeSeed }));
+    await act(async () => root.render(<Harness config={changed} />));
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+    expect(prepareRouteOnServer).toHaveBeenCalledTimes(2);
+    expect(props.setOptimizedRoute).toHaveBeenLastCalledWith(replanned);
+    expect(clearedStaleRoute).toBe(true);
+  } finally { vi.useRealTimers(); }
+});

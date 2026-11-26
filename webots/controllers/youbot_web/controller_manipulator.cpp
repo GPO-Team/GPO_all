@@ -273,6 +273,8 @@ void controller_manipulator_step(ControllerManipulator *arm, const ControllerMan
   if (arm->stage == MANIPULATOR_LOWER || arm->stage == MANIPULATOR_RELEASE) {
     ready = ready && distance(sample->object, arm->destination) < 0.03;
     if(arm->cancel_pending || arm->require_support) ready=ready && sample->release_safe;
+    if(arm->require_floor_support && arm->stage==MANIPULATOR_LOWER)
+      ready=ready && sample->release_safe;
   }
   if ((arm->stage == MANIPULATOR_RETRACT || arm->stage == MANIPULATOR_STOW) && distance(sample->object, arm->destination) > 0.04) {
     fail(arm, sample, "placement_failed"); return;

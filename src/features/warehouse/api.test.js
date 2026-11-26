@@ -29,6 +29,15 @@ describe("warehouse API client", () => {
     });
   });
 
+  it("requests the live view only for the warehouse workspace", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok:true, json:async () => ({ok:true}) })));
+    await warehouseApi("");
+    await warehouseApi("/suggestions?cargoId=b");
+    await warehouseApi("/history?status=cancelled&before=25");
+    const urls = fetch.mock.calls.map(([url]) => new URL(url).search);
+    expect(urls).toEqual(["?view=live", "?cargoId=b&view=live", "?status=cancelled&before=25"]);
+  });
+
   it("reports a bounded timeout instead of leaving the workspace locked", async () => {
     vi.useFakeTimers();
     vi.stubGlobal(

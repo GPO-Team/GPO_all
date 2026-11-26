@@ -15,6 +15,7 @@ export default function CargoPanel({
   const [draft, setDraft] = useState({
     id: "",
     label: "",
+    objectDef: "",
     width: "0.3",
     depth: "0.3",
     height: "0.3",
@@ -22,23 +23,26 @@ export default function CargoPanel({
   });
   const change = (key, value) => setDraft((previous) => ({ ...previous, [key]: value }));
   const activeCargo = new Set(
-    tasks.filter((task) => task.status === "prepared").map((task) => task.cargoId),
+    tasks.filter((task) => !["completed", "cancelled"].includes(task.status)).map((task) => task.cargoId),
   );
-  const selected = cargo.find((item) => item.id === selectedId);
+  const receiving = cargo.filter((item) => item.locationId === "receiving");
+  const selected = receiving.find((item) => item.id === selectedId);
   return (
     <div className="space-y-5">
       <form
         aria-label="Регистрация груза"
         onSubmit={async (event) => {
           event.preventDefault();
+          const { objectDef, ...details } = draft;
           const success = await onRegister({
-            ...draft,
+            ...details,
+            ...(objectDef ? { objectDef } : {}),
             width: Number(draft.width),
             depth: Number(draft.depth),
             height: Number(draft.height),
             massKg: Number(draft.massKg),
           });
-          if (success) setDraft((previous) => ({ ...previous, id: "", label: "" }));
+          if (success) setDraft((previous) => ({ ...previous, id: "", label: "", objectDef: "" }));
         }}
       >
         <fieldset disabled={pending} className="space-y-3">
@@ -62,6 +66,15 @@ export default function CargoPanel({
               maxLength={120}
             />
           </div>
+          <Field
+            label="Имя DEF коробки в Webots"
+            type="text"
+            value={draft.objectDef}
+            onChange={(v) => change("objectDef", v)}
+            maxLength={63}
+            pattern="[A-Za-z_][A-Za-z0-9_]{0,62}"
+            placeholder="PICK_BOX"
+          />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
               ["width", "Ширина, м"],
@@ -84,9 +97,9 @@ export default function CargoPanel({
           </Button>
         </fieldset>
       </form>
-      {cargo.length === 0 ? (
+      {receiving.length === 0 ? (
         <p className="rounded-xl bg-stone-50 p-4 text-sm text-stone-500">
-          Грузов пока нет. Зарегистрируйте коробку, чтобы подобрать свободную ячейку.
+          На приёмке нет грузов. Зарегистрируйте коробку, чтобы подобрать свободную ячейку.
         </p>
       ) : (
         <div className="space-y-3">
@@ -94,13 +107,13 @@ export default function CargoPanel({
             Груз на приёмке
             <select
               aria-label="Груз на приёмке"
-              value={selectedId || ""}
+              value={selected?.id || ""}
               disabled={pending}
               onChange={(event) => onSelect(event.target.value)}
               className="mt-1.5 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900"
             >
               <option value="">Выберите груз</option>
-              {cargo.map((item) => (
+              {receiving.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.id} · {item.label}
                   {activeCargo.has(item.id) ? " · резерв" : ""}
@@ -111,7 +124,7 @@ export default function CargoPanel({
           {selected && (
             <p className="text-xs text-stone-500">
               {selected.width} × {selected.depth} × {selected.height} м · {selected.massKg} кг ·
-              Приёмка{activeCargo.has(selected.id) ? " · задача уже подготовлена" : ""}
+              Приёмка{activeCargo.has(selected.id) ? " · есть активное задание" : ""}
             </p>
           )}
           <Button

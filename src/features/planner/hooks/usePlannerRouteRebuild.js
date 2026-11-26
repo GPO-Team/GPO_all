@@ -48,12 +48,19 @@ export const usePlannerRouteRebuild = ({
       return undefined;
     }
     if (plannedRef.current.sceneKey === sceneKey) return undefined;
+    // Clear the previous route while this scene is being planned. Reopening an
+    // earlier scene also needs a rebuild once its displayed route was cleared.
+    if (plannedRef.current.sceneKey !== null) {
+      plannedRef.current = { seed: routeSeed, sceneKey: null };
+      setOptimizedRoute([]);
+      setRouteEnergyStats(createEmptyRouteEnergyStats());
+    }
     const controller = new AbortController();
     const timer = setTimeout(async () => {
-      plannedRef.current = { seed: routeSeed, sceneKey };
       try {
         const planning = await prepareRouteOnServer(routeSeed, scene, controller.signal);
         if (controller.signal.aborted) return;
+        plannedRef.current = { seed: routeSeed, sceneKey };
         setEnergyWarning("");
         setOptimizedRoute(planning.route);
         setRouteEnergyStats(buildRouteEnergyStats(planning));

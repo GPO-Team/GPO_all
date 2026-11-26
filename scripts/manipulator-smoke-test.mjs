@@ -1,7 +1,7 @@
 // Real Webots physics test. Starts an isolated world and independent services.
 import {spawn} from "node:child_process";
 import {createServer} from "node:net";
-import {mkdtemp,mkdir,cp,copyFile,readFile,writeFile,rm} from "node:fs/promises";
+import {mkdtemp,mkdir,chmod,cp,copyFile,readFile,writeFile,rm} from "node:fs/promises";
 import {once} from "node:events";
 import os from "node:os";
 import path from "node:path";
@@ -10,47 +10,152 @@ import WebSocket from "ws";
 import sceneContract from "../bridge/protocol/scene-validation.cjs";
 const root=path.resolve(import.meta.dirname,"..");
 const afterDemo=process.argv.includes("--after-demo");
-const mobile=process.argv.includes("--mobile") || afterDemo;
+const visionEmpty=process.argv.includes("--vision-empty");
+const visionAmbiguous=process.argv.includes("--vision-ambiguous");
+const visionHidden=process.argv.includes("--vision-hidden");
+const visionReject=visionEmpty || visionAmbiguous || visionHidden;
+const missingShelf = process.argv.includes("--warehouse-missing-shelf");
+const warehouseShelf = missingShelf || process.argv.includes("--warehouse-shelf");
+const warehouseRejection = missingShelf ? "invalid_shelf_support" : process.argv.includes("--warehouse-wrong-cargo") ? "vision_wrong_cargo"
+  : process.argv.includes("--warehouse-outside-receiving") ? "cargo_outside_receiving" : null;
+const warehouseDelivery = warehouseShelf || process.argv.includes("--warehouse-delivery") || Boolean(warehouseRejection);
+const vision=process.argv.includes("--vision") || visionReject || warehouseDelivery;
+const visionDef = warehouseDelivery ? "PICK_BOX" : "VISION_TEST_BOX";
+const mobile=process.argv.includes("--mobile") || afterDemo || vision;
 const nearObject=process.argv.includes("--near-object");
 const obstacle=process.argv.includes("--obstacle");
-const blocked=process.argv.includes("--blocked");
-const destination={x:mobile ? (obstacle ? 4 : nearObject ? 1 : 2) : 0.4,y:afterDemo ? 3 : mobile ? 1 : 0.1,z:0.04};
+const nestedBlocked=process.argv.includes("--nested-blocked");
+const blocked=process.argv.includes("--blocked") || nestedBlocked;
+const unsupportedHeight=process.argv.includes("--unsupported-height");
+const destination={x:mobile ? (obstacle ? 4 : nearObject ? 1 : 2) : 0.4,y:afterDemo ? 3 : mobile ? 1 : 0.1,z:warehouseShelf ? .10 : unsupportedHeight ? .12 : .04};
+const shipping = {x:2.22,y:1.01,z:.04};
 const directory=await mkdtemp(path.join(os.tmpdir(),"gpo-manipulator-"));
-await cp(path.join(root,"webots/protos"),path.join(directory,"protos"),{recursive:true});
+const webotsImage = process.env.GPO_WEBOTS_TEST_IMAGE;
+const containerName = `gpo-${path.basename(directory).toLowerCase()}`;
+const worldPath = path.join(directory, "worlds", "test.wbt");
 const children=[];
 const armSamples=[];
 let socket;
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const freePort=async()=>{const s=createServer();s.listen(0,"127.0.0.1");await once(s,"listening");const p=s.address().port;await new Promise(r=>s.close(r));return p;};
-const [gatewayPort,missionPort,planningPort,telemetryPort,webotsPort]=await Promise.all(Array.from({length:5},freePort));
+const [gatewayPort,missionPort,webotsPort]=await Promise.all(Array.from({length:3},freePort));
 const stateDir=path.join(directory,"state");
-const env={...process.env,BRIDGE_BIND_HOST:"127.0.0.1",ROUTE_BIND_HOST:"127.0.0.1",TELEMETRY_BIND_HOST:"127.0.0.1",SOLVER_BIND_HOST:"127.0.0.1",GATEWAY_BIND_HOST:"127.0.0.1",GATEWAY_PORT:String(gatewayPort),GATEWAY_URL:`http://127.0.0.1:${gatewayPort}`,GATEWAY_TOKEN:"physics-test",ROUTE_PORT:String(missionPort),SOLVER_PORT:String(planningPort),TELEMETRY_PORT:String(telemetryPort),MISSION_STATE_DIR:path.join(directory,"missions"),WEB_STATE_DIR:stateDir,MOCK_TELEMETRY:"0"};
-const launch=(exe,args)=>{const p=spawn(exe,args,{cwd:root,env,stdio:["ignore","pipe","pipe"],windowsHide:true});p.logs="";p.stdout.on("data",d=>p.logs+=d);p.stderr.on("data",d=>p.logs+=d);children.push(p);return p;};
+const env={...process.env,WAREHOUSE_STORAGE:"sqlite",BRIDGE_BIND_HOST:"127.0.0.1",ROUTE_BIND_HOST:"127.0.0.1",GATEWAY_BIND_HOST:"127.0.0.1",GATEWAY_PORT:String(gatewayPort),GATEWAY_URL:`http://127.0.0.1:${gatewayPort}`,GATEWAY_TOKEN:"physics-test",ROUTE_PORT:String(missionPort),MISSION_STATE_DIR:path.join(directory,"missions"),WEB_STATE_DIR:stateDir};
+const launch=(exe,args)=>{const p=spawn(exe,args,{cwd:root,env,stdio:["ignore","pipe","pipe"],windowsHide:true});p.logs="";p.on("error",error=>{p.launchError=error;});p.stdout.on("data",d=>p.logs+=d);p.stderr.on("data",d=>p.logs+=d);children.push(p);return p;};
 const until=async(condition,label,timeout=90000,interval=200)=>{const deadline=Date.now()+timeout;while(Date.now()<deadline){if(await condition())return;await delay(interval);}throw new Error(`Timeout: ${label}`);};
 const readState=async()=>{
   for(let attempt=0;;++attempt)try{return JSON.parse(await readFile(path.join(stateDir,"robot_state.json"),"utf8"));}
   catch(error){if(attempt>=10 || (error.code!=="ENOENT" && !(error instanceof SyntaxError)))throw error;await delay(5);}
 };
 const getMission=async id=>(await fetch(`http://127.0.0.1:${missionPort}/api/missions/${id}`)).json();
+const warehouse = async (endpoint = "", body) => {
+  const response = await fetch(`http://127.0.0.1:${missionPort}/api/warehouse${endpoint}`, body
+    ? {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}
+    : {});
+  const result = await response.json();
+  assert.ok(response.ok, JSON.stringify(result));
+  return result;
+};
 const send=command=>new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error("ACK timeout")),15000);const receive=data=>{const ack=JSON.parse(data);if(ack.requestId===command.requestId){clearTimeout(timer);socket.off("message",receive);resolve(ack);}};socket.on("message",receive);socket.send(JSON.stringify(command));});
 try {
   await mkdir(path.join(directory,"worlds"),{recursive:true});
-  await mkdir(path.join(directory,"controllers","youbot_web"),{recursive:true});
   await mkdir(stateDir,{recursive:true});
   let world = await readFile(path.join(root,"webots/worlds/youbot_only.wbt"),"utf8");
   if(mobile && !nearObject && !afterDemo)world=world.replace(/(DEF PICK_BOX Solid\s*\{\s*translation\s+)[^\r\n]+/,(_line,prefix)=>`${prefix}${obstacle ? 3.4 : 1.4} -0.1 0.04`);
+  if(vision) {
+    world=world.replace(/(DEF DEMO_BOX Solid\s*\{\s*translation\s+)[^\r\n]+/,
+      (_line,prefix)=>`${prefix}1.4 3 0.075`);
+    world=world.replace(/DEF PICK_BOX Solid\s*\{\s*translation\s+[^\r\n]+/,
+      `DEF ${visionDef} Solid {\n  translation 1.45 ${visionEmpty || visionHidden ? 3 : -.18} 0.04`);
+    for(const y of warehouseDelivery ? [] : [-1.25, 2.25]) {
+      world+=`\nSolid { translation 1.4 ${y} 0.45
+        children [ Shape {
+          appearance PBRAppearance { baseColor 0.3 0.35 0.4 metalness 0 roughness 1 }
+          geometry Box { size 1.8 0.45 0.9 }
+        } ]
+        boundingObject Box { size 1.8 0.45 0.9 }
+      }\n`;
+    }
+    if(visionAmbiguous) world+=`\nDEF SECOND_VISION_BOX Solid {
+      translation 1.45 0.25 0.04
+      children [ Shape {
+        appearance PBRAppearance { baseColor 0.1 0.45 0.75 roughness 0.7 }
+        geometry Box { size 0.03 0.03 0.08 }
+      } ]
+      boundingObject Box { size 0.03 0.03 0.08 }
+      physics Physics { density -1 mass 0.04 }
+    }\n`;
+    if(visionHidden) world+=`\nDEF VISIBLE_DECOY Solid {
+      name "visible decoy"
+      translation 1.45 -0.18 0.04
+      children [ Shape {
+        appearance PBRAppearance { baseColor 0.1 0.45 0.75 roughness 0.7 }
+        geometry Box { size 0.03 0.03 0.08 }
+      } ]
+      boundingObject Box { size 0.03 0.03 0.08 }
+    }
+    DEF HIDDEN_BOX Solid {
+      name "hidden cargo"
+      translation 1.45 -0.10 0.04
+      boundingObject Box { size 0.03 0.03 0.08 }
+      physics Physics { density -1 mass 0.04 }
+    }\n`;
+  }
   if(obstacle)world+='\nDEF DELIVERY_OBSTACLE Solid { translation 1.5 0 0.2 children [ Shape { geometry Box { size 0.1 0.4 0.4 } } ] boundingObject Box { size 0.1 0.4 0.4 } }\n';
-  if(blocked)world+=`\nDEF BLOCKED_DESTINATION Solid { translation ${destination.x} ${destination.y} 0.2 children [ Shape { geometry Box { size 0.3 0.3 0.4 } } ] boundingObject Box { size 0.3 0.3 0.4 } }\n`;
-  await writeFile(path.join(directory,"worlds/test.wbt"), world);
-  await copyFile(path.join(root,"webots/controllers/youbot_web/youbot_web.exe"),path.join(directory,"controllers/youbot_web/youbot_web.exe"));
-  for(const name of ["gateway","route","planning","telemetry"])launch(process.execPath,[`bridge/processes/run-${name}-service.cjs`]);
-  for(const port of [missionPort,planningPort,telemetryPort])await until(async()=>{try{return (await fetch(`http://127.0.0.1:${port}/ready`)).ok;}catch{return false;}},`service ${port}`,15000);
+  if(blocked) {
+    const obstacle = `DEF BLOCKED_DESTINATION Solid { translation 0 0 0.2
+      children [ Shape { geometry Box { size 0.3 0.3 0.4 } } ]
+      boundingObject Box { size 0.3 0.3 0.4 }
+    }`;
+    world+=nestedBlocked
+      ? `\nGroup { children [ Pose { translation ${destination.x} ${destination.y} 0 children [ ${obstacle} ] } ] }\n`
+      : "\n"+obstacle.replace("translation 0 0", `translation ${destination.x} ${destination.y}`)+"\n";
+  }
+  if (warehouseShelf && !missingShelf) {
+    world += `\nDEF WAREHOUSE_SHELF Solid {
+      translation ${destination.x} ${destination.y} 0.03
+      children [ Shape {
+        appearance PBRAppearance { baseColor 0.35 0.30 0.2 roughness 1 }
+        geometry Box { size 0.14 0.14 0.06 }
+      } ]
+      boundingObject Box { size 0.14 0.14 0.06 }
+    }\n`;
+  }
+  await writeFile(worldPath, world);
+  if (webotsImage) {
+    // The host bridge and the simulator user share only this disposable state directory.
+    await chmod(stateDir, 0o777);
+  } else {
+    await cp(path.join(root,"webots/protos"),path.join(directory,"protos"),{recursive:true});
+    await mkdir(path.join(directory,"controllers","youbot_web"),{recursive:true});
+    await copyFile(path.join(root,"webots/controllers/youbot_web/youbot_web.exe"),path.join(directory,"controllers/youbot_web/youbot_web.exe"));
+  }
+  for(const name of ["gateway","route"])launch(process.execPath,[`bridge/processes/run-${name}-service.cjs`]);
+  await until(async()=>{try{return (await fetch(`http://127.0.0.1:${missionPort}/ready`)).ok;}catch{return false;}},"route and gateway readiness",15000);
   const webotsHome=process.env.WEBOTS_HOME || "C:/Program Files/Webots";
-  const simulator=launch(path.join(webotsHome,"msys64/mingw64/bin/webots.exe"),["--batch","--minimize","--no-rendering","--mode=fast","--stdout","--stderr",`--port=${webotsPort}`,path.join(directory,"worlds/test.wbt")]);
-  await until(async()=>{if(simulator.exitCode!==null)throw new Error(simulator.logs);try{const state=JSON.parse(await readFile(path.join(stateDir,"robot_state.json"),"utf8"));return Boolean(state.pose);}catch{return false;}},"controller telemetry");
+  const webotsArgs = ["--batch", "--no-rendering", "--mode=fast", "--stdout", "--stderr"];
+  const simulator = webotsImage
+    ? launch("docker", ["run", "--rm", "--init", "--name", containerName, "--shm-size=256m",
+      "--env", "LIBGL_ALWAYS_SOFTWARE=1",
+      "--mount", `type=bind,source=${stateDir},target=/data/webots`,
+      "--mount", `type=bind,source=${worldPath},target=/project/worlds/test.wbt,readonly`,
+      "--entrypoint", "xvfb-run", webotsImage, "--auto-servernum",
+      "--server-args=-screen 0 1280x720x24", "webots", ...webotsArgs, "/project/worlds/test.wbt"])
+    : launch(path.join(webotsHome,"msys64/mingw64/bin/webots.exe"),
+      ["--minimize", ...webotsArgs, `--port=${webotsPort}`, worldPath]);
+  await until(async()=>{if(simulator.launchError)throw simulator.launchError;if(simulator.exitCode!==null)throw new Error(simulator.logs);try{const state=JSON.parse(await readFile(path.join(stateDir,"robot_state.json"),"utf8"));return Boolean(state.pose);}catch{return false;}},"controller telemetry");
   socket=new WebSocket(`ws://127.0.0.1:${missionPort}/ui`);await once(socket,"open");
   await until(async () => (await readState()).simulationTime > 2, "settling");
   let before=await readState();
+  await until(async()=>{
+    const current=await readState();
+    if(current.simulationTime-before.simulationTime<.25) return false;
+    const stationary=current.manipulator.joints.every((angle,i)=>
+      Math.abs(angle-before.manipulator.joints[i])<.003 &&
+      Math.abs(angle-current.manipulator.targetJoints[i])<.015);
+    before=current;
+    return stationary;
+  },"arm settled before mission");
   assert.ok(Math.hypot(before.pose.x,before.pose.y)<0.015,
     `Robot started moving without a mission: ${JSON.stringify(before.pose)} at ${before.simulationTime}s`);
   runScenario: {
@@ -110,17 +215,79 @@ try {
     before=await readState();
     console.log(`DEMO_BOX placed; fetching PICK_BOX from ${JSON.stringify(before.pose)}`);
   }
-  const ack = await send({requestId:"arm-physics",type:"pick_place",objectDef:"PICK_BOX",destination});
-  assert.equal(ack.ok,true,JSON.stringify(ack));
-  if(blocked) {
-    await until(async()=>(await getMission("arm-physics")).status==="failed","blocked destination rejection");
-    const mission=await getMission("arm-physics"),state=await readState();
-    assert.equal(mission.failureReason,"delivery_path_blocked");
+  let missionId = "arm-physics";
+  const taskId = "warehouse-demo";
+  const cargoId = "demo-cargo";
+  let slotId;
+  if (warehouseDelivery) {
+    let store = await warehouse();
+    store = await warehouse("/stations", {expectedRevision:store.warehouse.revision,
+      stations:store.warehouse.stations.map((station) => station.id === "receiving"
+        ? {...station,x:warehouseRejection === "cargo_outside_receiving" ? .8 : 1.45,y:-.18}
+        : warehouseShelf ? {...station,x:shipping.x,y:shipping.y} : station)});
+    store = await warehouse("/racks", {expectedRevision:store.warehouse.revision, rack:{
+      id:"floor",code:"A",name:"Floor",x:destination.x,y:destination.y,yaw:0,
+      bays:1,placesPerBay:1,bayWidth:warehouseShelf ? .14 : .25,depth:warehouseShelf ? .14 : .25,
+      levels:[{supportZ:warehouseShelf ? .06 : 0,clearHeight:.25,maxLoadKg:1,
+        ...(warehouseShelf ? {supportDef:"WAREHOUSE_SHELF"} : {})}],
+    }});
+    slotId = store.slots[0].id;
+    store = await warehouse("/cargo", {expectedRevision:store.warehouse.revision, cargo:{
+      id:cargoId,label:"Vision box",width:.03,depth:.03,height:.08,massKg:.04,
+      objectDef:warehouseRejection === "vision_wrong_cargo" ? "OTHER_BOX" : visionDef,
+    }});
+    store = await warehouse("/tasks", {expectedRevision:store.warehouse.revision,
+      id:taskId,cargoId,destinationId:slotId});
+    store = await warehouse("/tasks/warehouse-demo/start", {expectedRevision:store.warehouse.revision});
+    missionId = store.warehouse.tasks[0].missionId;
+    assert.ok(missionId);
+    assert.equal(store.slots[0].reservedBy,taskId);
+    assert.equal(store.warehouse.cargo[0].locationId,"receiving");
+    if (warehouseRejection) {
+      await until(async () => (await warehouse()).warehouse.tasks[0].status === "attention", warehouseRejection);
+      const rejected = await warehouse();
+      const state = await readState();
+      assert.equal(rejected.warehouse.tasks[0].failureReason,warehouseRejection);
+      assert.equal(rejected.warehouse.cargo[0].locationId,"receiving");
+      assert.equal(rejected.slots[0].reservedBy,taskId);
+      assert.ok(Math.hypot(state.pose.x-before.pose.x,state.pose.y-before.pose.y)<.015);
+      assert.ok(state.manipulator.joints.every((angle,i)=>Math.abs(angle-before.manipulator.joints[i])<.01));
+      console.log("Warehouse retained its reservation without motion:",warehouseRejection);
+      break runScenario;
+    }
+  } else {
+    const source = vision ? {source:"vision"} : {objectDef:"PICK_BOX"};
+    const ack = await send({requestId:missionId,type:"pick_place",...source,destination});
+    assert.equal(ack.ok,true,JSON.stringify(ack));
+  }
+  if(visionReject) {
+    const expectedError=visionAmbiguous ? "vision_ambiguous" : "vision_no_cargo";
+    await until(async()=>{
+      const mission=await getMission(missionId);
+      assert.ok(!["running","completed","holding_for_recovery"].includes(mission.status), JSON.stringify(mission));
+      return mission.status==="failed";
+    },expectedError);
+    const mission=await getMission(missionId);
+    const state=await readState();
+    assert.equal(mission.failureReason,expectedError);
+    assert.ok(Math.hypot(state.pose.x-before.pose.x,state.pose.y-before.pose.y)<.015);
+    assert.ok(state.manipulator.joints.every((angle,i)=>Math.abs(angle-before.manipulator.joints[i])<.01));
+    console.log(`Vision pickup reported ${expectedError} without moving the base or arm.`);
+    break runScenario;
+  }
+  if(blocked || unsupportedHeight) {
+    await until(async()=>{
+      const mission=await getMission(missionId);
+      assert.ok(!["running","completed","holding_for_recovery"].includes(mission.status), JSON.stringify(mission));
+      return mission.status==="failed";
+    },"unsafe destination rejection");
+    const mission=await getMission(missionId),state=await readState();
+    assert.equal(mission.failureReason,unsupportedHeight ? "unsupported_destination" : "delivery_path_blocked");
     assert.ok(Math.hypot(state.pose.x-before.pose.x,state.pose.y-before.pose.y)<0.01);
     assert.ok(Math.abs(state.manipulator.objectPosition.z-0.04)<0.005,"Picked up cargo despite blocked destination");
     await mkdir(path.join(root,"output/manipulator-smoke"),{recursive:true});
     await writeFile(path.join(root,"output/manipulator-smoke/mobile-delivery-blocked.json"),JSON.stringify({mission,state},null,2));
-    console.log("Blocked delivery rejected before driving or pickup.");
+    console.log(`Unsafe destination rejected before pickup: ${mission.failureReason}.`);
     break runScenario;
   }
   const observations=[];
@@ -145,9 +312,9 @@ try {
     }
     assert.ok(!injectedRoute || state.navigation.missionId !== "foreign-route", "A route update preempted an active manipulator mission");
     assert.ok(!injectedRuntime || !["foreign-survey","foreign-arm"].includes(state.navigation.missionId), "A runtime command preempted an active manipulator mission");
-    if(state.manipulator?.missionId==="arm-physics" && state.manipulator.stage!==lastStage){ lastStage=state.manipulator.stage; observations.push(state); console.log(lastStage,JSON.stringify(state.manipulator)); }
-    const m=await getMission("arm-physics");
-    if(["failed","holding_for_recovery"].includes(m.status))throw new Error(JSON.stringify(state));
+    if(state.manipulator?.missionId===missionId && state.manipulator.stage!==lastStage){ lastStage=state.manipulator.stage; observations.push(state); console.log(lastStage,JSON.stringify(state.manipulator)); }
+    const m=await getMission(missionId);
+    if(["failed","holding_for_recovery"].includes(m.status))throw new Error(JSON.stringify({mission:m,state}));
     return m.status==="completed";
   },"physical pick-place",mobile ? 180000 : 90000);
   const final=await readState();
@@ -189,7 +356,8 @@ try {
   if(mobile) {
     if(!nearObject)assert.ok(observations.some(s=>s.manipulator.stage==="driving_to_object"),"Base never fetched the distant object");
     if(!nearObject && !afterDemo) {
-      const pickup=observations.find(s=>s.manipulator.stage==="opening");
+      // A fast headless run may complete opening between two telemetry samples.
+      const pickup=observations.find(s=>["opening","approaching","descending"].includes(s.manipulator.stage));
       assert.ok(pickup,"Pickup did not start");
       const dx=pickup.manipulator.objectPosition.x-pickup.pose.x,dy=pickup.manipulator.objectPosition.y-pickup.pose.y;
       const c=Math.cos(pickup.pose.yaw),s=Math.sin(pickup.pose.yaw);
@@ -198,6 +366,51 @@ try {
     assert.ok(observations.some(s=>s.manipulator.stage==="carrying"),"Base never carried the load");
     assert.ok(Math.hypot(final.pose.x,final.pose.y)>0.5,"Base never moved to the destination");
   } else assert.ok(Math.hypot(final.pose.x,final.pose.y)<0.015,"Base moved");
+  if(vision) {
+    assert.equal(final.manipulator.objectDef,visionDef);
+    if (warehouseDelivery) {
+      await until(async () => {
+        const {warehouse:inventory,slots} = await warehouse();
+        if (inventory.tasks[0].status === "attention") throw new Error(JSON.stringify(inventory.tasks[0]));
+        if (inventory.tasks[0].status !== "completed") return false;
+        assert.equal(inventory.cargo[0].locationId,slotId);
+        assert.equal(slots[0].occupiedBy,cargoId);
+        assert.equal(slots[0].reservedBy,null);
+        return true;
+      }, "warehouse inventory confirmed delivery", 15000);
+      console.log("Warehouse confirmed the physical delivery and recorded the cargo in its slot.");
+      if (warehouseShelf) {
+        console.log("Shelf dock",JSON.stringify(final.pose));
+        const stored = await warehouse();
+        const outbound = await warehouse("/tasks",{
+          expectedRevision:stored.warehouse.revision,id:"outbound",cargoId,destinationId:"shipping",
+        });
+        assert.equal(outbound.slots[0].occupiedBy,cargoId);
+        assert.equal(outbound.slots[0].reservedBy,"outbound");
+        await warehouse("/tasks/outbound/start",{expectedRevision:outbound.warehouse.revision});
+        await until(async () => {
+          const {warehouse:inventory,slots} = await warehouse();
+          const task = inventory.tasks.find((item) => item.id === "outbound");
+          if (task.status === "attention") {
+            const {pose,manipulator} = await readState();
+            throw new Error(JSON.stringify({task,pose,manipulator}));
+          }
+          if (task.status !== "completed") return false;
+          assert.equal(inventory.cargo[0].locationId,"shipping");
+          assert.equal(slots[0].occupiedBy,undefined);
+          assert.equal(slots[0].reservedBy,null);
+          const {objectPosition} = (await readState()).manipulator;
+          assert.ok(Math.hypot(objectPosition.x-shipping.x,objectPosition.y-shipping.y)<.035);
+          assert.ok(Math.abs(objectPosition.z-shipping.z)<.006);
+          return true;
+        },"retrieval from shelf and floor placement at shipping",180000);
+        console.log("Webots retrieved the same box from the shelf and verified delivery to shipping.");
+      }
+
+    }
+    console.log("Vision selected the box, carried it on the platform and delivered it.");
+    break runScenario;
+  }
   if(process.argv.includes("--route-after-delivery")) {
     const route=Array.from({length:100},(_value,index)=>{
       const angle=Math.PI+index*2*Math.PI/99;
@@ -240,9 +453,9 @@ try {
   assert.equal(badAck.ok,true);
   await until(async()=>(await getMission("arm-unreachable")).status==="failed","unreachable target rejection");
   const failedMission = await getMission("arm-unreachable");
-  assert.equal(failedMission.failureReason, "target_unreachable");
+  assert.equal(failedMission.failureReason, "unsupported_destination");
   const failed=await readState();
-  assert.equal(failed.manipulator.error,"target_unreachable");
+  assert.equal(failed.manipulator.error,"unsupported_destination");
   const missingAck=await send({requestId:"arm-missing",type:"pick_place",objectDef:"MISSING_BOX",destination:{x:0.4,y:0.1,z:0.04}});
   assert.equal(missingAck.ok,true);
   await until(async()=>(await getMission("arm-missing")).status==="failed","missing object rejection");
@@ -311,8 +524,12 @@ try {
   throw error;
 } finally {
   socket?.terminate();
+  if (webotsImage) {
+    const cleanup = spawn("docker", ["rm", "-f", containerName], { windowsHide: true, stdio: "ignore" });
+    await once(cleanup, "exit").catch(() => {});
+  }
   for(const child of children.reverse()){
-    if(child.exitCode!==null || child.signalCode)continue;
+    if(!child.pid || child.exitCode!==null || child.signalCode)continue;
     if(process.platform==="win32") {const killer=spawn("taskkill",["/PID",String(child.pid),"/T","/F"],{windowsHide:true,stdio:"ignore"});await once(killer,"exit");}
     else child.kill("SIGTERM");
   }

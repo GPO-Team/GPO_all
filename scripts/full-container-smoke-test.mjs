@@ -47,7 +47,9 @@ async function send(socket,id,route,transfer = false) {
     function receive(data){const ack=JSON.parse(data);if(ack.requestId===id){clearTimeout(timer);socket.off("message",receive);resolve(ack);}}
     socket.on("message",receive);
   });
-  socket.send(JSON.stringify(command));const ack=await reply;assert.equal(ack.ok,true,JSON.stringify(ack));
+  socket.send(JSON.stringify(command));
+  const ack=await reply;
+  assert.equal(ack.ok,true,JSON.stringify(ack));
 }
 try {
   await compose("up","-d","--no-build","--wait","--wait-timeout","180");
@@ -62,7 +64,7 @@ try {
       visitOrder:["ordered","ordered","free","free"],anchor:{x:0,y:0},task:"hamiltonian_chain"}),
   })).json();
   assert.equal(mixed.ok,true,JSON.stringify(mixed));
-  assert.deepEqual(mixed.order,[3,0,2,1],"current mixed-visit policy must run inside the planning image");
+  assert.deepEqual(mixed.order,[0,1,2,3],"numbered visits must precede free visits inside the planning image");
   const telemetrySocket=await connect("ws://127.0.0.1:9001");
   telemetrySocket.on("message",data=>{const event=JSON.parse(data);if(event.type==="telemetry.event")telemetry=event.payload;});
   await until(()=>telemetry?.perception?.camera?.frameDataUrl,"robot camera");
@@ -72,12 +74,12 @@ try {
   let stored=await warehouse();
   assert.equal(stored.warehouse.cargo.length,0,"test volume must start empty");
   stored=await warehouse("/racks",{expectedRevision:stored.warehouse.revision,rack:{
-    id:"container-rack",code:"DOCKER",name:"Контейнерный стеллаж",x:-4,y:-4,yaw:0,
+    id:"container-rack",code:"DOCKER",name:"РљРѕРЅС‚РµР№РЅРµСЂРЅС‹Р№ СЃС‚РµР»Р»Р°Р¶",x:-4,y:-4,yaw:0,
     bays:1,placesPerBay:1,bayWidth:0.5,depth:0.5,
     levels:[{supportZ:0.1,clearHeight:0.5,maxLoadKg:2}],
   }});
   stored=await warehouse("/cargo",{expectedRevision:stored.warehouse.revision,cargo:{
-    id:"container-box",label:"Коробка для проверки учёта",width:0.1,depth:0.1,height:0.1,massKg:1,
+    id:"container-box",label:"РљРѕСЂРѕР±РєР° РґР»СЏ РїСЂРѕРІРµСЂРєРё СѓС‡С‘С‚Р°",width:0.1,depth:0.1,height:0.1,massKg:1,
   }});
   stored=await warehouse("/tasks",{expectedRevision:stored.warehouse.revision,
     id:"container-putaway",cargoId:"container-box",destinationId:"container-rack:1:1:1"});
@@ -123,11 +125,14 @@ try {
   assert.equal(stored.warehouse.tasks[0].status,"cancelled");
   console.log("PASS: warehouse frontend, private SQLite, reservation and cancellation after route crash");
   const nextSocket=await connect("ws://127.0.0.1:9002/ui");
+  streaming.send("real-time:-1");
+  await until(()=>simulationMode==="real-time","realtime mode before stopping the simulator",10000);
+  await send(nextSocket,"interrupted-route",[{x:0,y:1},{x:0,y:8}]);
+  await until(async()=>(await mission("interrupted-route")).status==="running","route before simulator restart");
   await compose("stop","simulator");
-  await send(nextSocket,"restart-cancel",[{x:0,y:0},{x:0,y:2}]);
-  await fetch("http://127.0.0.1:9002/api/missions/restart-cancel/cancel",{method:"POST"});
   await compose("up","-d","--wait","simulator");
-  await until(async()=>(await mission("restart-cancel")).status==="cancelled","cancel after simulator restart");
+  await until(async()=>(await mission("interrupted-route")).status==="failed","interrupted route after simulator restart");
+  assert.equal((await mission("interrupted-route")).errorCode,"controller_restarted");
   await send(nextSocket,"after-restart",[{x:0,y:0},{x:0,y:1}]);
   await until(async()=>(await mission("after-restart")).status==="completed","route after simulator restart");
   const initialHeight = telemetry.objectTransfer.objectPose.z;
@@ -192,7 +197,7 @@ try {
   }
   assert.ok(forwardSamples>0,"must observe forward motion while carrying PICK_BOX");
   console.log(JSON.stringify({smallDelivered:small,forwardSamples}));
-  console.log("PASS: six containers, mixed visit order, camera, W3D through nginx, local WASM, speed controls, physical large and small cargo delivery, forward cargo motion, physical missions, route crash and simulator cancellation recovery");
+  console.log("PASS: six containers, mixed visit order, camera, W3D through nginx, local WASM, speed controls, physical large and small cargo delivery, forward cargo motion, physical missions, route crash and failed mission reconciliation after simulator restart");
 } catch(error) {
   await mkdir(new URL("../output/",import.meta.url),{recursive:true});
   await writeFile(new URL("../output/container-smoke-failure.json",import.meta.url),JSON.stringify({error:error.message,telemetry},null,2));

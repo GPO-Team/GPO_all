@@ -63,7 +63,18 @@ const createRuntimeCommandText = (payload) => {
     const { validateMissionId } = require("../protocol/mission-contract.cjs");
     const command = validatePickPlace(payload);
     const target = command.destination;
-    return `id ${commandId}\ntype pick_place\nmission_id ${validateMissionId(payload.missionId)}\nobject_def ${command.objectDef}\ntarget_x ${target.x}\ntarget_y ${target.y}\ntarget_z ${target.z}\n`;
+    const source = command.source ? `object_source ${command.source}` : `object_def ${command.objectDef}`;
+    const pickup = command.pickup
+      ? `pickup_def ${command.pickup.objectDef}\npickup_x ${command.pickup.x}\npickup_y ${command.pickup.y}\n`
+      : "";
+    const shelf = command.source === "warehouse" || target.supportDef;
+    const support = [
+      ...(command.source === "warehouse" ? [`pickup_z ${command.pickup.z}\n`] : []),
+      ...(command.pickup?.supportDef ? [`pickup_support ${command.pickup.supportDef}\n`] : []),
+      ...(target.supportDef ? [`target_support ${target.supportDef}\n`] : []),
+    ].join("");
+    const type = shelf ? "warehouse_shelf_transfer" : command.pickup ? "warehouse_pick_place" : "pick_place";
+    return `id ${commandId}\ntype ${type}\nmission_id ${validateMissionId(payload.missionId)}\n${source}\n${pickup}${support}target_x ${target.x}\ntarget_y ${target.y}\ntarget_z ${target.z}\n`;
   }
   if (["transfer_object", "recover_transfer", "resume_transfer"].includes(payload?.type)) {
     const {validateMissionId}=require("../protocol/mission-contract.cjs");
@@ -73,7 +84,14 @@ const createRuntimeCommandText = (payload) => {
     const x=normalizeNumber(payload.destination?.x,0);
     const y=normalizeNumber(payload.destination?.y,0);
     const revision=String(payload.sceneRevision || "").trim();
-    return `id ${commandId}\ntype ${payload.type}\nmission_id ${missionId}\nobject_id ${objectId}\ndestination_x ${x}\ndestination_y ${y}\nscene_revision ${revision}\n`;
+    let recovery = "";
+    if (payload.type === "resume_transfer" && payload.recoveryEpoch !== undefined) {
+      if (!Number.isInteger(payload.recoveryEpoch) || payload.recoveryEpoch < 0 || payload.recoveryEpoch > 0xffffffff) {
+        throw new Error("Invalid recovery epoch.");
+      }
+      recovery = `resume_request_id ${validateMissionId(payload.requestKey)}\nresume_recovery_epoch ${payload.recoveryEpoch}\n`;
+    }
+    return `id ${commandId}\ntype ${payload.type}\nmission_id ${missionId}\nobject_id ${objectId}\ndestination_x ${x}\ndestination_y ${y}\nscene_revision ${revision}\n${recovery}`;
   }
   if (payload?.type === "cancel_mission") {
     const {validateMissionId}=require("../protocol/mission-contract.cjs");

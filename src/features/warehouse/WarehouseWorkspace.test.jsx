@@ -403,3 +403,113 @@ it("requires reloading station drafts when another client has changed the statio
   await click("Загрузить актуальные станции");
   expect(host.querySelector('[aria-label="Приёмка: X, м"]').value).toBe("-9");
 });
+
+it("starts a floor delivery and updates the reserved slot when the mission completes", async () => {
+  vi.useFakeTimers();
+  try {
+    const state = snapshot();
+    const rack = {
+      id:"floor",code:"A",name:"Floor",x:2,y:1,yaw:0,bays:1,placesPerBay:1,bayWidth:.25,
+      depth:.25,levels:[{supportZ:0,clearHeight:.25,maxLoadKg:1}],
+    };
+    const [slot] = buildSlots(rack);
+    state.slots.push({...slot,reservedBy:"job"});
+    state.warehouse.racks.push(rack);
+    state.warehouse.cargo.push({id:"box",objectDef:"PICK_BOX",width:.03,depth:.03,height:.08,locationId:"receiving"});
+    const task = {id:"job",cargoId:"box",destinationId:slot.id,status:"prepared"};
+    state.warehouse.tasks.push(task);
+    const api = vi.fn(async (path) => {
+      if (path === "/tasks/job/start") {
+        Object.assign(task,{status:"executing",missionId:"warehouse-1",missionStatus:"running"});
+        state.warehouse.revision += 1;
+      }
+      return structuredClone(state);
+    });
+    await act(async () => root.render(<WarehouseWorkspace api={api} />));
+    await click("Запустить робота");
+    expect(api).toHaveBeenCalledWith("/tasks/job/start",{body:{expectedRevision:0}});
+    expect(host.textContent).toContain("Робот выполняет задачу");
+    task.status = "completed";
+    state.warehouse.cargo[0].locationId = slot.id;
+    Object.assign(state.slots[0],{reservedBy:null,occupiedBy:"box"});
+    state.warehouse.revision += 1;
+    await act(async () => vi.advanceTimersByTimeAsync(1500));
+    expect(host.textContent).toContain("Доставленные грузы (1)");
+    expect(host.textContent).toContain("Занята");
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("loads archived tasks only when opened and follows the pagination cursor", async () => {
+  const state = {...snapshot(),archiveCounts:{cancelled:2,completed:0}};
+  const api = vi.fn(async (path) => {
+    if (path === "/history?status=cancelled")
+      return {ok:true,tasks:[{id:"latest",cargoId:"box-2"}],nextCursor:1};
+    if (path === "/history?status=cancelled&before=1")
+      return {ok:true,tasks:[{id:"oldest",cargoId:"box-1"}],nextCursor:null};
+    return state;
+  });
+  await act(async () => root.render(<WarehouseWorkspace api={api} />));
+  expect(api.mock.calls.map(([path]) => path)).toEqual([""]);
+  expect(host.textContent).toContain("Отменённые задачи (2)");
+  await act(async () => {
+    const history = host.querySelector("details");
+    history.open = true;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  });
+  expect(host.textContent).toContain("latest");
+  expect(host.textContent).not.toContain("oldest");
+  await click("Показать ещё");
+  expect(api).toHaveBeenLastCalledWith("/history?status=cancelled&before=1");
+  expect(host.textContent).toContain("latest");
+  expect(host.textContent).toContain("oldest");
+  expect(host.textContent).not.toContain("Показать ещё");
+});
+
+it("allows operator reconciliation of an occupied slot for the displayed Webots session", async () => {
+  const view = {...snapshot(),verificationSession:"boot-2"};
+  view.slots.push({id:"rack:1:1:1",address:"A-01-01-01",occupiedBy:"box",needsVerification:true});
+  const api = vi.fn(async (_path, options) => {
+    if (options) {
+      view.slots = [];
+      view.warehouse.revision += 1;
+    }
+    return structuredClone(view);
+  });
+  await act(async () => root.render(<WarehouseWorkspace api={api} />));
+  expect(host.textContent).toContain("Сверьте грузы");
+  await click("Груз на приёмке");
+  expect(api).toHaveBeenLastCalledWith("/cargo/box/verify", {
+    body:{location:"receiving",controllerSession:"boot-2",expectedRevision:0},
+  });
+  expect(host.textContent).not.toContain("Сверьте грузы");
+});
+
+it("prepares retrieval from a selected occupied shelf slot", async () => {
+  const view = snapshot();
+  const rack = {
+    id:"shelf",code:"A",name:"Shelf",x:2,y:1,yaw:0,bays:1,placesPerBay:1,bayWidth:.14,
+    depth:.14,levels:[{supportZ:.06,supportDef:"WAREHOUSE_SHELF",clearHeight:.25,maxLoadKg:1}],
+  };
+  const [slot] = buildSlots(rack);
+  view.warehouse.racks.push(rack);
+  view.warehouse.cargo.push({id:"box",objectDef:"PICK_BOX",width:.03,depth:.03,height:.08,locationId:slot.id});
+  view.slots.push({...slot,occupiedBy:"box"});
+  const api = vi.fn(async (_path, options) => {
+    if (options) {
+      view.warehouse.tasks.push({...options.body,sourceId:slot.id,status:"prepared"});
+      view.slots[0].reservedBy = options.body.id;
+      view.warehouse.revision += 1;
+    }
+    return structuredClone(view);
+  });
+  await act(async () => root.render(<WarehouseWorkspace api={api} />));
+  await act(async () => host.querySelector('[aria-label="Ячейка A-01-01-01"]').click());
+  await click("Подготовить выдачу");
+  expect(api).toHaveBeenLastCalledWith("/tasks",{body:{
+    id:expect.any(String),cargoId:"box",destinationId:"shipping",expectedRevision:0,
+  }});
+  expect(host.textContent).toContain("A-01-01-01 → Отгрузка");
+  expect(host.textContent).toContain("Запустить робота");
+});

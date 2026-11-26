@@ -21,12 +21,13 @@ export const parseLoginResponse = (payload) => {
 const postAuth = async (url, body, { fetchImpl = globalThis.fetch, timeoutMs = LOGIN_TIMEOUT_MS } = {}) => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  let response;
+  let response, payload;
   try {
     response = await fetchImpl(url, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body), signal: controller.signal });
+    payload = await readJson(response);
+    controller.signal.throwIfAborted();
   } catch (error) { throw new AuthError(AUTH_ERROR_CODES.unavailable, error?.message); }
   finally { clearTimeout(timer); }
-  const payload = await readJson(response);
   if (response.ok) {
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new AuthError(AUTH_ERROR_CODES.badResponse);
     return payload;

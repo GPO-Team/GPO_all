@@ -48,3 +48,22 @@ describe("authApi.login", () => {
     expect(options.fetchImpl).not.toHaveBeenCalled();
   });
 });
+
+it("keeps the login deadline active while the response body is pending", async () => {
+  vi.useFakeTimers();
+  try {
+    let signal;
+    const fetchImpl = vi.fn(async (_url, init) => {
+      signal = init.signal;
+      return { ok: true, status: 200, json: () => new Promise((_resolve, reject) => {
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      }) };
+    });
+    const result = login({ login: "a", password: "b" }, {
+      url: "/login", mock: false, fetchImpl, timeoutMs: 5,
+    }).catch(error => error);
+    await vi.advanceTimersByTimeAsync(5);
+    expect(signal.aborted).toBe(true);
+    expect(await result).toMatchObject({ name: "AuthError", code: AUTH_ERROR_CODES.unavailable });
+  } finally { vi.useRealTimers(); }
+});
